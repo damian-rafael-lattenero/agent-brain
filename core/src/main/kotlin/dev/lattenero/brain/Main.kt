@@ -55,6 +55,7 @@ const val USAGE = """usage: agent-brain <command> [args]
   migrate [--status] apply pending migrations, or only report them
   ingest [--once]    tail the bus into Postgres without HTTP; --once drains and exits
   bus status         the tailer/ingest counters and the database count
+  bridge [--once]    tail the bus file into the Kafka topic (bus_transport=kafka deployments)
   index [GLOB...]    index the corpus (globs from args, else ~/.zcode/agent-brain/corpus.txt)
   query TEXT [--k N] hybrid retrieval with citations (no generation)
   memory search TEXT [--k N] | recent [--k N] [--kind K] | save KIND TEXT | quarantine | status | run [--once]
@@ -76,6 +77,7 @@ fun run(args: Array<String>): Int {
             "migrate" -> migrate(status = "--status" in rest)
             "ingest" -> ingest(once = "--once" in rest)
             "bus" -> if (rest.firstOrNull() == "status") busStatus() else usage()
+            "bridge" -> bridge(once = "--once" in rest)
             "query" -> query(rest)
             "index" -> index(rest)
             "memory" -> memory(rest)
@@ -105,8 +107,10 @@ private fun serve(): Int {
         val applied = runBlocking { brain.migrator.apply() }
         if (applied.isNotEmpty()) log.info("migrations applied: ${applied.joinToString()}")
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        if (config.busTransport == "file") {
-            brain.bus.start(scope)
+        brain.bus.start(scope)
+        if (brain.bus.isKafka) {
+            log.info("bus consumer on ${config.kafkaBootstrap} topic ${config.kafkaTopic} group ${config.kafkaGroup}")
+        } else {
             log.info("bus tailer on ${config.busFile} every ${config.busPollMs} ms")
         }
         if (config.memoryWorker) {
@@ -206,6 +210,20 @@ private fun query(args: List<String>): Int {
     Brain(config).use { brain ->
         val response = runBlocking { brain.rag.query(QueryRequest(text, k)) }
         printJson(responseJson.encodeToJsonElement(QueryResponse.serializer(), response))
+    }
+    return EXIT_OK
+}
+
+private fun bridge(once: Boolean): Int {
+    val config = Config.load()
+    dev.lattenero.brain.bus.KafkaTopics.ensure(config)
+    dev.lattenero.brain.bus.KafkaBridge(config).use { bridge ->
+        if (once) {
+            val produced = runBlocking { bridge.drain() }
+            printJson(buildJsonObject { put("produced", produced); put("offset", bridge.tailer.offset); put("topic", config.kafkaTopic) })
+            return EXIT_OK
+        }
+        runBlocking { bridge.run(kotlin.time.Duration.parse("${config.busPollMs}ms")) }
     }
     return EXIT_OK
 }

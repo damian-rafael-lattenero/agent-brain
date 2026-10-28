@@ -59,6 +59,8 @@ data class Config(
     val embedBreakerResetS: Int,
     val kafkaBootstrap: String,
     val kafkaTopic: String,
+    val kafkaGroup: String,
+    val kafkaPartitions: Int,
 ) {
     val stateDir: Path get() = base.resolve("state")
     val logDir: Path get() = base.resolve("logs")
@@ -92,6 +94,11 @@ data class Config(
         }
         put("memory_worker", memoryWorker)
         put("bus_transport", busTransport)
+        putJsonObject("kafka") {
+            put("bootstrap", kafkaBootstrap)
+            put("topic", kafkaTopic)
+            put("group", kafkaGroup)
+        }
         put("bus_poll_ms", busPollMs)
         put("bus_file", busFile.toString())
         put("corpus_file", corpusFile.toString())
@@ -130,6 +137,8 @@ data class Config(
     "embed_breaker_reset_s" to 30,
             "kafka_bootstrap" to "127.0.0.1:19092",
             "kafka_topic" to "agent-brain.bus",
+    "kafka_group" to "agent-brain",
+    "kafka_partitions" to 3,
         )
 
         fun load(
@@ -181,6 +190,8 @@ data class Config(
                 embedBreakerResetS = int("embed_breaker_reset_s"),
                 kafkaBootstrap = str("kafka_bootstrap"),
                 kafkaTopic = str("kafka_topic"),
+                kafkaGroup = str("kafka_group"),
+                kafkaPartitions = int("kafka_partitions"),
             )
         }
 

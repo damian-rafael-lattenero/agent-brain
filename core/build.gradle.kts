@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.bundles.ktor.server)
     implementation(libs.bundles.ktor.client)
     implementation(libs.bundles.db)
+    implementation(libs.kafka.clients)
     implementation(libs.bundles.logging)
     implementation(libs.bundles.kap)
     implementation(libs.ktor.server.status.pages)
