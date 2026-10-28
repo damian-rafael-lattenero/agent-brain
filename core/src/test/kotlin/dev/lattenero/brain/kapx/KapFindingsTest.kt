@@ -2,17 +2,22 @@ package dev.lattenero.brain.kapx
 
 import kap.Kap
 import kap.evalGraph
+import kap.retry
 import kap.settled
+import kap.timeoutAsFailure
 import kap.traverse
 import kap.traverseSettled
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
- * Behaviour of KAP 4.0.0 this codebase works around. If a test here starts
- * failing after a KAP upgrade, the library fixed it: drop `isolated()`.
+ * The two KAP 4.0.0 findings this project reported (ADR-007, KAP's
+ * SPEC-4.1.0 F-01 and F-02), pinned as FIXED against 4.1.0. If a test here
+ * fails after a KAP upgrade, the library regressed.
  */
 class KapFindingsTest {
     private fun nested(): Kap<List<Int>> = listOf(1, 2).traverse { n ->
@@ -20,29 +25,23 @@ class KapFindingsTest {
     }
 
     @Test
-    fun `finding - a failing child of a nested traverse escapes traverseSettled`() = runTest {
-        assertThatThrownBy { kotlinx.coroutines.runBlocking { listOf("doc").traverseSettled { nested() }.evalGraph() } }
-            .isInstanceOf(IllegalStateException::class.java)
-            .hasMessage("child 2 failed")
-    }
-
-    @Test
-    fun `finding - the same failure escapes settled`() = runTest {
-        assertThatThrownBy { kotlinx.coroutines.runBlocking { nested().settled().evalGraph() } }
-            .isInstanceOf(IllegalStateException::class.java)
-    }
-
-    @Test
-    fun `workaround - isolated gives the failure a boundary so settled semantics hold`() = runTest {
-        val results = listOf("doc").traverseSettled { nested().isolated() }.evalGraph()
-        assertThat(results).hasSize(1)
+    fun `fixed in 4-1-0 - a failing child of a nested traverse is contained by traverseSettled`() = runTest {
+        val results = listOf("doc").traverseSettled { nested() }.evalGraph()
         assertThat(results.single().isFailure).isTrue
         assertThat(results.single().exceptionOrNull()).hasMessage("child 2 failed")
+    }
 
-        val settled = nested().isolated().settled().evalGraph()
-        assertThat(settled.isFailure).isTrue
+    @Test
+    fun `fixed in 4-1-0 - settled converts a nested parallel failure`() = runTest {
+        assertThat(nested().settled().evalGraph().isFailure).isTrue
+    }
 
-        val ok = listOf(1, 2).traverse { n -> Kap { n * 10 } }.isolated().evalGraph()
-        assertThat(ok).containsExactly(10, 20)
+    @Test
+    fun `fixed in 4-1-0 - timeoutAsFailure makes a timeout retryable`() = runTest {
+        var calls = 0
+        val slowOnce = Kap { if (calls++ == 0) delay(10.minutes); "ok" }
+        val value = slowOnce.timeoutAsFailure(1.seconds).retry(maxAttempts = 2).evalGraph()
+        assertThat(value).isEqualTo("ok")
+        assertThat(calls).isEqualTo(2)
     }
 }

@@ -101,7 +101,7 @@ class EmbedPipelineTest {
 
         val alwaysHanging = ScriptedProvider(hangFirst = 99)
         assertThatThrownBy { kotlinx.coroutines.runBlocking { pipeline(alwaysHanging, timeout = 1.seconds, attempts = 2).embedAll(listOf("x")).evalGraph() } }
-            .isInstanceOf(ProviderUnavailable::class.java)
+            .isInstanceOf(kap.KapTimeoutException::class.java)
             .hasMessageContaining("timed out")
     }
 

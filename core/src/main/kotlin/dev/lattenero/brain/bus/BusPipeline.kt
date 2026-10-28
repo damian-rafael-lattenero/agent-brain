@@ -2,6 +2,8 @@ package dev.lattenero.brain.bus
 
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
+import kap.KapTypeSafe
+import kap.evalGraph
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -37,8 +39,16 @@ class BusPipeline(private val config: Config, db: Database) {
 
     private fun fileBytes(): Long = if (Files.exists(config.busFile)) Files.size(config.busFile) else 0
 
+    /** File size and database count are independent probes; the typed builder runs them together. */
+    @KapTypeSafe
+    data class Probe(val fileBytes: Long, val dbEvents: Long)
+
     suspend fun status(): BusStatus {
-        val bytes = fileBytes()
+        val probe = kap(::Probe)
+            .with { fileBytes from fileBytes() }
+            .with { dbEvents from ingest.count() }
+            .evalGraph()
+        val bytes = probe.fileBytes
         return BusStatus(
             transport = config.busTransport,
             file = config.busFile.toString(),
@@ -53,7 +63,7 @@ class BusPipeline(private val config: Config, db: Database) {
             seen = ingest.stats.seen.get(),
             inserted = ingest.stats.inserted.get(),
             duplicates = ingest.stats.duplicates.get(),
-            dbEvents = ingest.count(),
+            dbEvents = probe.dbEvents,
             lastTs = ingest.stats.lastTs,
             lastKind = ingest.stats.lastKind,
         )

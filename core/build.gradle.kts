@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
     application
 }
 
@@ -22,6 +23,8 @@ dependencies {
     implementation(libs.bundles.db)
     implementation(libs.bundles.logging)
     implementation(libs.bundles.kap)
+    implementation(libs.ktor.server.status.pages)
+    ksp(libs.kap.ksp)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -32,6 +35,11 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.kap.kotest)
+}
+
+// Dry-run of the KAP builders: ./gradlew :core:kspKotlin -PkapDump
+ksp {
+    if (project.hasProperty("kapDump")) arg("kap.dump", "true")
 }
 
 application {
@@ -81,13 +89,15 @@ tasks.register<Test>("bbLocal") {
 
 // Tier 5: drives and observes a real Telegram account over MTProto.
 tasks.register<Test>("e2eReal") {
-    description = "Black-box real tier: your Telegram account over MTProto"
+    description = "Black-box real tier: your Telegram account over MTProto (tools/e2e-real/driver.py)"
     group = "verification"
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform { includeTags("bb-real") }
     commonTestSetup()
-    dependsOn(tasks.installDist)
+    systemProperty("ab.repoRoot", rootDir.absolutePath)
+    listOf("AB_TG_API_ID", "AB_TG_API_HASH", "AB_TG_SESSION", "AB_TG_BOT", "AB_TG_TIMEOUT_S", "AB_E2E_PYTHON")
+        .forEach { name -> System.getenv(name)?.let { environment(name, it) } }
     environment("AB_REQUIRE_SERVICES", "1")
     outputs.upToDateWhen { false }
 }

@@ -48,12 +48,26 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # KAP 4.1.0 (with the fixes this project reported) is consumed from mavenLocal until the
+      # Central release is tagged: build it from the library repo. Drop this step afterwards.
+      - uses: actions/checkout@v4
+        with:
+          repository: damian-rafael-lattenero/kap
+          path: kap
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: "21"
+      - name: KAP 4.1.0 to mavenLocal (daemon on 21, toolchain 25 detected)
+        run: cd kap && ./gradlew publishToMavenLocal -PskipSigning -x test -x jvmTest
+
       - name: Ollama (the default embedding provider, exercised for real)
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           (ollama serve > /tmp/ollama.log 2>&1 &)
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/tags && break; sleep 1; done
           ollama pull nomic-embed-text
+          ollama pull qwen2.5:1.5b
 
       - name: "Gate: the tree compiles with warnings as errors"
         run: ./gradlew --no-daemon compileKotlin compileTestKotlin

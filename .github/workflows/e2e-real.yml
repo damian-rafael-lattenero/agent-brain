@@ -1,0 +1,41 @@
+name: e2e-real (tier 5, Telegram over MTProto)
+
+# Drives the author's real Telegram account against the bot running on the
+# author's Mac and reads the chat back. The brain is observed through the bot.
+# Secrets: AB_TG_API_ID, AB_TG_API_HASH (a dedicated Telegram app), AB_TG_SESSION
+# (tools/e2e-real/login.py, rotate like a password), AB_TG_BOT (@username).
+# Informational by design: the hard gate is tier 4 in ci.yml.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"   # 03:17 Buenos Aires
+  workflow_dispatch:
+
+jobs:
+  telegram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tools/e2e-real/requirements.txt
+      - name: Scenarios (selfcheck, p1 bus, p3 memory)
+        env:
+          AB_TG_API_ID: ${{ secrets.AB_TG_API_ID }}
+          AB_TG_API_HASH: ${{ secrets.AB_TG_API_HASH }}
+          AB_TG_SESSION: ${{ secrets.AB_TG_SESSION }}
+          AB_TG_BOT: ${{ secrets.AB_TG_BOT }}
+          AB_TG_TIMEOUT_S: "600"
+        run: |
+          set -o pipefail
+          python tools/e2e-real/driver.py selfcheck | tee selfcheck.json
+          python tools/e2e-real/driver.py p1 | tee p1.json
+          python tools/e2e-real/driver.py p3 | tee p3.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-real-reports
+          path: "*.json"
