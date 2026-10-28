@@ -87,6 +87,9 @@ jobs:
       - name: "Tier 4: black-box local (installed distribution, real services)"
         run: ./gradlew --no-daemon bbLocal
 
+      - name: "Eval gate: 20 recall questions, real model, gate 0.9"
+        run: ./gradlew --no-daemon :core:installDist && core/build/install/agent-brain/bin/agent-brain eval
+
       - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4

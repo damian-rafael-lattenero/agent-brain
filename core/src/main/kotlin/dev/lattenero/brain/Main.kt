@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import dev.lattenero.brain.bus.BusStatus
+import dev.lattenero.brain.eval.EvalReport
+import dev.lattenero.brain.eval.EvalRunner
 import dev.lattenero.brain.http.readCorpusFile
 import dev.lattenero.brain.memory.Memory
 import dev.lattenero.brain.memory.MemoryRequestException
@@ -62,6 +64,7 @@ const val USAGE = """usage: agent-brain <command> [args]
   health [--url U]   GET /ready of a running service; exit 1 when degraded
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
+  eval [--gate 0.9]  recall gate: fresh database, index the fixture corpus, 20 questions, eval_runs row + markdown artifact
 """
 
 fun main(args: Array<String>) {
@@ -81,6 +84,7 @@ fun run(args: Array<String>): Int {
             "query" -> query(rest)
             "index" -> index(rest)
             "memory" -> memory(rest)
+            "eval" -> eval(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
             "config" -> printJson(Config.load().snapshot()).let { EXIT_OK }
@@ -156,6 +160,22 @@ private fun index(args: List<String>): Int {
         printJson(responseJson.encodeToJsonElement(IndexReport.serializer(), report))
         return if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
     }
+}
+
+private fun eval(args: List<String>): Int {
+    val gate = args.optionValue("--gate")?.toDoubleOrNull() ?: 0.9
+    val config = Config.load()
+    val questions = EvalRunner.loadQuestions(java.nio.file.Files.createTempFile("eval-questions", ".json").also { tmp ->
+        java.nio.file.Files.copy(EvalRunner::class.java.classLoader.getResourceAsStream("eval/questions.json")!!, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    })
+    val runner = EvalRunner(config, questions, gate)
+    val report = runner.run()
+    val artifactDir = java.nio.file.Path.of("evals", "artifacts")
+    java.nio.file.Files.createDirectories(artifactDir)
+    java.nio.file.Files.writeString(artifactDir.resolve("latest.md"), EvalRunner.markdown(report))
+    java.nio.file.Files.writeString(artifactDir.resolve("eval-${report.startedAt.replace(":", "")}.md"), EvalRunner.markdown(report))
+    printJson(responseJson.encodeToJsonElement(EvalReport.serializer(), report))
+    return if (report.ok) EXIT_OK else EXIT_FAIL
 }
 
 private fun memory(args: List<String>): Int {
