@@ -69,6 +69,15 @@ jobs:
           ollama pull nomic-embed-text
           ollama pull qwen2.5:1.5b
 
+      - name: Redpanda (the Kafka transport, exercised for real)
+        run: |
+          docker run -d --name redpanda -p 127.0.0.1:19092:19092 redpandadata/redpanda:v26.2.6 \
+            redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M --node-id 0 --check=false \
+            --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092 \
+            --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://127.0.0.1:19092
+          for i in $(seq 1 40); do docker exec redpanda rpk cluster health 2>/dev/null | grep -q 'Healthy:.*true' && break; sleep 2; done
+          docker exec redpanda rpk cluster health
+
       - name: "Gate: the tree compiles with warnings as errors"
         run: ./gradlew --no-daemon compileKotlin compileTestKotlin
 

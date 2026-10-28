@@ -89,4 +89,6 @@ data class BusStatus(
     val dbEvents: Long,
     val lastTs: String?,
     val lastKind: String?,
+    val kafkaCommits: Long? = null,
+    val kafkaOffsets: Map<String, Long>? = null,
 )

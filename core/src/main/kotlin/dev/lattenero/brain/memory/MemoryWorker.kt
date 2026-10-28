@@ -145,7 +145,7 @@ class MemoryService(
         .with { byKind from store.countByKind() }
         .with { quarantined from store.countQuarantined() }
         .with { breaker from extractor.breaker.currentState.name }
-        .with { chatModel from extractor.model }
+        .with { chatModel from "" }
         .with { embedModel from provider.model }
         .evalGraph()
 

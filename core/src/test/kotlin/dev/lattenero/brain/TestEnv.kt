@@ -44,6 +44,8 @@ object TestEnv {
 
     fun needOllama() = gate(ollamaAvailable(base.ollamaBaseUrl), "Ollama at ${base.ollamaBaseUrl}")
 
+    fun needKafka() = gate(dev.lattenero.brain.bus.KafkaTopics.reachable(base.kafkaBootstrap), "Kafka/Redpanda at ${base.kafkaBootstrap}")
+
     /** GLM needs a paid key; its absence is the one documented skip even in CI. */
     fun needGlmKey() = assumeTrue(base.glmApiKey.isNotBlank(), "GLM_API_KEY not set, skipping the GLM integration test")
 

@@ -14,7 +14,7 @@ host (the bus publisher inside the bot, the MTProto test driver).
 | P1 | Event bus: stdlib publisher in the bot behind the `event_bus` knob (bot ADR-019), byte-offset tailer with truncation detection, idempotent batch ingest, `/bus/status`, replay golden test, black-box with the bot's real publisher | done (file transport; Kafka in P4) |
 | P2 | RAG: corpus by globs, heading-aware chunker, KAP-orchestrated indexer (bounded parallel embeds, timeout, retry, breaker), hybrid cosine + full-text with RRF and citations, recall gate with the real model (1.0@5), `POST /rag/query`, `index`/`query` CLI, `/brain` in the bot | done (promptfoo suites arrive with P6) |
 | P3 | Memory: worker over `turn.completed`, schema-constrained extraction with a small local model, quarantine with raw text, hybrid recall with half-life decay, `/memory/*` HTTP + CLI, `/memory` and the `memory_inject` knob in the bot (bot ADR-020) | done (tier 5 driver pending the author's one-time Telegram login) |
-| P4 | Kafka transport (Redpanda) as a bridge behind the same consumer contract, rebalance/duplicate tolerance test | planned |
+| P4 | Kafka transport: Redpanda in compose, `bridge --once` (file → topic, key = session id, idempotent producer), consumer feeding the SAME handler with commit-after-ingest, the contract test (same fixtures through file and through Kafka = identical database), redelivery + poison-record tolerance, black-box through a Kafka-consuming `serve` | done |
 | P5 | `brain-mcp` plugin (official MCP Kotlin SDK, stdio) installed in the harness: `rag_query`, `memory_search`, … | planned |
 | P6 | Evals platform: suites persisted in `eval_runs`, nightly workflow, model/cost/quality report | planned |
 | P7 | Panel (post-MVP) | planned |
@@ -53,7 +53,7 @@ explicitly; see [ADR-005](docs/adr/ADR-005-kotlin-core-python-glue.md).
 
 ```bash
 ./bootstrap.sh        # checks Corretto 25, docker (colima), ollama + nomic-embed-text; builds the CLI
-make up               # pgvector/pgvector:pg18 on 127.0.0.1:5433, then migrations
+make up               # pgvector/pgvector:pg18 + Redpanda (19092), then migrations
 make test             # tiers 1-3 (skips a tier with a reason when its service is down)
 make bb               # tier 4: black-box local, services required
 make serve            # http://127.0.0.1:8765/ready
@@ -65,7 +65,7 @@ The bus file is `~/.zcode/agent-brain/bus-events.jsonl` (bot side: set `"event_b
 in `~/.zcode/telegram-remote.json`, bot ADR-019). The CLI lives at `core/build/install/agent-brain/bin/agent-brain`:
 
 ```
-agent-brain serve | migrate [--status] | ingest [--once] | bus status | index [GLOB...] | query TEXT [--k N]
+agent-brain serve | migrate [--status] | ingest [--once] | bridge [--once] | bus status | index [GLOB...] | query TEXT [--k N]
             | memory search TEXT [--k N] | memory recent [--k N] [--kind K] | memory save KIND TEXT
             | memory quarantine | memory status | memory run [--once]
             | health [--url U] | embed TEXT... | config
@@ -97,7 +97,7 @@ default. An unknown key in the file is a startup error. `GLM_API_KEY` (or
 | `ollama_base_url` / `ollama_model` | `http://127.0.0.1:11434` / `nomic-embed-text` | |
 | `glm_base_url` / `glm_model` | `https://api.z.ai/api/paas/v4` / `embedding-3` | needs `GLM_API_KEY`; dims 256/512/1024/2048 |
 | `http_timeout_s` | `60` | outbound HTTP |
-| `bus_transport` / `kafka_bootstrap` / `kafka_topic` | `file` / `127.0.0.1:19092` / `agent-brain.bus` | Kafka in P4 |
+| `bus_transport` / `kafka_bootstrap` / `kafka_topic` / `kafka_group` / `kafka_partitions` | `file` / `127.0.0.1:19092` / `agent-brain.bus` / `agent-brain` / `3` | `kafka` transport; the bridge always tails the file
 | `bus_poll_ms` | `500` | tailer cadence |
 | `index_doc_concurrency` / `embed_concurrency` | `2` / `2` | documents in flight / embedding batches in flight |
 | `chat_provider` / `chat_model` / `glm_chat_model` / `chat_timeout_s` | `ollama` / `qwen2.5:1.5b` / `glm-4.5-flash` / `120` | the extraction model (structured JSON output) |
@@ -155,6 +155,8 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 | The tailer: partial lines wait, truncation restarts from zero, a restart resumes from the persisted byte offset, a handler failure keeps the offset (at-least-once), a line longer than the read window never stalls the tail, multibyte lines keep byte-exact offsets | `./gradlew test --tests '*FileTailerTest*'` |
 | Replaying the whole bus twice (with a duplicate and a malformed line in it) leaves the database identical: 6 rows, 7 duplicates counted, 1 malformed counted | `./gradlew test --tests '*PgBusIngestIT*'` |
 | A real `serve` process tails a bus written by the bot's own `bus.py`; a byte-for-byte replay adds nothing; `bus status` and `ingest --once` report the same numbers | `make bb` (`P1BusPipelineBB`) |
+| The transport contract: the same bus through the file tailer and through bridge → Redpanda → consumer leaves an IDENTICAL database; a lost bridge offset (full re-produce) and a poison record change nothing but the counters | `./gradlew test --tests '*KafkaTransportIT*'` |
+| A real `serve` consuming from Kafka: `bridge --once` produces the bus file, the consumer lands it in Postgres, `/bus/status` reports the Kafka transport with commits | `make bb` (`P4KafkaBB`) |
 | The empty stack comes up green end to end: real `serve` subprocess, migrations applied, Ollama embedding a probe, CLI printing clean JSON | `make bb` (`P0StackHealthcheckBB`) |
 | Migrations are idempotent and concurrent runners apply exactly once | `./gradlew test --tests '*MigratorPgTest*'` |
 | A provider whose dimension disagrees with the database is refused with an actionable message | `AB_EMBED_DIM=1024 core/build/install/agent-brain/bin/agent-brain migrate` (exit 1) |
@@ -204,7 +206,7 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 
 - [ADR-001 One database for everything](docs/adr/ADR-001-one-database.md)
 - [ADR-002 Configuration: one immutable object, env over file over defaults](docs/adr/ADR-002-configuration.md)
-- [ADR-003 Kafka is a bridge, not the spine](docs/adr/ADR-003-kafka-is-a-bridge.md)
+- [ADR-003 Kafka is a bridge, not the spine](docs/adr/ADR-003-kafka-is-a-bridge.md) (implemented in P4)
 - [ADR-004 The embedding dimension is a database property](docs/adr/ADR-004-embedding-dimension.md)
 - [ADR-005 Kotlin core, Python only at two glue points](docs/adr/ADR-005-kotlin-core-python-glue.md)
 - [ADR-006 Five test tiers, services required in CI](docs/adr/ADR-006-test-tiers.md)

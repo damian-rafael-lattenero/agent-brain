@@ -16,5 +16,27 @@ services:
       timeout: 2s
       retries: 30
 
+  redpanda:
+    image: redpandadata/redpanda:v26.2.6
+    container_name: agent-brain-redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092,OUTSIDE://127.0.0.1:19092
+    ports:
+      - "127.0.0.1:19092:19092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
 volumes:
   pgdata:
