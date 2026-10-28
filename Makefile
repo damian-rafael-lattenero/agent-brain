@@ -1,4 +1,4 @@
-.PHONY: bootstrap up down nuke migrate serve test bb e2e-real check ci clean
+.PHONY: bootstrap up down nuke migrate serve index query test bb e2e-real check ci clean
 
 BIN := core/build/install/agent-brain/bin/agent-brain
 
@@ -23,6 +23,14 @@ migrate:            ## apply pending migrations
 serve:              ## run the HTTP service in the foreground
 	./gradlew --quiet :core:installDist
 	$(BIN) serve
+
+index:              ## index the corpus (~/.zcode/agent-brain/corpus.txt, see corpus.example.txt)
+	./gradlew --quiet :core:installDist
+	$(BIN) index
+
+query:              ## hybrid retrieval with citations: make query Q="how does the tailer handle truncation"
+	./gradlew --quiet :core:installDist
+	$(BIN) query $(Q)
 
 test:               ## tiers 1-3: unit, integration, e2e (skips a tier when its service is down)
 	./gradlew test

@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.bundles.ktor.client)
     implementation(libs.bundles.db)
     implementation(libs.bundles.logging)
+    implementation(libs.bundles.kap)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -30,6 +31,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.kap.kotest)
 }
 
 application {

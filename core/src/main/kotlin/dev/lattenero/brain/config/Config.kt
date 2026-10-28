@@ -45,12 +45,17 @@ data class Config(
     val httpTimeoutS: Int,
     val busTransport: String,
     val busPollMs: Int,
+    val indexDocConcurrency: Int,
+    val embedConcurrency: Int,
+    val embedBreakerFailures: Int,
+    val embedBreakerResetS: Int,
     val kafkaBootstrap: String,
     val kafkaTopic: String,
 ) {
     val stateDir: Path get() = base.resolve("state")
     val logDir: Path get() = base.resolve("logs")
     val busFile: Path get() = base.resolve("bus-events.jsonl")
+    val corpusFile: Path get() = base.resolve("corpus.txt")
 
     /** The effective knobs with secrets redacted, for /health and the CLI. */
     fun snapshot(): JsonObject = buildJsonObject {
@@ -75,6 +80,7 @@ data class Config(
         put("bus_transport", busTransport)
         put("bus_poll_ms", busPollMs)
         put("bus_file", busFile.toString())
+        put("corpus_file", corpusFile.toString())
     }
 
     companion object {
@@ -97,6 +103,10 @@ data class Config(
             "http_timeout_s" to 60,
             "bus_transport" to "file",
     "bus_poll_ms" to 500,
+    "index_doc_concurrency" to 2,
+    "embed_concurrency" to 2,
+    "embed_breaker_failures" to 5,
+    "embed_breaker_reset_s" to 30,
             "kafka_bootstrap" to "127.0.0.1:19092",
             "kafka_topic" to "agent-brain.bus",
         )
@@ -136,6 +146,10 @@ data class Config(
                 httpTimeoutS = int("http_timeout_s"),
                 busTransport = str("bus_transport"),
                 busPollMs = int("bus_poll_ms"),
+                indexDocConcurrency = int("index_doc_concurrency"),
+                embedConcurrency = int("embed_concurrency"),
+                embedBreakerFailures = int("embed_breaker_failures"),
+                embedBreakerResetS = int("embed_breaker_reset_s"),
                 kafkaBootstrap = str("kafka_bootstrap"),
                 kafkaTopic = str("kafka_topic"),
             )

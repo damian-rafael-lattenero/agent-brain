@@ -12,7 +12,7 @@ host (the bus publisher inside the bot, the MTProto test driver).
 |---|---|---|
 | P0 | Foundation: config, migrations, embedding providers (Ollama, GLM, fake), HTTP `/health` `/ready`, CLI, five-tier test layout, CI | done |
 | P1 | Event bus: stdlib publisher in the bot behind the `event_bus` knob (bot ADR-019), byte-offset tailer with truncation detection, idempotent batch ingest, `/bus/status`, replay golden test, black-box with the bot's real publisher | done (file transport; Kafka in P4) |
-| P2 | RAG: corpus indexing, heading-aware chunker, hybrid cosine + full-text search with RRF, cited answers, recall gate, promptfoo | planned |
+| P2 | RAG: corpus by globs, heading-aware chunker, KAP-orchestrated indexer (bounded parallel embeds, timeout, retry, breaker), hybrid cosine + full-text with RRF and citations, recall gate with the real model (1.0@5), `POST /rag/query`, `index`/`query` CLI, `/brain` in the bot | done (promptfoo suites arrive with P6) |
 | P3 | Memory: structured extraction per turn with quarantine, salience decay, context injection knob in the bot | planned |
 | P4 | Kafka transport (Redpanda) as a bridge behind the same consumer contract, rebalance/duplicate tolerance test | planned |
 | P5 | `brain-mcp` plugin (official MCP Kotlin SDK, stdio) installed in the harness: `rag_query`, `memory_search`, … | planned |
@@ -57,17 +57,24 @@ make up               # pgvector/pgvector:pg18 on 127.0.0.1:5433, then migration
 make test             # tiers 1-3 (skips a tier with a reason when its service is down)
 make bb               # tier 4: black-box local, services required
 make serve            # http://127.0.0.1:8765/ready
+make index            # index ~/.zcode/agent-brain/corpus.txt (copy corpus.example.txt first)
+make query Q="how does the tailer handle truncation"
 ```
 
 The bus file is `~/.zcode/agent-brain/bus-events.jsonl` (bot side: set `"event_bus": true`
 in `~/.zcode/telegram-remote.json`, bot ADR-019). The CLI lives at `core/build/install/agent-brain/bin/agent-brain`:
 
 ```
-agent-brain serve | migrate [--status] | ingest [--once] | bus status | health [--url U] | embed TEXT... | config
+agent-brain serve | migrate [--status] | ingest [--once] | bus status | index [GLOB...] | query TEXT [--k N]
+            | health [--url U] | embed TEXT... | config
 ```
 
 `serve` runs the HTTP service and, with `bus_transport: file`, the bus tailer.
 `ingest --once` drains the bus into Postgres and exits with the counters (scripts, CI).
+`index` reads `~/.zcode/agent-brain/corpus.txt` (one absolute glob per line, see
+`corpus.example.txt`) and prints a report with per-phase counters; `query` prints
+ranked hits with citations (retrieval only, the caller composes the answer).
+From the Telegram chat: `/brain <question>` and `/brain status` (bot ADR-019).
 
 ## Configuration
 
@@ -89,6 +96,8 @@ default. An unknown key in the file is a startup error. `GLM_API_KEY` (or
 | `http_timeout_s` | `60` | outbound HTTP |
 | `bus_transport` / `kafka_bootstrap` / `kafka_topic` | `file` / `127.0.0.1:19092` / `agent-brain.bus` | Kafka in P4 |
 | `bus_poll_ms` | `500` | tailer cadence |
+| `index_doc_concurrency` / `embed_concurrency` | `2` / `2` | documents in flight / embedding batches in flight |
+| `embed_breaker_failures` / `embed_breaker_reset_s` | `5` / `30` | circuit breaker in front of the embedding provider |
 
 `AB_BASE` (default `~/.zcode/agent-brain`) moves every derived path: state,
 logs, the bus file, the config file.
@@ -114,7 +123,15 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 
 | Claim | Command |
 |---|---|
-| Tiers 1-3 pass (73 tests, GLM tier skipped without a key) | `make test` |
+| Tiers 1-3 pass (108 tests, GLM tier skipped without a key) | `make test` |
+| The chunker: heading chains, fenced code is not headings, small sections pack, long paragraphs split into overlapping windows, deterministic | `./gradlew test --tests '*ChunkerTest*'` |
+| The corpus: absolute globs, `**` includes depth zero, noise directories pruned, oversized and non-UTF-8 files skipped with a reason | `./gradlew test --tests '*CorpusTest*'` |
+| Hybrid retrieval on real Postgres: both legs agree on the right document, the full-text leg rescues an exact token, another embedding model sees nothing, deletes cascade | `./gradlew test --tests '*RagStoreIT*'` |
+| The KAP embed pipeline under virtual time: batches PROVEN parallel (`shouldProveParallel`), bounded by concurrency, transient failures retried, a timeout retried, the breaker opens and fails fast | `./gradlew test --tests '*EmbedPipelineTest*'` |
+| Indexing lifecycle: first run indexes all, second run embeds nothing, an edit re-indexes one, a deletion prunes, one poisoned document is reported and the rest land | `./gradlew test --tests '*IndexerIT*'` |
+| Two KAP 4.0.0 findings pinned (timeout before retry; settled not isolating nested parallel graphs) and the `isolated()` workaround proven | `./gradlew test --tests '*KapFindingsTest*'` |
+| Ten planted facts among distractors, indexed with the REAL model: recall@5 = 1.0 (floor 1.0), recall@1 = 1.0 (floor 0.8) | `./gradlew test --tests '*RecallGateIT*'` |
+| A real `serve` indexes the fixture corpus through the CLI with the real model, answers with the right citation over HTTP and CLI, and a re-index embeds nothing | `make bb` (`P2RagBB`) |
 | Every line the bot's publisher produces parses under the bus contract; unknown kinds, sources, empty ids and bad timestamps are refused | `./gradlew test --tests '*BusEventsTest*'` |
 | The tailer: partial lines wait, truncation restarts from zero, a restart resumes from the persisted byte offset, a handler failure keeps the offset (at-least-once), a line longer than the read window never stalls the tail, multibyte lines keep byte-exact offsets | `./gradlew test --tests '*FileTailerTest*'` |
 | Replaying the whole bus twice (with a duplicate and a malformed line in it) leaves the database identical: 6 rows, 7 duplicates counted, 1 malformed counted | `./gradlew test --tests '*PgBusIngestIT*'` |
@@ -146,6 +163,13 @@ Claims and the command that proves each one, in a clean clone with colima runnin
   line meant no newline, ever. The window now doubles until a newline
   appears (hard cap, oversized lines are counted and skipped). Test: `a line
   longer than one read window never stalls the tail`.
+- **A KAP `timeout` before `retry` is never retried** (`TimeoutCancellationException`
+  is a `CancellationException`, which `retry` rethrows by law). The fallback
+  overload converts it first. See [ADR-007](docs/adr/ADR-007-kap-orchestration.md).
+- **KAP's `settled` does not isolate nested parallel graphs**: `traverse`
+  launches children on the caller's scope, so a failing grandchild fails the
+  settled coroutine itself. `Kap.isolated()` (own `coroutineScope`) restores
+  the CONVERT discipline; `KapFindingsTest` pins both behaviours.
 - **stdout is data, stderr is logs.** The CLI prints JSON; a log line after
   it broke `ingest --once` in the black-box tier. Logback writes to stderr.
 - **Tests must not share order-dependent state.** One shared database plus
@@ -160,11 +184,14 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 - [ADR-004 The embedding dimension is a database property](docs/adr/ADR-004-embedding-dimension.md)
 - [ADR-005 Kotlin core, Python only at two glue points](docs/adr/ADR-005-kotlin-core-python-glue.md)
 - [ADR-006 Five test tiers, services required in CI](docs/adr/ADR-006-test-tiers.md)
+- [ADR-007 KAP for orchestration, where there are phases or policies](docs/adr/ADR-007-kap-orchestration.md)
 
 ## Layout
 
 ```
-core/                    Kotlin module: config, db (pool + migrator), embeddings, bus (tailer + ingest), http, Main
+core/                    Kotlin module: config, db (pool + migrator), embeddings, bus (tailer + ingest),
+                         rag (corpus, chunker, store, KAP embed pipeline, indexer, service), kapx (KAP workarounds), http, Main
+corpus.example.txt       the author's corpus; copy to ~/.zcode/agent-brain/corpus.txt
 core/src/main/resources/migrations/   plain SQL, enumerated by index.txt, shipped in the jar
 core/src/test/kotlin/    tiers 1-4 (tier 5 arrives with P1)
 docker-compose.yml       pgvector/pgvector:pg18 (Redpanda joins in P4)

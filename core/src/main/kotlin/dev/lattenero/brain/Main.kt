@@ -12,6 +12,11 @@ import org.slf4j.LoggerFactory
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import dev.lattenero.brain.bus.BusStatus
+import dev.lattenero.brain.http.readCorpusFile
+import dev.lattenero.brain.rag.IndexReport
+import dev.lattenero.brain.rag.QueryRequest
+import dev.lattenero.brain.rag.QueryResponse
+import dev.lattenero.brain.rag.RagQueryException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +45,8 @@ const val USAGE = """usage: agent-brain <command> [args]
   migrate [--status] apply pending migrations, or only report them
   ingest [--once]    tail the bus into Postgres without HTTP; --once drains and exits
   bus status         the tailer/ingest counters and the database count
+  index [GLOB...]    index the corpus (globs from args, else ~/.zcode/agent-brain/corpus.txt)
+  query TEXT [--k N] hybrid retrieval with citations (no generation)
   health [--url U]   GET /ready of a running service; exit 1 when degraded
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
@@ -58,6 +65,8 @@ fun run(args: Array<String>): Int {
             "migrate" -> migrate(status = "--status" in rest)
             "ingest" -> ingest(once = "--once" in rest)
             "bus" -> if (rest.firstOrNull() == "status") busStatus() else usage()
+            "query" -> query(rest)
+            "index" -> index(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
             "config" -> printJson(Config.load().snapshot()).let { EXIT_OK }
@@ -69,6 +78,8 @@ fun run(args: Array<String>): Int {
         fail("migrate: ${e.message}")
     } catch (e: ProviderException) {
         fail("embed: ${e.message}")
+    } catch (e: RagQueryException) {
+        fail("query: ${e.message}")
     } catch (e: SQLException) {
         fail("database: ${e.message}")
     }
@@ -85,7 +96,7 @@ private fun serve(): Int {
             log.info("bus tailer on ${config.busFile} every ${config.busPollMs} ms")
         }
         try {
-            BrainServer.start(config, brain.readiness, brain.bus, wait = true)
+            BrainServer.start(config, brain.readiness, brain.bus, brain.rag, brain.indexer, wait = true)
         } finally {
             scope.cancel()
         }
@@ -105,6 +116,34 @@ private fun ingest(once: Boolean): Int {
             return EXIT_OK
         }
         runBlocking { brain.bus.tailer.run(kotlin.time.Duration.parse("${config.busPollMs}ms")) { brain.bus.ingest.handle(it) } }
+    }
+    return EXIT_OK
+}
+
+private fun index(args: List<String>): Int {
+    val config = Config.load()
+    val globs = args.ifEmpty { readCorpusFile(config) }
+    if (globs.isEmpty()) return fail("index: no globs given and ${config.corpusFile} is empty or missing")
+    Brain(config).use { brain ->
+        runBlocking { brain.migrator.apply() }
+        val report = try {
+            runBlocking { brain.indexer.indexGlobs(globs) }
+        } catch (e: IllegalArgumentException) {
+            return fail("index: ${e.message}")
+        }
+        printJson(responseJson.encodeToJsonElement(IndexReport.serializer(), report))
+        return if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
+    }
+}
+
+private fun query(args: List<String>): Int {
+    val k = args.optionValue("--k")?.toIntOrNull() ?: QueryRequest(query = "").k
+    val text = args.filterIndexed { i, a -> a != "--k" && (i == 0 || args[i - 1] != "--k") }.joinToString(" ")
+    if (text.isBlank()) return usage()
+    val config = Config.load()
+    Brain(config).use { brain ->
+        val response = runBlocking { brain.rag.query(QueryRequest(text, k)) }
+        printJson(responseJson.encodeToJsonElement(QueryResponse.serializer(), response))
     }
     return EXIT_OK
 }
