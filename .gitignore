@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+node_modules/
+.env
+*.session
+*.session-journal
+/promptfoo-output/
+build/
+.gradle/
+*.log
+.kotlin/
