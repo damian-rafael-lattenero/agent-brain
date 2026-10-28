@@ -13,7 +13,7 @@ host (the bus publisher inside the bot, the MTProto test driver).
 | P0 | Foundation: config, migrations, embedding providers (Ollama, GLM, fake), HTTP `/health` `/ready`, CLI, five-tier test layout, CI | done |
 | P1 | Event bus: stdlib publisher in the bot behind the `event_bus` knob (bot ADR-019), byte-offset tailer with truncation detection, idempotent batch ingest, `/bus/status`, replay golden test, black-box with the bot's real publisher | done (file transport; Kafka in P4) |
 | P2 | RAG: corpus by globs, heading-aware chunker, KAP-orchestrated indexer (bounded parallel embeds, timeout, retry, breaker), hybrid cosine + full-text with RRF and citations, recall gate with the real model (1.0@5), `POST /rag/query`, `index`/`query` CLI, `/brain` in the bot | done (promptfoo suites arrive with P6) |
-| P3 | Memory: structured extraction per turn with quarantine, salience decay, context injection knob in the bot | planned |
+| P3 | Memory: worker over `turn.completed`, schema-constrained extraction with a small local model, quarantine with raw text, hybrid recall with half-life decay, `/memory/*` HTTP + CLI, `/memory` and the `memory_inject` knob in the bot (bot ADR-020) | done (tier 5 driver pending the author's one-time Telegram login) |
 | P4 | Kafka transport (Redpanda) as a bridge behind the same consumer contract, rebalance/duplicate tolerance test | planned |
 | P5 | `brain-mcp` plugin (official MCP Kotlin SDK, stdio) installed in the harness: `rag_query`, `memory_search`, … | planned |
 | P6 | Evals platform: suites persisted in `eval_runs`, nightly workflow, model/cost/quality report | planned |
@@ -66,6 +66,8 @@ in `~/.zcode/telegram-remote.json`, bot ADR-019). The CLI lives at `core/build/i
 
 ```
 agent-brain serve | migrate [--status] | ingest [--once] | bus status | index [GLOB...] | query TEXT [--k N]
+            | memory search TEXT [--k N] | memory recent [--k N] [--kind K] | memory save KIND TEXT
+            | memory quarantine | memory status | memory run [--once]
             | health [--url U] | embed TEXT... | config
 ```
 
@@ -74,7 +76,8 @@ agent-brain serve | migrate [--status] | ingest [--once] | bus status | index [G
 `index` reads `~/.zcode/agent-brain/corpus.txt` (one absolute glob per line, see
 `corpus.example.txt`) and prints a report with per-phase counters; `query` prints
 ranked hits with citations (retrieval only, the caller composes the answer).
-From the Telegram chat: `/brain <question>` and `/brain status` (bot ADR-019).
+From the Telegram chat: `/brain <question>`, `/brain status`, `/memory <query>`, `/memory recent`,
+`/memory status` (bot ADR-019/020). `serve` also runs the memory worker (knob `memory_worker`).
 
 ## Configuration
 
@@ -97,6 +100,8 @@ default. An unknown key in the file is a startup error. `GLM_API_KEY` (or
 | `bus_transport` / `kafka_bootstrap` / `kafka_topic` | `file` / `127.0.0.1:19092` / `agent-brain.bus` | Kafka in P4 |
 | `bus_poll_ms` | `500` | tailer cadence |
 | `index_doc_concurrency` / `embed_concurrency` | `2` / `2` | documents in flight / embedding batches in flight |
+| `chat_provider` / `chat_model` / `glm_chat_model` / `chat_timeout_s` | `ollama` / `qwen2.5:1.5b` / `glm-4.5-flash` / `120` | the extraction model (structured JSON output) |
+| `memory_worker` / `memory_poll_ms` / `memory_half_life_days` | `true` / `2000` / `30` | extraction worker inside `serve`; recall decay half-life |
 | `embed_breaker_failures` / `embed_breaker_reset_s` | `5` / `30` | circuit breaker in front of the embedding provider |
 
 `AB_BASE` (default `~/.zcode/agent-brain`) moves every derived path: state,
@@ -110,7 +115,16 @@ logs, the bus file, the config file.
 | 2 integration | `integration` | Postgres/pgvector, Ollama, GLM (key permitting) | `test` |
 | 3 e2e | `e2e` | real database and routes, in-process server, fake model | `test` |
 | 4 black-box local | `bb-local` | the installed distribution as a subprocess, real services, only the Telegram wire virtualized | `bbLocal` |
-| 5 black-box real | `bb-real` | your Telegram account over MTProto (from P1) | `e2eReal` |
+| 5 black-box real | `bb-real` | your Telegram account over MTProto; the brain observed through the bot | `e2eReal` (`make e2e-real`) |
+
+Tier 5 is a Python driver (`tools/e2e-real/driver.py`, Telethon) run by `RealTelegramBB`: it
+sends real messages from your account, waits for the bot's replies and asserts the flow as you would
+read it (`/brain status` before and after a turn; a stated preference recalled by `/memory` on a
+later turn). One-time setup: a dedicated Telegram app (api id/hash) and `make e2e-real-login` to
+mint `AB_TG_SESSION`; the nightly workflow (`.github/workflows/e2e-real.yml`) runs the same driver
+from the cloud with those values as secrets, `continue-on-error` by design. The session grants full
+access to the account: rotate it like a password. Status: built and wired, not yet exercised live
+(waiting for the author's login).
 
 Locally an unreachable service skips its tier with a printed reason. With
 `AB_REQUIRE_SERVICES=1` (CI, `make bb`, `make ci`) the same condition fails:
@@ -123,7 +137,12 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 
 | Claim | Command |
 |---|---|
-| Tiers 1-3 pass (108 tests, GLM tier skipped without a key) | `make test` |
+| Tiers 1-3 pass (120 tests, GLM tier skipped without a key) | `make test` |
+| Extraction parsing: typed items, every invalid shape quarantined with reason and raw text, caps and hygiene, transport failures retried but invalid output not | `./gradlew test --tests '*MemoryExtractorTest*'` |
+| The worker on real Postgres: the recorded bot bus becomes memories with provenance, re-running does nothing, the bus replayed twice leaves memories identical, invalid output and provider outages land in the right bins | `./gradlew test --tests '*MemoryWorkerIT*'` |
+| The real local chat model produces a valid extraction that mentions what was said | `./gradlew test --tests '*MemoryExtractionOllamaIT*'` |
+| A real `serve` turns a bus turn stating a preference into a memory the brain recalls, observed only over HTTP and the CLI | `make bb` (`P3MemoryBB`) |
+| The two KAP 4.0.0 findings are FIXED in 4.1.0 (pinned) | `./gradlew test --tests '*KapFindingsTest*'` |
 | The chunker: heading chains, fenced code is not headings, small sections pack, long paragraphs split into overlapping windows, deterministic | `./gradlew test --tests '*ChunkerTest*'` |
 | The corpus: absolute globs, `**` includes depth zero, noise directories pruned, oversized and non-UTF-8 files skipped with a reason | `./gradlew test --tests '*CorpusTest*'` |
 | Hybrid retrieval on real Postgres: both legs agree on the right document, the full-text leg rescues an exact token, another embedding model sees nothing, deletes cascade | `./gradlew test --tests '*RagStoreIT*'` |
@@ -163,6 +182,11 @@ Claims and the command that proves each one, in a clean clone with colima runnin
   line meant no newline, ever. The window now doubles until a newline
   appears (hard cap, oversized lines are counted and skipped). Test: `a line
   longer than one read window never stalls the tail`.
+- **Typed builders need the real library.** Adopting `@KapTypeSafe` surfaced two
+  more KAP defects (plain `kap(::T)` never generated for packaged classes;
+  nested classes generating non-compiling code), fixed upstream in 4.1.0 the
+  same day. Until the Central release is tagged, 4.1.0 comes from `mavenLocal`
+  (`settings.gradle.kts`), and CI builds it from the KAP repo.
 - **A KAP `timeout` before `retry` is never retried** (`TimeoutCancellationException`
   is a `CancellationException`, which `retry` rethrows by law). The fallback
   overload converts it first. See [ADR-007](docs/adr/ADR-007-kap-orchestration.md).
@@ -185,12 +209,14 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 - [ADR-005 Kotlin core, Python only at two glue points](docs/adr/ADR-005-kotlin-core-python-glue.md)
 - [ADR-006 Five test tiers, services required in CI](docs/adr/ADR-006-test-tiers.md)
 - [ADR-007 KAP for orchestration, where there are phases or policies](docs/adr/ADR-007-kap-orchestration.md)
+- [ADR-008 Memory is extracted from the bus, quarantined when in doubt, recalled with decay](docs/adr/ADR-008-memory.md)
 
 ## Layout
 
 ```
-core/                    Kotlin module: config, db (pool + migrator), embeddings, bus (tailer + ingest),
-                         rag (corpus, chunker, store, KAP embed pipeline, indexer, service), kapx (KAP workarounds), http, Main
+core/                    Kotlin module: config, db (pool + migrator), embeddings, chat, bus (tailer + ingest),
+                         rag (corpus, chunker, store, KAP embed pipeline, indexer, service),
+                         memory (extractor, store, worker, service), http, Main
 corpus.example.txt       the author's corpus; copy to ~/.zcode/agent-brain/corpus.txt
 core/src/main/resources/migrations/   plain SQL, enumerated by index.txt, shipped in the jar
 core/src/test/kotlin/    tiers 1-4 (tier 5 arrives with P1)

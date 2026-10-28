@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -42,6 +43,13 @@ data class Config(
     val glmBaseUrl: String,
     val glmModel: String,
     val glmApiKey: String,
+    val chatProvider: String,
+    val chatModel: String,
+    val glmChatModel: String,
+    val chatTimeoutS: Int,
+    val memoryWorker: Boolean,
+    val memoryPollMs: Int,
+    val memoryHalfLifeDays: Int,
     val httpTimeoutS: Int,
     val busTransport: String,
     val busPollMs: Int,
@@ -75,8 +83,14 @@ data class Config(
         putJsonObject("glm") {
             put("base_url", glmBaseUrl)
             put("model", glmModel)
+            put("chat_model", glmChatModel)
             put("key_set", glmApiKey.isNotEmpty())
         }
+        putJsonObject("chat") {
+            put("provider", chatProvider)
+            put("model", chatModel)
+        }
+        put("memory_worker", memoryWorker)
         put("bus_transport", busTransport)
         put("bus_poll_ms", busPollMs)
         put("bus_file", busFile.toString())
@@ -100,6 +114,13 @@ data class Config(
             "ollama_model" to "nomic-embed-text",
             "glm_base_url" to "https://api.z.ai/api/paas/v4",
             "glm_model" to "embedding-3",
+    "chat_provider" to "ollama", // ollama | glm | fake
+    "chat_model" to "qwen2.5:1.5b",
+    "glm_chat_model" to "glm-4.5-flash",
+    "chat_timeout_s" to 120,
+    "memory_worker" to true,
+    "memory_poll_ms" to 2000,
+    "memory_half_life_days" to 30,
             "http_timeout_s" to 60,
             "bus_transport" to "file",
     "bus_poll_ms" to 500,
@@ -127,6 +148,7 @@ data class Config(
             }
             fun str(name: String) = resolve(name, env, fileCfg) as String
             fun int(name: String) = resolve(name, env, fileCfg) as Int
+            fun bool(name: String) = resolve(name, env, fileCfg) as Boolean
             return Config(
                 base = base,
                 configPath = configPath,
@@ -143,6 +165,13 @@ data class Config(
                 glmBaseUrl = str("glm_base_url"),
                 glmModel = str("glm_model"),
                 glmApiKey = env["GLM_API_KEY"] ?: env["ZAI_API_KEY"] ?: "",
+                chatProvider = str("chat_provider"),
+                chatModel = str("chat_model"),
+                glmChatModel = str("glm_chat_model"),
+                chatTimeoutS = int("chat_timeout_s"),
+                memoryWorker = bool("memory_worker"),
+                memoryPollMs = int("memory_poll_ms"),
+                memoryHalfLifeDays = int("memory_half_life_days"),
                 httpTimeoutS = int("http_timeout_s"),
                 busTransport = str("bus_transport"),
                 busPollMs = int("bus_poll_ms"),
@@ -163,12 +192,14 @@ data class Config(
         }
 
         private fun coerceEnv(name: String, default: Any, raw: String): Any = when (default) {
+            is Boolean -> raw.trim().lowercase() in setOf("1", "true", "yes", "on")
             is Int -> raw.trim().toIntOrNull()
                 ?: throw ConfigException("$ENV_PREFIX${name.uppercase()} expects an integer, got '$raw'")
             else -> raw
         }
 
         private fun coerceJson(name: String, default: Any, value: JsonPrimitive): Any = when (default) {
+            is Boolean -> value.booleanOrNull ?: throw ConfigException("$name expects true or false in config.json, got $value")
             is Int -> value.intOrNull ?: throw ConfigException("$name expects an integer in config.json, got $value")
             else -> if (value.isString) value.content else throw ConfigException("$name expects a string in config.json, got $value")
         }

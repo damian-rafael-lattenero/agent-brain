@@ -1,11 +1,10 @@
 package dev.lattenero.brain.rag
 
-import dev.lattenero.brain.kapx.isolated
 import kap.Kap
+import kap.KapTypeSafe
 import kap.andThen
 import kap.evalGraph
 import kap.map
-import kap.of
 import kap.traced
 import kap.traverseSettled
 import kotlinx.serialization.Serializable
@@ -74,10 +73,18 @@ class Indexer(
                 }
             }
 
+    /** Indexing and pruning touch disjoint rows, so the typed builder runs them as two parallel phases. */
+    @KapTypeSafe
+    data class Run(val outcomes: List<Result<Outcome>>, val pruned: Int)
+
     /** Indexes the documents; `pruneKept` maps a source glob to the uris that still exist under it. */
     suspend fun index(documents: List<Corpus.Document>, skipped: List<String> = emptyList(), pruneKept: Map<String, List<String>> = emptyMap()): IndexReport {
         val mark = TimeSource.Monotonic.markNow()
-        val results = documents.traverseSettled(docConcurrency) { indexDocument(it).isolated() }.evalGraph()
+        val run = kap(::Run)
+            .with(IndexerRunKap.outcomes from documents.traverseSettled(docConcurrency) { indexDocument(it) })
+            .with { pruned from prune(pruneKept) }
+            .evalGraph()
+        val results = run.outcomes
         var indexed = 0
         var unchanged = 0
         var chunks = 0
@@ -101,14 +108,12 @@ class Indexer(
                 },
             )
         }
-        var pruned = 0
-        for ((source, kept) in pruneKept) pruned += store.deleteDocumentsNotIn(source, kept)
         return IndexReport(
             documents = documents.size,
             indexed = indexed,
             unchanged = unchanged,
             failed = failed,
-            pruned = pruned,
+            pruned = run.pruned,
             chunks = chunks,
             embedCalls = embedCalls,
             skipped = skipped,
@@ -122,6 +127,12 @@ class Indexer(
         val scan = corpus.scan(globs)
         val kept = globs.associateWith { glob -> scan.documents.filter { it.source == glob }.map { it.uri } }
         return index(scan.documents, scan.skipped, kept)
+    }
+
+    private suspend fun prune(pruneKept: Map<String, List<String>>): Int {
+        var pruned = 0
+        for ((source, kept) in pruneKept) pruned += store.deleteDocumentsNotIn(source, kept)
+        return pruned
     }
 
     private fun embedBatchSizeHint(): Int = embedBatchSize

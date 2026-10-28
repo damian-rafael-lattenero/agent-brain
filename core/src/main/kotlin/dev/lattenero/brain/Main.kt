@@ -13,7 +13,17 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import dev.lattenero.brain.bus.BusStatus
 import dev.lattenero.brain.http.readCorpusFile
+import dev.lattenero.brain.memory.Memory
+import dev.lattenero.brain.memory.MemoryRequestException
+import dev.lattenero.brain.memory.MemorySaveRequest
+import dev.lattenero.brain.memory.MemorySearchRequest
+import dev.lattenero.brain.memory.MemorySearchResponse
+import dev.lattenero.brain.memory.MemoryStatus
+import dev.lattenero.brain.memory.QuarantineRow
+import dev.lattenero.brain.memory.WorkerReport
 import dev.lattenero.brain.rag.IndexReport
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.coroutines.launch
 import dev.lattenero.brain.rag.QueryRequest
 import dev.lattenero.brain.rag.QueryResponse
 import dev.lattenero.brain.rag.RagQueryException
@@ -47,6 +57,7 @@ const val USAGE = """usage: agent-brain <command> [args]
   bus status         the tailer/ingest counters and the database count
   index [GLOB...]    index the corpus (globs from args, else ~/.zcode/agent-brain/corpus.txt)
   query TEXT [--k N] hybrid retrieval with citations (no generation)
+  memory search TEXT [--k N] | recent [--k N] [--kind K] | save KIND TEXT | quarantine | status | run [--once]
   health [--url U]   GET /ready of a running service; exit 1 when degraded
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
@@ -67,6 +78,7 @@ fun run(args: Array<String>): Int {
             "bus" -> if (rest.firstOrNull() == "status") busStatus() else usage()
             "query" -> query(rest)
             "index" -> index(rest)
+            "memory" -> memory(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
             "config" -> printJson(Config.load().snapshot()).let { EXIT_OK }
@@ -80,6 +92,8 @@ fun run(args: Array<String>): Int {
         fail("embed: ${e.message}")
     } catch (e: RagQueryException) {
         fail("query: ${e.message}")
+    } catch (e: MemoryRequestException) {
+        fail("memory: ${e.message}")
     } catch (e: SQLException) {
         fail("database: ${e.message}")
     }
@@ -95,8 +109,12 @@ private fun serve(): Int {
             brain.bus.start(scope)
             log.info("bus tailer on ${config.busFile} every ${config.busPollMs} ms")
         }
+        if (config.memoryWorker) {
+            scope.launch { brain.memoryWorker.run(kotlin.time.Duration.parse("${config.memoryPollMs}ms")) }
+            log.info("memory worker every ${config.memoryPollMs} ms with ${brain.chat.name}/${brain.chat.model}")
+        }
         try {
-            BrainServer.start(config, brain.readiness, brain.bus, brain.rag, brain.indexer, wait = true)
+            BrainServer.start(config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory, wait = true)
         } finally {
             scope.cancel()
         }
@@ -135,6 +153,50 @@ private fun index(args: List<String>): Int {
         return if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
     }
 }
+
+private fun memory(args: List<String>): Int {
+    val sub = args.firstOrNull() ?: return usage()
+    val rest = args.drop(1)
+    val config = Config.load()
+    Brain(config).use { brain ->
+        when (sub) {
+            "search" -> {
+                val k = rest.optionValue("--k")?.toIntOrNull() ?: MemorySearchRequest(query = "").k
+                val text = rest.withoutOption("--k").joinToString(" ")
+                if (text.isBlank()) return usage()
+                val response = runBlocking { brain.memory.search(MemorySearchRequest(text, k)) }
+                printJson(responseJson.encodeToJsonElement(MemorySearchResponse.serializer(), response))
+            }
+            "recent" -> {
+                val k = rest.optionValue("--k")?.toIntOrNull() ?: MemorySearchRequest(query = "").k
+                val list = runBlocking { brain.memory.recent(k, rest.optionValue("--kind")) }
+                printJson(responseJson.encodeToJsonElement(ListSerializer(Memory.serializer()), list))
+            }
+            "save" -> {
+                val kind = rest.firstOrNull() ?: return usage()
+                val text = rest.drop(1).joinToString(" ")
+                val saved = runBlocking { brain.memory.save(MemorySaveRequest(kind, text)) }
+                printJson(responseJson.encodeToJsonElement(Memory.serializer(), saved))
+            }
+            "quarantine" -> printJson(responseJson.encodeToJsonElement(ListSerializer(QuarantineRow.serializer()), runBlocking { brain.memory.quarantined(MemorySearchRequest(query = "").k) }))
+            "status" -> printJson(responseJson.encodeToJsonElement(MemoryStatus.serializer(), runBlocking { brain.memory.status() }))
+            "run" -> {
+                runBlocking { brain.migrator.apply() }
+                if ("--once" in rest) {
+                    val report = runBlocking { brain.memoryWorker.processOnce() }
+                    printJson(responseJson.encodeToJsonElement(WorkerReport.serializer(), report))
+                } else {
+                    runBlocking { brain.memoryWorker.run(kotlin.time.Duration.parse("${config.memoryPollMs}ms")) }
+                }
+            }
+            else -> return usage()
+        }
+    }
+    return EXIT_OK
+}
+
+private fun List<String>.withoutOption(flag: String): List<String> =
+    filterIndexed { i, a -> a != flag && (i == 0 || this[i - 1] != flag) }
 
 private fun query(args: List<String>): Int {
     val k = args.optionValue("--k")?.toIntOrNull() ?: QueryRequest(query = "").k

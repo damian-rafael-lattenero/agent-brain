@@ -94,7 +94,7 @@ class ConfigTest {
     @Test
     fun `every default has a declared type the resolver understands`() {
         Config.DEFAULTS.forEach { (name, default) ->
-            assertThat(default).withFailMessage("$name has an unsupported default type").isInstanceOfAny(String::class.java, Int::class.javaObjectType)
+            assertThat(default).withFailMessage("$name has an unsupported default type").isInstanceOfAny(String::class.java, Int::class.javaObjectType, Boolean::class.javaObjectType)
         }
     }
 }

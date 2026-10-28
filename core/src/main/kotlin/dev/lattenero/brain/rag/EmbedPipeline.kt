@@ -1,16 +1,14 @@
 package dev.lattenero.brain.rag
 
 import dev.lattenero.brain.embeddings.EmbeddingProvider
-import dev.lattenero.brain.embeddings.ProviderUnavailable
 import kap.CircuitBreaker
 import kap.Kap
 import kap.KapTracer
 import kap.Schedule
 import kap.TraceEvent
 import kap.map
-import kap.of
 import kap.retry
-import kap.timeout
+import kap.timeoutAsFailure
 import kap.traced
 import kap.traverse
 import kap.withCircuitBreaker
@@ -55,11 +53,10 @@ class CountingTracer : KapTracer {
  * parallelism, and every provider call carries the resilience policy
  * (timeout, retry with jittered exponential backoff, circuit breaker).
  *
- * Two KAP facts shape this code. `retry` rethrows CancellationException by
- * law, and `TimeoutCancellationException` is one, so a plain `timeout(d)`
- * before `retry` would never be retried: the fallback overload converts the
- * timeout into an ordinary failure first. And `Schedule` instances may hold
- * state, so the retry takes a factory and builds a fresh policy per call.
+ * Two KAP facts shape this code. A plain `timeout(d)` is a CancellationException
+ * that `retry` rethrows by law, so the pipeline uses `timeoutAsFailure` (KAP
+ * 4.1.0) to make a timeout retryable. And `Schedule` instances may hold state,
+ * so the retry takes a factory and builds a fresh policy per call.
  */
 class EmbedPipeline(
     private val provider: EmbeddingProvider,
@@ -86,7 +83,7 @@ class EmbedPipeline(
 
     fun embedBatch(batch: List<String>): Kap<List<FloatArray>> =
         Kap { provider.embed(batch) }
-            .timeout(timeout, Kap.failed(ProviderUnavailable("${provider.name} embedding timed out after $timeout")))
+            .timeoutAsFailure(timeout)
             .retry({ Schedule.times<Throwable>(attempts - 1) and Schedule.exponential<Throwable>(backoffBase).jittered() }) { attempt, error, delay ->
                 log.warn("embed batch retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)
             }

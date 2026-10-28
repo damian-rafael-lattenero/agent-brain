@@ -1,6 +1,12 @@
 package dev.lattenero.brain
 
 import dev.lattenero.brain.bus.BusPipeline
+import dev.lattenero.brain.chat.ChatProvider
+import dev.lattenero.brain.chat.ChatProviders
+import dev.lattenero.brain.memory.MemoryExtractor
+import dev.lattenero.brain.memory.MemoryService
+import dev.lattenero.brain.memory.MemoryStore
+import dev.lattenero.brain.memory.MemoryWorker
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
@@ -24,7 +30,7 @@ const val VERSION = "0.1.0"
  * the injected [Config], and closed in reverse order. Tests may hand in
  * their own provider (fake, or one that fails on purpose).
  */
-class Brain(val config: Config, providerOverride: EmbeddingProvider? = null) : AutoCloseable {
+class Brain(val config: Config, providerOverride: EmbeddingProvider? = null, chatOverride: ChatProvider? = null) : AutoCloseable {
     val db: Database = Database(config)
     val httpClient: HttpClient = HttpClients.create(config.httpTimeoutS)
     val migrator: Migrator = Migrator(db, config.embedDim)
@@ -44,9 +50,20 @@ class Brain(val config: Config, providerOverride: EmbeddingProvider? = null) : A
     )
     val indexer: Indexer = Indexer(ragStore, embedPipeline, tracer, docConcurrency = config.indexDocConcurrency)
         .also { it.embedBatchSize = config.embedBatch }
+    val chat: ChatProvider = chatOverride ?: ChatProviders.create(config, httpClient)
+    val memoryStore: MemoryStore = MemoryStore(db)
+    val extractor: MemoryExtractor = MemoryExtractor(
+        chat = chat,
+        timeout = config.chatTimeoutS.seconds,
+        tracer = tracer,
+        breaker = CircuitBreaker(maxFailures = config.embedBreakerFailures, resetTimeout = config.embedBreakerResetS.seconds),
+    )
+    val memoryWorker: MemoryWorker = MemoryWorker(memoryStore, extractor, embedPipeline)
+    val memory: MemoryService = MemoryService(provider, memoryStore, extractor, config.memoryHalfLifeDays)
 
     override fun close() {
         bus.stop()
+        chat.close()
         provider.close()
         httpClient.close()
         db.close()

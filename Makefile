@@ -1,4 +1,4 @@
-.PHONY: bootstrap up down nuke migrate serve index query test bb e2e-real check ci clean
+.PHONY: bootstrap up down nuke migrate serve index query test bb e2e-real e2e-real-login check ci clean
 
 BIN := core/build/install/agent-brain/bin/agent-brain
 
@@ -38,8 +38,16 @@ test:               ## tiers 1-3: unit, integration, e2e (skips a tier when its 
 bb:                 ## tier 4: black-box local, real processes, services REQUIRED
 	./gradlew bbLocal
 
-e2e-real:           ## tier 5: black-box real over your Telegram account (from P1)
-	./gradlew e2eReal
+E2E_PY := tools/e2e-real/.venv/bin/python3
+
+$(E2E_PY):
+	python3 -m venv tools/e2e-real/.venv && tools/e2e-real/.venv/bin/pip install -q -r tools/e2e-real/requirements.txt
+
+e2e-real-login: $(E2E_PY)  ## one-time: create AB_TG_SESSION for your account (needs AB_TG_API_ID/AB_TG_API_HASH)
+	$(E2E_PY) tools/e2e-real/login.py
+
+e2e-real: $(E2E_PY)  ## tier 5: your Telegram account drives the bot, the brain is observed through it
+	AB_E2E_PYTHON=$(E2E_PY) ./gradlew e2eReal
 
 check: test bb      ## everything CI runs on every push
 
