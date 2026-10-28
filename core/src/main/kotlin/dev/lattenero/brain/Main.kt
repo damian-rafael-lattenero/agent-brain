@@ -11,6 +11,11 @@ import dev.lattenero.brain.http.responseJson
 import org.slf4j.LoggerFactory
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import dev.lattenero.brain.bus.BusStatus
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
@@ -31,8 +36,10 @@ const val VECTOR_PREVIEW = 5
 
 const val USAGE = """usage: agent-brain <command> [args]
 
-  serve              run the HTTP service (applies pending migrations first)
+  serve              run the HTTP service + the bus tailer (applies pending migrations first)
   migrate [--status] apply pending migrations, or only report them
+  ingest [--once]    tail the bus into Postgres without HTTP; --once drains and exits
+  bus status         the tailer/ingest counters and the database count
   health [--url U]   GET /ready of a running service; exit 1 when degraded
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
@@ -49,6 +56,8 @@ fun run(args: Array<String>): Int {
         when (command) {
             "serve" -> serve()
             "migrate" -> migrate(status = "--status" in rest)
+            "ingest" -> ingest(once = "--once" in rest)
+            "bus" -> if (rest.firstOrNull() == "status") busStatus() else usage()
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
             "config" -> printJson(Config.load().snapshot()).let { EXIT_OK }
@@ -70,7 +79,41 @@ private fun serve(): Int {
     Brain(config).use { brain ->
         val applied = runBlocking { brain.migrator.apply() }
         if (applied.isNotEmpty()) log.info("migrations applied: ${applied.joinToString()}")
-        BrainServer.start(config, brain.readiness, wait = true)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        if (config.busTransport == "file") {
+            brain.bus.start(scope)
+            log.info("bus tailer on ${config.busFile} every ${config.busPollMs} ms")
+        }
+        try {
+            BrainServer.start(config, brain.readiness, brain.bus, wait = true)
+        } finally {
+            scope.cancel()
+        }
+    }
+    return EXIT_OK
+}
+
+private fun ingest(once: Boolean): Int {
+    val config = Config.load()
+    Brain(config).use { brain ->
+        runBlocking { brain.migrator.apply() }
+        if (once) {
+            val handed = runBlocking { brain.bus.drain() }
+            val status = runBlocking { brain.bus.status() }
+            printJson(responseJson.encodeToJsonElement(BusStatus.serializer(), status))
+            log.info("drained $handed event(s)")
+            return EXIT_OK
+        }
+        runBlocking { brain.bus.tailer.run(kotlin.time.Duration.parse("${config.busPollMs}ms")) { brain.bus.ingest.handle(it) } }
+    }
+    return EXIT_OK
+}
+
+private fun busStatus(): Int {
+    val config = Config.load()
+    Brain(config).use { brain ->
+        val status = runBlocking { brain.bus.status() }
+        printJson(responseJson.encodeToJsonElement(BusStatus.serializer(), status))
     }
     return EXIT_OK
 }
