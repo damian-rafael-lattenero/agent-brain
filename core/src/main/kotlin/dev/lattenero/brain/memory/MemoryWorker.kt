@@ -3,9 +3,12 @@ package dev.lattenero.brain.memory
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.rag.EmbedPipeline
 import kap.CircuitBreakerOpenException
+import kap.Kap
+import kap.Schedule
 import kap.evalGraph
+import kap.recover
+import kap.repeat
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration
@@ -77,16 +80,10 @@ class MemoryWorker(
     }
 
     suspend fun run(interval: Duration) {
-        while (true) {
-            try {
-                processOnce()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.warn("memory worker cycle failed, will retry: {}: {}", e::class.simpleName, e.message)
-            }
-            delay(interval)
-        }
+        Kap { processOnce() }
+            .recover { WorkerReport(0, 0, 0, 0, 0, 0) }   // one bad cycle never ends the worker
+            .repeat(Schedule.spaced<WorkerReport>(interval))
+            .evalGraph()
     }
 
     companion object {
@@ -145,7 +142,7 @@ class MemoryService(
         .with { byKind from store.countByKind() }
         .with { quarantined from store.countQuarantined() }
         .with { breaker from extractor.breaker.currentState.name }
-        .with { chatModel from "" }
+        .with { chatModel from extractor.model }
         .with { embedModel from provider.model }
         .evalGraph()
 

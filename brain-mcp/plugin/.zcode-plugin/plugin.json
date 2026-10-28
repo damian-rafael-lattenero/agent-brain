@@ -1,0 +1,19 @@
+{
+  "name": "brain-mcp",
+  "version": "0.1.0",
+  "description": "agent-brain inside the harness: rag_query (hybrid retrieval with citations), memory_search / memory_recent (durable memories about you and your projects), bus_status (event bus health). Every answer is a status envelope with a trace id.",
+  "author": { "name": "Damian Lattenero" },
+  "license": "MIT",
+  "mcpServers": {
+    "brain": {
+      "type": "stdio",
+      "command": "${ZCODE_PLUGIN_ROOT}/bin/brain-mcp",
+      "args": [],
+      "env": {
+        "AB_HTTP_PORT": "8765"
+      }
+    }
+  },
+  "homepage": "https://github.com/damian-rafael-lattenero/agent-brain",
+  "keywords": ["rag", "memory", "agent", "bus", "kotlin"]
+}

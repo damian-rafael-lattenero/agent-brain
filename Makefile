@@ -1,4 +1,4 @@
-.PHONY: bootstrap up down nuke migrate serve index query bridge test bb e2e-real e2e-real-login check ci clean
+.PHONY: bootstrap up down nuke migrate serve index query bridge plugin test bb e2e-real e2e-real-login check ci clean
 
 BIN := core/build/install/agent-brain/bin/agent-brain
 
@@ -35,6 +35,10 @@ query:              ## hybrid retrieval with citations: make query Q="how does t
 bridge:             ## tail the bus file into the Kafka topic once (bus_transport=kafka deployments)
 	./gradlew --quiet :core:installDist
 	$(BIN) bridge --once
+
+plugin:             ## build the ZCode plugin (brain-mcp) into brain-mcp/build/plugin; then add that marketplace in ZCode
+	./gradlew --quiet :brain-mcp:plugin
+	@echo "plugin ready: $(CURDIR)/brain-mcp/build/plugin (add it as a local marketplace in ZCode, then install brain-mcp)"
 
 test:               ## tiers 1-3: unit, integration, e2e (skips a tier when its service is down)
 	./gradlew test

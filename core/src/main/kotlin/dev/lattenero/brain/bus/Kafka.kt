@@ -3,8 +3,13 @@ package dev.lattenero.brain.bus
 import dev.lattenero.brain.config.Config
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kap.Kap
+import kap.Schedule
+import kap.evalGraph
+import kap.recover
+import kap.repeat
+import kap.repeatUntil
 import kotlinx.serialization.json.Json
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.AdminClientConfig
@@ -98,25 +103,17 @@ class KafkaBridge(private val config: Config, private val topic: String = config
 
     suspend fun drain(): Int {
         var total = 0
-        while (true) {
-            val n = poll()
-            if (n == 0) break
-            total += n
-        }
+        Kap { poll().also { total += it } }
+            .repeatUntil { it == 0 }
+            .evalGraph()
         return total
     }
 
     suspend fun run(interval: KDuration) {
-        while (true) {
-            try {
-                poll()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.warn("bridge poll failed, will retry: {}: {}", e::class.simpleName, e.message)
-            }
-            delay(interval)
-        }
+        Kap { poll() }
+            .recover { 0 }
+            .repeat(Schedule.spaced<Int>(interval))
+            .evalGraph()
     }
 
     override fun close() = producer.close(Duration.ofSeconds(CLOSE_TIMEOUT_S))
@@ -186,31 +183,24 @@ class KafkaBusConsumer(private val config: Config, private val ingest: PgBusInge
         return records.count()
     }
 
-    /** Polls until [quietPolls] consecutive polls return nothing (tests, `ingest --once`). */
+    /** Polls until [quietPolls] consecutive polls return nothing (tests, `ingest --once`); KAP policy loop. */
     suspend fun drain(quietPolls: Int = DRAIN_QUIET_POLLS): Int {
         var total = 0
         var quiet = 0
-        while (quiet < quietPolls) {
-            val n = poll(Duration.ofMillis(DRAIN_POLL_MS))
-            if (n == 0) quiet += 1 else { quiet = 0; total += n }
-        }
+        Kap {
+            poll(Duration.ofMillis(DRAIN_POLL_MS)).also { n ->
+                if (n == 0) quiet += 1 else { quiet = 0; total += n }
+            }
+        }.repeatUntil { quiet >= quietPolls }.evalGraph()
         return total
     }
 
     suspend fun run() {
         try {
-            while (true) {
-                try {
-                    poll()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: WakeupException) {
-                    throw CancellationException("consumer woken up")
-                } catch (e: Exception) {
-                    log.warn("consumer poll failed, will retry: {}: {}", e::class.simpleName, e.message)
-                    delay(RETRY_DELAY_MS)
-                }
-            }
+            Kap { poll() }
+                .recover { 0 }
+                .repeat(Schedule.spaced<Int>(KDuration.parse("${RETRY_DELAY_MS}ms")))
+                .evalGraph()
         } finally {
             close()
         }
