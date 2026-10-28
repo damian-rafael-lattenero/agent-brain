@@ -44,6 +44,7 @@ data class Config(
     val glmApiKey: String,
     val httpTimeoutS: Int,
     val busTransport: String,
+    val busPollMs: Int,
     val kafkaBootstrap: String,
     val kafkaTopic: String,
 ) {
@@ -72,6 +73,7 @@ data class Config(
             put("key_set", glmApiKey.isNotEmpty())
         }
         put("bus_transport", busTransport)
+        put("bus_poll_ms", busPollMs)
         put("bus_file", busFile.toString())
     }
 
@@ -94,6 +96,7 @@ data class Config(
             "glm_model" to "embedding-3",
             "http_timeout_s" to 60,
             "bus_transport" to "file",
+    "bus_poll_ms" to 500,
             "kafka_bootstrap" to "127.0.0.1:19092",
             "kafka_topic" to "agent-brain.bus",
         )
@@ -132,6 +135,7 @@ data class Config(
                 glmApiKey = env["GLM_API_KEY"] ?: env["ZAI_API_KEY"] ?: "",
                 httpTimeoutS = int("http_timeout_s"),
                 busTransport = str("bus_transport"),
+                busPollMs = int("bus_poll_ms"),
                 kafkaBootstrap = str("kafka_bootstrap"),
                 kafkaTopic = str("kafka_topic"),
             )

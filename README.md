@@ -11,7 +11,7 @@ host (the bus publisher inside the bot, the MTProto test driver).
 | Phase | Scope | State |
 |---|---|---|
 | P0 | Foundation: config, migrations, embedding providers (Ollama, GLM, fake), HTTP `/health` `/ready`, CLI, five-tier test layout, CI | done |
-| P1 | Event bus (file JSONL) with publisher taps in the bot, byte-offset tailer, idempotent ingest, replay golden test | planned |
+| P1 | Event bus: stdlib publisher in the bot behind the `event_bus` knob (bot ADR-019), byte-offset tailer with truncation detection, idempotent batch ingest, `/bus/status`, replay golden test, black-box with the bot's real publisher | done (file transport; Kafka in P4) |
 | P2 | RAG: corpus indexing, heading-aware chunker, hybrid cosine + full-text search with RRF, cited answers, recall gate, promptfoo | planned |
 | P3 | Memory: structured extraction per turn with quarantine, salience decay, context injection knob in the bot | planned |
 | P4 | Kafka transport (Redpanda) as a bridge behind the same consumer contract, rebalance/duplicate tolerance test | planned |
@@ -59,11 +59,15 @@ make bb               # tier 4: black-box local, services required
 make serve            # http://127.0.0.1:8765/ready
 ```
 
-The CLI lives at `core/build/install/agent-brain/bin/agent-brain`:
+The bus file is `~/.zcode/agent-brain/bus-events.jsonl` (bot side: set `"event_bus": true`
+in `~/.zcode/telegram-remote.json`, bot ADR-019). The CLI lives at `core/build/install/agent-brain/bin/agent-brain`:
 
 ```
-agent-brain serve | migrate [--status] | health [--url U] | embed TEXT... | config
+agent-brain serve | migrate [--status] | ingest [--once] | bus status | health [--url U] | embed TEXT... | config
 ```
+
+`serve` runs the HTTP service and, with `bus_transport: file`, the bus tailer.
+`ingest --once` drains the bus into Postgres and exits with the counters (scripts, CI).
 
 ## Configuration
 
@@ -83,7 +87,8 @@ default. An unknown key in the file is a startup error. `GLM_API_KEY` (or
 | `ollama_base_url` / `ollama_model` | `http://127.0.0.1:11434` / `nomic-embed-text` | |
 | `glm_base_url` / `glm_model` | `https://api.z.ai/api/paas/v4` / `embedding-3` | needs `GLM_API_KEY`; dims 256/512/1024/2048 |
 | `http_timeout_s` | `60` | outbound HTTP |
-| `bus_transport` / `kafka_bootstrap` / `kafka_topic` | `file` / `127.0.0.1:19092` / `agent-brain.bus` | P4 |
+| `bus_transport` / `kafka_bootstrap` / `kafka_topic` | `file` / `127.0.0.1:19092` / `agent-brain.bus` | Kafka in P4 |
+| `bus_poll_ms` | `500` | tailer cadence |
 
 `AB_BASE` (default `~/.zcode/agent-brain`) moves every derived path: state,
 logs, the bus file, the config file.
@@ -109,8 +114,12 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 
 | Claim | Command |
 |---|---|
-| Tiers 1-3 pass (57 tests, GLM tier skipped without a key) | `make test` |
-| The empty stack comes up green end to end: real `serve` subprocess, migrations applied, Ollama embedding a probe, CLI printing clean JSON | `make bb` |
+| Tiers 1-3 pass (73 tests, GLM tier skipped without a key) | `make test` |
+| Every line the bot's publisher produces parses under the bus contract; unknown kinds, sources, empty ids and bad timestamps are refused | `./gradlew test --tests '*BusEventsTest*'` |
+| The tailer: partial lines wait, truncation restarts from zero, a restart resumes from the persisted byte offset, a handler failure keeps the offset (at-least-once), a line longer than the read window never stalls the tail, multibyte lines keep byte-exact offsets | `./gradlew test --tests '*FileTailerTest*'` |
+| Replaying the whole bus twice (with a duplicate and a malformed line in it) leaves the database identical: 6 rows, 7 duplicates counted, 1 malformed counted | `./gradlew test --tests '*PgBusIngestIT*'` |
+| A real `serve` process tails a bus written by the bot's own `bus.py`; a byte-for-byte replay adds nothing; `bus status` and `ingest --once` report the same numbers | `make bb` (`P1BusPipelineBB`) |
+| The empty stack comes up green end to end: real `serve` subprocess, migrations applied, Ollama embedding a probe, CLI printing clean JSON | `make bb` (`P0StackHealthcheckBB`) |
 | Migrations are idempotent and concurrent runners apply exactly once | `./gradlew test --tests '*MigratorPgTest*'` |
 | A provider whose dimension disagrees with the database is refused with an actionable message | `AB_EMBED_DIM=1024 core/build/install/agent-brain/bin/agent-brain migrate` (exit 1) |
 | Secrets never appear in `/health` | `./gradlew test --tests '*ServerReadyTest*'` |
@@ -132,6 +141,13 @@ Claims and the command that proves each one, in a clean clone with colima runnin
   `fun x() = runBlocking { assertThat(..) }` returns the assert. Four tests
   once never ran while the build stayed green; `TestMethodsReturnUnitGate`
   scans every compiled test class and names the offenders.
+- **A line longer than the read window stalled the tail forever.** The first
+  tailer read a fixed window and waited for a newline inside it; a longer
+  line meant no newline, ever. The window now doubles until a newline
+  appears (hard cap, oversized lines are counted and skipped). Test: `a line
+  longer than one read window never stalls the tail`.
+- **stdout is data, stderr is logs.** The CLI prints JSON; a log line after
+  it broke `ingest --once` in the black-box tier. Logback writes to stderr.
 - **Tests must not share order-dependent state.** One shared database plus
   `@Order` produced a schema created with the wrong dimension by the test that
   was supposed to reject it. Every class now owns its databases.
@@ -148,7 +164,7 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 ## Layout
 
 ```
-core/                    Kotlin module: config, db (pool + migrator), embeddings, http, Main
+core/                    Kotlin module: config, db (pool + migrator), embeddings, bus (tailer + ingest), http, Main
 core/src/main/resources/migrations/   plain SQL, enumerated by index.txt, shipped in the jar
 core/src/test/kotlin/    tiers 1-4 (tier 5 arrives with P1)
 docker-compose.yml       pgvector/pgvector:pg18 (Redpanda joins in P4)

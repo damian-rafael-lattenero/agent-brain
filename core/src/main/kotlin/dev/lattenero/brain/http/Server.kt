@@ -1,6 +1,7 @@
 package dev.lattenero.brain.http
 
 import dev.lattenero.brain.VERSION
+import dev.lattenero.brain.bus.BusPipeline
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
@@ -94,7 +95,7 @@ val responseJson = Json {
     encodeDefaults = true
 }
 
-fun Application.brainModule(config: Config, readiness: Readiness) {
+fun Application.brainModule(config: Config, readiness: Readiness, bus: BusPipeline? = null) {
     install(ContentNegotiation) { json(responseJson) }
     routing {
         get("/health") {
@@ -105,13 +106,16 @@ fun Application.brainModule(config: Config, readiness: Readiness) {
             val status = if (report.ok) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable
             call.respond(status, report)
         }
+        if (bus != null) {
+            get("/bus/status") { call.respond(bus.status()) }
+        }
     }
 }
 
 object BrainServer {
-    fun start(config: Config, readiness: Readiness, wait: Boolean): EmbeddedServer<*, *> {
+    fun start(config: Config, readiness: Readiness, bus: BusPipeline?, wait: Boolean): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, host = config.httpHost, port = config.httpPort) {
-            brainModule(config, readiness)
+            brainModule(config, readiness, bus)
         }
         log.info("agent-brain $VERSION listening on ${config.httpHost}:${config.httpPort}")
         return server.start(wait = wait)

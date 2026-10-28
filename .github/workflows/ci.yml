@@ -31,8 +31,15 @@ jobs:
       # Services are present here, so an unreachable one is a failure, never a skip.
       AB_REQUIRE_SERVICES: "1"
       GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+      # The bot repo provides the REAL bus publisher for the P1 black-box scenario
+      # (the test skips with a visible reason until bus.py is on its master).
+      AB_BOT_REPO: ${{ github.workspace }}/bot
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: damian-rafael-lattenero/zcode-bot
+          path: bot
 
       - uses: actions/setup-java@v4
         with:

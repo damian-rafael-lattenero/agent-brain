@@ -1,5 +1,6 @@
 package dev.lattenero.brain
 
+import dev.lattenero.brain.bus.BusPipeline
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
@@ -22,8 +23,10 @@ class Brain(val config: Config, providerOverride: EmbeddingProvider? = null) : A
     val migrator: Migrator = Migrator(db, config.embedDim)
     val provider: EmbeddingProvider = providerOverride ?: EmbeddingProviders.create(config, httpClient)
     val readiness: Readiness = Readiness(config, db, migrator, provider)
+    val bus: BusPipeline = BusPipeline(config, db)
 
     override fun close() {
+        bus.stop()
         provider.close()
         httpClient.close()
         db.close()
