@@ -90,7 +90,7 @@ class MigratorPgTest {
             val results = coroutineScope {
                 (1..4).map { async { Migrator(own, 768).apply() } }.map { it.await() }
             }
-            assertThat(results.flatten()).containsExactly("0001_init.sql")
+            assertThat(results.flatten()).isEqualTo(ClasspathMigrations.list().map { it.name })
             assertThat(Migrator(own, 768).status().pending).isEmpty()
         }
     }

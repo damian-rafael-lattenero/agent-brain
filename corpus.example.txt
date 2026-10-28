@@ -1,0 +1,12 @@
+# agent-brain corpus: one absolute glob per line, '#' starts a comment.
+# Copy to ~/.zcode/agent-brain/corpus.txt and edit. `make index` reads it.
+/Users/lattenero/Projects/cv/**/*.md
+/Users/lattenero/Projects/cv/celaralabs/**/*.md
+/Users/lattenero/Projects/agent-brain/**/*.md
+/Users/lattenero/Projects/bot/README.md
+/Users/lattenero/Projects/bot/docs/**/*.md
+/Users/lattenero/Projects/kap/README.md
+/Users/lattenero/Projects/kap/LAWS.md
+/Users/lattenero/Projects/kap/docs/**/*.md
+/Users/lattenero/Projects/zcode-diff-ask/README.md
+/Users/lattenero/Projects/blend360/README.md

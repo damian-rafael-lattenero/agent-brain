@@ -7,6 +7,11 @@ import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.ProviderHealth
+import dev.lattenero.brain.rag.IndexRequest
+import dev.lattenero.brain.rag.Indexer
+import dev.lattenero.brain.rag.QueryRequest
+import dev.lattenero.brain.rag.RagQueryException
+import dev.lattenero.brain.rag.RagService
 import org.slf4j.LoggerFactory
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -16,7 +21,9 @@ import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.routing.post
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CancellationException
@@ -95,7 +102,10 @@ val responseJson = Json {
     encodeDefaults = true
 }
 
-fun Application.brainModule(config: Config, readiness: Readiness, bus: BusPipeline? = null) {
+@Serializable
+data class ErrorResponse(val error: String)
+
+fun Application.brainModule(config: Config, readiness: Readiness, bus: BusPipeline? = null, rag: RagService? = null, indexer: Indexer? = null) {
     install(ContentNegotiation) { json(responseJson) }
     routing {
         get("/health") {
@@ -109,13 +119,51 @@ fun Application.brainModule(config: Config, readiness: Readiness, bus: BusPipeli
         if (bus != null) {
             get("/bus/status") { call.respond(bus.status()) }
         }
+        if (rag != null) {
+            post("/rag/query") {
+                val request = try {
+                    call.receive<QueryRequest>()
+                } catch (e: Exception) {
+                    return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"query\": string, \"k\"?: int}: ${e.message}"))
+                }
+                try {
+                    call.respond(rag.query(request))
+                } catch (e: RagQueryException) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(e.message ?: "bad query"))
+                }
+            }
+            get("/rag/stats") { call.respond(rag.stats()) }
+        }
+        if (indexer != null) {
+            post("/rag/index") {
+                val request = try {
+                    call.receive<IndexRequest>()
+                } catch (e: Exception) {
+                    return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"globs\": [string]}: ${e.message}"))
+                }
+                val globs = request.globs.ifEmpty { readCorpusFile(config) }
+                if (globs.isEmpty()) return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("no globs given and ${config.corpusFile} is empty or missing"))
+                try {
+                    call.respond(indexer.indexGlobs(globs))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(e.message ?: "bad globs"))
+                }
+            }
+        }
     }
 }
 
+fun readCorpusFile(config: Config): List<String> =
+    if (java.nio.file.Files.exists(config.corpusFile)) {
+        dev.lattenero.brain.rag.Corpus().parseGlobs(java.nio.file.Files.readString(config.corpusFile))
+    } else {
+        emptyList()
+    }
+
 object BrainServer {
-    fun start(config: Config, readiness: Readiness, bus: BusPipeline?, wait: Boolean): EmbeddedServer<*, *> {
+    fun start(config: Config, readiness: Readiness, bus: BusPipeline?, rag: RagService?, indexer: Indexer?, wait: Boolean): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, host = config.httpHost, port = config.httpPort) {
-            brainModule(config, readiness, bus)
+            brainModule(config, readiness, bus, rag, indexer)
         }
         log.info("agent-brain $VERSION listening on ${config.httpHost}:${config.httpPort}")
         return server.start(wait = wait)
