@@ -2,8 +2,10 @@ package dev.lattenero.brain.bus
 
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
+import kap.Kap
 import kap.KapTypeSafe
 import kap.evalGraph
+import kap.repeatUntil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -45,11 +47,9 @@ class BusPipeline(private val config: Config, db: Database) {
             return kafka!!.drain()
         }
         var total = 0
-        while (true) {
-            val n = tailer.poll { ingest.handle(it) }
-            if (n == 0 && tailer.offset >= fileBytes()) break
-            total += n
-        }
+        Kap {
+            tailer.poll { ingest.handle(it) }.also { total += it }
+        }.repeatUntil { tailer.offset >= fileBytes() }.evalGraph()
         return total
     }
 

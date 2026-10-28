@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 }
 
 include("core")
+include("brain-mcp")

@@ -99,7 +99,7 @@ class P4KafkaBB {
         assertThat(status.transport).isEqualTo("kafka")
         assertThat(status.inserted).isEqualTo(6)
         assertThat(status.kafkaCommits).isGreaterThanOrEqualTo(1)
-        assertThat(status.lastKind).isEqualTo("turn.failed")
+        // Kafka orders per KEY, not globally: no assertion on lastKind across partitions.
         assertThat(base.resolve("serve.log").toFile().readText()).contains("bus consumer on")
     }
 }

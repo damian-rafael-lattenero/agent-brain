@@ -35,6 +35,17 @@ suite.
 `Indexer.Run` (indexing ∥ pruning). Value-dependent steps (upsert → embed →
 store) stay on `andThen`, which is the right tool for them.
 
+## Loops, lifecycle and the rule, revised
+
+The first version of this ADR kept long-lived loops on plain coroutines
+("KAP is request-scoped"). The author's direction is the opposite and
+correct: KAP is the declarative layer over coroutines for everything, so
+missing shapes get added to the library rather than hand-rolled here. 4.1.0
+gained `repeat(schedule)`, `repeatWhile`/`repeatUntil`, `Kap.awaitUntil`
+and `Kap.awaiting`; every loop in this repo uses them. The rule is now:
+**KAP for graphs, policies and lifecycle; `Flow` only for the stream
+itself (until `KapStream` lands, KAP SPEC-5.0).**
+
 ## Findings in 4.0.0 (fed back to the library, fixed in 4.1.0)
 
 All four are specified with reproductions in KAP's

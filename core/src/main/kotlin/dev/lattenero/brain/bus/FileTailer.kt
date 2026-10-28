@@ -2,8 +2,12 @@ package dev.lattenero.brain.bus
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kap.Kap
+import kap.Schedule
+import kap.evalGraph
+import kap.recover
+import kap.repeat
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -84,18 +88,16 @@ class FileTailer(
         return events.size
     }
 
-    /** Polls forever at the given cadence; cancellation stops it cleanly. */
+    /**
+     * Polls forever at the given cadence. KAP policy loop: the schedule IS the cadence,
+     * a failed poll is recovered as an empty one (the cycle logs nothing fatal), and
+     * cancellation stops the loop between iterations.
+     */
     suspend fun run(interval: Duration, handler: suspend (List<BusEvent>) -> Unit) {
-        while (true) {
-            try {
-                poll(handler)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.warn("poll failed, will retry: {}: {}", e::class.simpleName, e.message)
-            }
-            delay(interval)
-        }
+        Kap { poll(handler) }
+            .recover { 0 }
+            .repeat(Schedule.spaced<Int>(interval))
+            .evalGraph()
     }
 
     private data class Chunk(val events: List<BusEvent>, val consumedBytes: Long, val badLines: Int)
@@ -138,19 +140,19 @@ class FileTailer(
      * bytes beyond it: a line longer than one read must never stall the tail
      * (it did, once). Null when only a partial line exists so far.
      */
-    private fun readUntilNewline(size: Long): ByteArray? {
-        var want = minOf(size - offset, maxReadBytes.toLong()).toInt()
-        while (true) {
-            val bytes = readBytes(want)
-            if (bytes.lastIndexOf(NEWLINE) >= 0) return bytes
-            val remaining = size - offset - bytes.size
-            if (remaining <= 0) return null
-            if (want >= maxLineBytes) {
-                // Poison line: skip to the newline that ends it, however far away.
-                return readBytes(minOf(size - offset, (maxLineBytes * 2).toLong()).toInt()).takeIf { it.lastIndexOf(NEWLINE) >= 0 }
-            }
-            want = minOf(size - offset, want * 2L).toInt()
+    private fun readUntilNewline(size: Long): ByteArray? = growWindow(minOf(size - offset, maxReadBytes.toLong()).toInt(), size)
+
+    /** Bounded byte algorithm (blocking IO, no suspension): the window doubles until a newline fits. */
+    private tailrec fun growWindow(want: Int, size: Long): ByteArray? {
+        val bytes = readBytes(want)
+        if (bytes.lastIndexOf(NEWLINE) >= 0) return bytes
+        val remaining = size - offset - bytes.size
+        if (remaining <= 0) return null
+        if (want >= maxLineBytes) {
+            // Poison line: skip to the newline that ends it, however far away.
+            return readBytes(minOf(size - offset, (maxLineBytes * 2).toLong()).toInt()).takeIf { it.lastIndexOf(NEWLINE) >= 0 }
         }
+        return growWindow(minOf(size - offset, want * 2L).toInt(), size)
     }
 
     private fun readBytes(count: Int): ByteArray {

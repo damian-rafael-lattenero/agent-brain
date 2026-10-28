@@ -15,7 +15,7 @@ host (the bus publisher inside the bot, the MTProto test driver).
 | P2 | RAG: corpus by globs, heading-aware chunker, KAP-orchestrated indexer (bounded parallel embeds, timeout, retry, breaker), hybrid cosine + full-text with RRF and citations, recall gate with the real model (1.0@5), `POST /rag/query`, `index`/`query` CLI, `/brain` in the bot | done (promptfoo suites arrive with P6) |
 | P3 | Memory: worker over `turn.completed`, schema-constrained extraction with a small local model, quarantine with raw text, hybrid recall with half-life decay, `/memory/*` HTTP + CLI, `/memory` and the `memory_inject` knob in the bot (bot ADR-020) | done (tier 5 driver pending the author's one-time Telegram login) |
 | P4 | Kafka transport: Redpanda in compose, `bridge --once` (file → topic, key = session id, idempotent producer), consumer feeding the SAME handler with commit-after-ingest, the contract test (same fixtures through file and through Kafka = identical database), redelivery + poison-record tolerance, black-box through a Kafka-consuming `serve` | done |
-| P5 | `brain-mcp` plugin (official MCP Kotlin SDK, stdio) installed in the harness: `rag_query`, `memory_search`, … | planned |
+| P5 | `brain-mcp`: a ZCode plugin on the official MCP Kotlin SDK (stdio) exposing `rag_query`, `memory_search`, `memory_recent`, `bus_status` with the status envelope (`status, result|error{kind}, warnings, nextStep, meta{trace_id, tool_version}`), flat schemas, argv-only; e2e over the real protocol against the installed binary | done (install into your ZCode: `make plugin`, then add `brain-mcp/build/plugin` as a local marketplace) |
 | P6 | Evals platform: suites persisted in `eval_runs`, nightly workflow, model/cost/quality report | planned |
 | P7 | Panel (post-MVP) | planned |
 
@@ -79,6 +79,22 @@ ranked hits with citations (retrieval only, the caller composes the answer).
 From the Telegram chat: `/brain <question>`, `/brain status`, `/memory <query>`, `/memory recent`,
 `/memory status` (bot ADR-019/020). `serve` also runs the memory worker (knob `memory_worker`).
 
+## The plugin (brain-mcp)
+
+`make plugin` builds `brain-mcp/build/plugin/` (manifest + installed distribution). In ZCode add that
+directory as a local marketplace and install `brain-mcp`; the harness gains four tools that talk to the
+running `agent-brain serve` over HTTP. Every tool answers the same envelope, so a model can branch on
+`status` and quote `meta.trace_id`:
+
+```json
+{"status":"ok","result":{...},"warnings":[],"nextStep":"cite the uri and heading of what you use; ...",
+ "meta":{"trace_id":"trace-1793228960047-3","tool_version":1}}
+```
+
+Error kinds: `invalid_input`, `brain_unavailable`, `internal_error`. stdout is the protocol channel and
+stderr is logs; a library banner on stdout (kotlin-logging's) once corrupted the channel, so stdout is
+redirected to stderr until the transport is up.
+
 ## Configuration
 
 One immutable `Config` built once at startup and injected everywhere
@@ -137,7 +153,9 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 
 | Claim | Command |
 |---|---|
-| Tiers 1-3 pass (120 tests, GLM tier skipped without a key) | `make test` |
+| Tiers 1-3 pass (123 tests, GLM tier skipped without a key) | `make test` |
+| The installed `brain-mcp` binary speaks real MCP over stdio: initialize, tools/list (4 tools, flat schemas), every tool answers the envelope with a trace id; invalid input and a down brain are error envelopes; unknown argv refuses to start | `./gradlew :brain-mcp:test` |
+| No `while(true)` survives in production sources: every long-lived loop is a KAP `repeat(schedule)` policy, every bounded drain a `repeatUntil`, the plugin parks on `Kap.awaiting` | `grep -rn 'while (true)' core/src/main brain-mcp/src/main` (empty) |
 | Extraction parsing: typed items, every invalid shape quarantined with reason and raw text, caps and hygiene, transport failures retried but invalid output not | `./gradlew test --tests '*MemoryExtractorTest*'` |
 | The worker on real Postgres: the recorded bot bus becomes memories with provenance, re-running does nothing, the bus replayed twice leaves memories identical, invalid output and provider outages land in the right bins | `./gradlew test --tests '*MemoryWorkerIT*'` |
 | The real local chat model produces a valid extraction that mentions what was said | `./gradlew test --tests '*MemoryExtractionOllamaIT*'` |
@@ -184,6 +202,12 @@ Claims and the command that proves each one, in a clean clone with colima runnin
   line meant no newline, ever. The window now doubles until a newline
   appears (hard cap, oversized lines are counted and skipped). Test: `a line
   longer than one read window never stalls the tail`.
+- **Loops are policies.** The bus tailer, the memory worker, the Kafka consumer
+  and the bridge were `while (true) { try poll catch log; delay }`. KAP 4.1.0
+  gained `repeat(schedule)` / `repeatUntil` / `Kap.awaitUntil` / `Kap.awaiting`
+  (SPEC-5.0 in the KAP repo, milestone 4.2 first cut), so cadence, stop
+  condition and lifecycle are values proven under virtual time, and the only
+  remaining loops are pure byte algorithms written as tail recursion.
 - **Typed builders need the real library.** Adopting `@KapTypeSafe` surfaced two
   more KAP defects (plain `kap(::T)` never generated for packaged classes;
   nested classes generating non-compiling code), fixed upstream in 4.1.0 the
@@ -216,6 +240,7 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 ## Layout
 
 ```
+brain-mcp/               the ZCode plugin: MCP Kotlin SDK stdio server, ToolSpec registry, envelope, plugin manifest
 core/                    Kotlin module: config, db (pool + migrator), embeddings, chat, bus (tailer + ingest),
                          rag (corpus, chunker, store, KAP embed pipeline, indexer, service),
                          memory (extractor, store, worker, service), http, Main

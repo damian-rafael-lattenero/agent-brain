@@ -1,0 +1,12 @@
+{
+  "name": "dev-agent-brain",
+  "plugins": [
+    {
+      "name": "brain-mcp",
+      "source": "./brain-mcp",
+      "version": "0.1.0",
+      "description": "agent-brain tools for the harness: rag_query, memory_search, memory_recent, bus_status.",
+      "displayName": "Agent Brain"
+    }
+  ]
+}
