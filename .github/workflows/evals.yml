@@ -1,0 +1,58 @@
+name: evals (nightly recall gate)
+
+# Persists a row per run (model, provider, passed/total) and uploads the markdown
+# artifact, so model/cost/quality trends are visible over time. The gate is 0.9;
+# GLM runs only when the key secret exists (its cost column is honest: embeddings
+# only, and the row records the model so the comparison table stays truthful).
+
+on:
+  schedule:
+    - cron: "23 4 * * *"   # 01:23 Buenos Aires
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      pg:
+        image: pgvector/pgvector:pg18
+        env: { POSTGRES_USER: brain, POSTGRES_PASSWORD: brain, POSTGRES_DB: agent_brain }
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U brain -d agent_brain" --health-interval 2s --health-timeout 2s --health-retries 30
+    env:
+      AB_PG_URL: jdbc:postgresql://127.0.0.1:5433/agent_brain
+      AB_PG_USER: brain
+      AB_PG_PASSWORD: brain
+      AB_OLLAMA_BASE_URL: http://127.0.0.1:11434
+      AB_REQUIRE_SERVICES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: corretto, java-version: "21" }
+      - uses: actions/setup-java@v4
+        with: { distribution: corretto, java-version: "25" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install "promptfoo@0.118.6" && promptfoo --version
+      - name: Redpanda (for the bus transports)
+        run: |
+          docker run -d --name redpanda -p 127.0.0.1:19092:19092 redpandadata/redpanda:v26.2.6 \
+            redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M --node-id 0 --check=false \
+            --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092 \
+            --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://127.0.0.1:19092
+      - name: Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/ollama.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/tags && break; sleep 1; done
+          ollama pull nomic-embed-text
+      - name: The gate (local model)
+        run: |
+          ./gradlew --no-daemon :core:installDist
+          core/build/install/agent-brain/bin/agent-brain eval
+      - name: Upload the artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: eval-artifact, path: evals/artifacts/ }

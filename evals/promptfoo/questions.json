@@ -1,0 +1,82 @@
+[
+  {
+    "question": "which advisory lock id does the migration runner take?",
+    "uri": "/migrator-lock.md"
+  },
+  {
+    "question": "how many dimensions does nomic-embed-text produce?",
+    "uri": "/embedding-dimensions.md"
+  },
+  {
+    "question": "what are the seven fields of a bus event?",
+    "uri": "/bus-contract.md"
+  },
+  {
+    "question": "how are the vector and full-text rank lists combined?",
+    "uri": "/hybrid-retrieval.md"
+  },
+  {
+    "question": "what caused the bot to send 118 messages at 12:33?",
+    "uri": "/message-storm.md"
+  },
+  {
+    "question": "which JDK distribution is installed through Homebrew casks?",
+    "uri": "/jdk-policy.md"
+  },
+  {
+    "question": "what does the tailer do when the bus file is shorter than the saved offset?",
+    "uri": "/tailer-truncation.md"
+  },
+  {
+    "question": "why is a KAP timeout placed before retry never retried?",
+    "uri": "/kap-timeout-retry.md"
+  },
+  {
+    "question": "after how many consecutive failures does the embedding circuit breaker open?",
+    "uri": "/circuit-breaker.md"
+  },
+  {
+    "question": "how does tier five talk to the real Telegram account?",
+    "uri": "/telegram-black-box.md"
+  },
+  {
+    "question": "what does the database do with an event id it already has?",
+    "uri": "/tailer-truncation.md"
+  },
+  {
+    "question": "where do the citations of a retrieval hit point?",
+    "uri": "/hybrid-retrieval.md"
+  },
+  {
+    "question": "what broke the retry of a slow embedding call?",
+    "uri": "/kap-timeout-retry.md"
+  },
+  {
+    "question": "which brew casks install the JDKs?",
+    "uri": "/jdk-policy.md"
+  },
+  {
+    "question": "what happens to a poisoned or rotated bus file?",
+    "uri": "/tailer-truncation.md"
+  },
+  {
+    "question": "what did the postmortem of the message storm fix?",
+    "uri": "/message-storm.md"
+  },
+  {
+    "question": "which model answers the extraction under a schema?",
+    "uri": "/embedding-dimensions.md"
+  },
+  {
+    "question": "how does the black-box driver read the chat back?",
+    "uri": "/telegram-black-box.md"
+  },
+  {
+    "question": "what serializes two migrators racing?",
+    "uri": "/migrator-lock.md"
+  },
+  {
+    "question": "when does the breaker fail fast?",
+    "uri": "/circuit-breaker.md"
+  }
+]

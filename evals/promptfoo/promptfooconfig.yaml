@@ -1,0 +1,62 @@
+# generated from evals/promptfoo/questions.json (make eval regenerates if missing)
+tests:
+  - vars:
+      question: "which advisory lock id does the migration runner take?"
+      expectedUri: /migrator-lock.md
+  - vars:
+      question: "how many dimensions does nomic-embed-text produce?"
+      expectedUri: /embedding-dimensions.md
+  - vars:
+      question: "what are the seven fields of a bus event?"
+      expectedUri: /bus-contract.md
+  - vars:
+      question: "how are the vector and full-text rank lists combined?"
+      expectedUri: /hybrid-retrieval.md
+  - vars:
+      question: "what caused the bot to send 118 messages at 12:33?"
+      expectedUri: /message-storm.md
+  - vars:
+      question: "which JDK distribution is installed through Homebrew casks?"
+      expectedUri: /jdk-policy.md
+  - vars:
+      question: "what does the tailer do when the bus file is shorter than the saved offset?"
+      expectedUri: /tailer-truncation.md
+  - vars:
+      question: "why is a KAP timeout placed before retry never retried?"
+      expectedUri: /kap-timeout-retry.md
+  - vars:
+      question: "after how many consecutive failures does the embedding circuit breaker open?"
+      expectedUri: /circuit-breaker.md
+  - vars:
+      question: "how does tier five talk to the real Telegram account?"
+      expectedUri: /telegram-black-box.md
+  - vars:
+      question: "who rebalances partitions and dedupes by key?"
+      expectedUri: /bus-contract.md
+  - vars:
+      question: "where do the citations of a retrieval hit point?"
+      expectedUri: /hybrid-retrieval.md
+  - vars:
+      question: "what broke the retry of a slow embedding call?"
+      expectedUri: /kap-timeout-retry.md
+  - vars:
+      question: "which brew casks install the JDKs?"
+      expectedUri: /jdk-policy.md
+  - vars:
+      question: "what happens to a poisoned or rotated bus file?"
+      expectedUri: /tailer-truncation.md
+  - vars:
+      question: "what did the postmortem of the message storm fix?"
+      expectedUri: /message-storm.md
+  - vars:
+      question: "which model answers the extraction under a schema?"
+      expectedUri: /embedding-dimensions.md
+  - vars:
+      question: "how does the black-box driver read the chat back?"
+      expectedUri: /telegram-black-box.md
+  - vars:
+      question: "what serializes two migrators racing?"
+      expectedUri: /migrator-lock.md
+  - vars:
+      question: "when does the breaker fail fast?"
+      expectedUri: /circuit-breaker.md

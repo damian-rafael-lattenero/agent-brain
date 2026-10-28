@@ -1,0 +1,5 @@
+{
+  "name": "agent-brain-evals",
+  "private": true,
+  "devDependencies": { "promptfoo": "^0.120.0" }
+}

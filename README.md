@@ -16,7 +16,7 @@ host (the bus publisher inside the bot, the MTProto test driver).
 | P3 | Memory: worker over `turn.completed`, schema-constrained extraction with a small local model, quarantine with raw text, hybrid recall with half-life decay, `/memory/*` HTTP + CLI, `/memory` and the `memory_inject` knob in the bot (bot ADR-020) | done (tier 5 driver pending the author's one-time Telegram login) |
 | P4 | Kafka transport: Redpanda in compose, `bridge --once` (file → topic, key = session id, idempotent producer), consumer feeding the SAME handler with commit-after-ingest, the contract test (same fixtures through file and through Kafka = identical database), redelivery + poison-record tolerance, black-box through a Kafka-consuming `serve` | done |
 | P5 | `brain-mcp`: a ZCode plugin on the official MCP Kotlin SDK (stdio) exposing `rag_query`, `memory_search`, `memory_recent`, `bus_status` with the status envelope (`status, result|error{kind}, warnings, nextStep, meta{trace_id, tool_version}`), flat schemas, argv-only; e2e over the real protocol against the installed binary | done (install into your ZCode: `make plugin`, then add `brain-mcp/build/plugin` as a local marketplace) |
-| P6 | Evals platform: suites persisted in `eval_runs`, nightly workflow, model/cost/quality report | planned |
+| P6 | Evals: `agent-brain eval` (fresh database, shipped fixture corpus, 20 recall questions against the real model, gate 0.9), every run persisted in `eval_runs` (model, provider, passed/total, per-question detail), markdown artifact, CI step + nightly workflow with the artifact uploaded; promptfoo config for the external tool | done |
 | P7 | Panel (post-MVP) | planned |
 
 ## Architecture
@@ -59,6 +59,7 @@ make bb               # tier 4: black-box local, services required
 make serve            # http://127.0.0.1:8765/ready
 make index            # index ~/.zcode/agent-brain/corpus.txt (copy corpus.example.txt first)
 make query Q="how does the tailer handle truncation"
+make eval             # the recall gate: 20 questions, real model, eval_runs row, evals/artifacts/latest.md
 ```
 
 The bus file is `~/.zcode/agent-brain/bus-events.jsonl` (bot side: set `"event_bus": true`
@@ -68,7 +69,7 @@ in `~/.zcode/telegram-remote.json`, bot ADR-019). The CLI lives at `core/build/i
 agent-brain serve | migrate [--status] | ingest [--once] | bridge [--once] | bus status | index [GLOB...] | query TEXT [--k N]
             | memory search TEXT [--k N] | memory recent [--k N] [--kind K] | memory save KIND TEXT
             | memory quarantine | memory status | memory run [--once]
-            | health [--url U] | embed TEXT... | config
+            | eval [--gate 0.9] | health [--url U] | embed TEXT... | config
 ```
 
 `serve` runs the HTTP service and, with `bus_transport: file`, the bus tailer.
@@ -153,7 +154,8 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 
 | Claim | Command |
 |---|---|
-| Tiers 1-3 pass (123 tests, GLM tier skipped without a key) | `make test` |
+| Tiers 1-3 pass (125 tests, GLM tier skipped without a key) | `make test` |
+| The eval gate: 20/20 recall@5 with the real local model on the shipped fixture corpus, the run persisted in `eval_runs`, the eval database dropped afterwards | `make eval` (`EvalRunnerIT` in the suite) |
 | The installed `brain-mcp` binary speaks real MCP over stdio: initialize, tools/list (4 tools, flat schemas), every tool answers the envelope with a trace id; invalid input and a down brain are error envelopes; unknown argv refuses to start | `./gradlew :brain-mcp:test` |
 | No `while(true)` survives in production sources: every long-lived loop is a KAP `repeat(schedule)` policy, every bounded drain a `repeatUntil`, the plugin parks on `Kap.awaiting` | `grep -rn 'while (true)' core/src/main brain-mcp/src/main` (empty) |
 | Extraction parsing: typed items, every invalid shape quarantined with reason and raw text, caps and hygiene, transport failures retried but invalid output not | `./gradlew test --tests '*MemoryExtractorTest*'` |
@@ -225,6 +227,24 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 - **Tests must not share order-dependent state.** One shared database plus
   `@Order` produced a schema created with the wrong dimension by the test that
   was supposed to reject it. Every class now owns its databases.
+
+## Evals
+
+`agent-brain eval` is the regression gate for retrieval quality: it creates a throwaway database,
+indexes the fixture corpus shipped in the jar (`eval/corpus`, 10 planted facts + 3 distractors), asks the
+20 shipped questions (`eval/questions.json`: 10 literal, 10 paraphrased) through the real hybrid
+retrieval, and passes when at least 90% find their document in the top 5. Every run writes a row to
+`eval_runs` in the main database (suite, model, provider, passed, total, per-question detail) and a
+markdown table to `evals/artifacts/latest.md`, so the model/quality trend is a query away:
+
+```sql
+SELECT model, provider, passed, total, ts FROM eval_runs ORDER BY ts DESC;
+```
+
+CI runs the gate on every push; `.github/workflows/evals.yml` runs it nightly and uploads the artifact.
+`evals/promptfoo/` carries the same questions as a promptfoo config for anyone who prefers that tool
+against a running `serve`. Cost is honest: the local model costs nothing; a GLM row would record its
+model name and leave cost at zero until usage accounting for embeddings exists.
 
 ## ADRs
 
