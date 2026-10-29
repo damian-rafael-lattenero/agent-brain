@@ -35,7 +35,8 @@ class Database(config: Config) : AutoCloseable {
         },
     )
 
-    suspend fun <T> withConnection(block: (Connection) -> T): T = withContext(Loom.dispatcher) {
+    // The block is suspend so callers can use kap operators (inTransaction) inside.
+    suspend fun <T> withConnection(block: suspend (Connection) -> T): T = withContext(Loom.dispatcher) {
         dataSource.connection.use { conn ->
             // Client-side type registration, no round trip: safe before 0001.
             PGvector.addVectorType(conn)

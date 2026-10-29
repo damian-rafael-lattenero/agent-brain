@@ -5,11 +5,16 @@ import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
 import dev.lattenero.brain.rag.QueryRequest
+import kap.Kap
+import kap.Resource
+import kap.bracket
+import kap.evalGraph
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
+import java.sql.Connection
 import java.sql.DriverManager
 import java.time.Instant
 import java.util.UUID
@@ -36,33 +41,44 @@ data class EvalReport(
 )
 
 class EvalRunner(private val config: Config, private val questions: List<EvalQuestion>, private val gate: Double) {
-    /** A fresh database per run: the corpus and its vectors never leak between suites or providers. */
-    private fun freshEvalDatabase(): String {
-        val name = "agent_brain_eval_" + UUID.randomUUID().toString().replace("-", "").take(8)
-        DriverManager.getConnection(config.pgUrl, config.pgUser, config.pgPassword).use { conn ->
-            conn.createStatement().use { it.execute("CREATE DATABASE $name") }
-        }
-        return name
-    }
 
-    private fun dropQuietly(name: String) {
-        try {
-            DriverManager.getConnection(config.pgUrl, config.pgUser, config.pgPassword).use { conn ->
-                conn.createStatement().use { it.execute("DROP DATABASE IF EXISTS $name WITH (FORCE)") }
-            }
-        } catch (e: Exception) {
-            System.err.println("eval: could not drop $name: ${e.message}")
-        }
-    }
+    /** The admin connection through the same kap bracket as everything else (plan B2): close in NonCancellable. */
+    private suspend fun <T> withAdminConnection(block: (Connection) -> T): T =
+        bracket(
+            acquire = { DriverManager.getConnection(config.pgUrl, config.pgUser, config.pgPassword) },
+            use = { conn -> Kap { block(conn) } },
+            release = { it.close() },
+        ).evalGraph()
+
+    /**
+     * A fresh database per run, as a [Resource] (plan B2): the corpus and its
+     * vectors never leak between suites or providers. The drop is
+     * deterministic (not a shutdown hook: test workers may never exit
+     * cleanly) and quiet — a failed drop is a stderr line, never a masked
+     * eval result.
+     */
+    private fun freshEvalDatabase(): Resource<String> = Resource(
+        acquire = {
+            val name = "agent_brain_eval_" + UUID.randomUUID().toString().replace("-", "").take(8)
+            withAdminConnection { conn -> conn.createStatement().use { it.execute("CREATE DATABASE $name") } }
+            name
+        },
+        release = { name ->
+            runCatching {
+                withAdminConnection { conn ->
+                    conn.createStatement().use { it.execute("DROP DATABASE IF EXISTS $name WITH (FORCE)") }
+                }
+            }.onFailure { System.err.println("eval: could not drop $name: ${it.message}") }
+        },
+    )
 
     fun run(): EvalReport {
         val started = System.currentTimeMillis()
-        val dbName = freshEvalDatabase()
-        val evalConfig = config.copy(pgUrl = config.pgUrl.substringBeforeLast('/') + "/" + dbName)
-        val report = try {
-            Brain(evalConfig).use { brain -> runBlocking { evaluate(brain, started) } }
-        } finally {
-            dropQuietly(dbName)   // deterministic, not a shutdown hook: test workers may never exit cleanly
+        val report = runBlocking {
+            freshEvalDatabase().use { dbName ->
+                val evalConfig = config.copy(pgUrl = config.pgUrl.substringBeforeLast('/') + "/" + dbName)
+                Brain(evalConfig).use { brain -> evaluate(brain, started) }
+            }
         }
         persist(config, report)
         return report

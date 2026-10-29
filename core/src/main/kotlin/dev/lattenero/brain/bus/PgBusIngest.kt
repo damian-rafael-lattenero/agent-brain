@@ -1,6 +1,7 @@
 package dev.lattenero.brain.bus
 
 import dev.lattenero.brain.db.Database
+import dev.lattenero.brain.db.inTransaction
 import kotlinx.serialization.Serializable
 import java.util.concurrent.atomic.AtomicLong
 
@@ -22,30 +23,20 @@ class PgBusIngest(private val db: Database) {
 
     suspend fun handle(events: List<BusEvent>) {
         if (events.isEmpty()) return
-        val inserted = db.withConnection { conn ->
-            conn.autoCommit = false
-            try {
-                val counts = conn.prepareStatement(INSERT).use { ps ->
-                    for (event in events) {
-                        ps.setString(1, event.id)
-                        ps.setString(2, event.ts)
-                        ps.setString(3, event.kind)
-                        ps.setString(4, event.sid)
-                        ps.setString(5, event.turn)
-                        ps.setString(6, event.source)
-                        ps.setString(7, event.payload.toString())
-                        ps.addBatch()
-                    }
-                    ps.executeBatch()
+        val inserted = db.inTransaction { conn ->
+            conn.prepareStatement(INSERT).use { ps ->
+                for (event in events) {
+                    ps.setString(1, event.id)
+                    ps.setString(2, event.ts)
+                    ps.setString(3, event.kind)
+                    ps.setString(4, event.sid)
+                    ps.setString(5, event.turn)
+                    ps.setString(6, event.source)
+                    ps.setString(7, event.payload.toString())
+                    ps.addBatch()
                 }
-                conn.commit()
-                counts.count { it > 0 }
-            } catch (e: Exception) {
-                conn.rollback()
-                throw e
-            } finally {
-                conn.autoCommit = true
-            }
+                ps.executeBatch()
+            }.count { it > 0 }
         }
         stats.seen.addAndGet(events.size.toLong())
         stats.inserted.addAndGet(inserted.toLong())
