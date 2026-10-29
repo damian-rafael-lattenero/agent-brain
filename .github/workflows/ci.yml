@@ -58,7 +58,7 @@ jobs:
         with:
           distribution: corretto
           java-version: "21"
-      - name: KAP 4.1.0 to mavenLocal (daemon on 21, toolchain 25 detected)
+      - name: KAP 4.2.0 to mavenLocal (daemon on 21, toolchain 25 detected)
         run: cd kap && ./gradlew publishToMavenLocal -PskipSigning -x test -x jvmTest
 
       - name: Ollama (the default embedding provider, exercised for real)
