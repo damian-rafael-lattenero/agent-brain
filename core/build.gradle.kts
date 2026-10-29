@@ -12,6 +12,8 @@ kotlin {
     }
     compilerOptions {
         allWarningsAsErrors = true
+        // "Compiled with 25, runs on 21+": same rationale as brain-mcp (the plugin dist ships these classes).
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
 }
 
