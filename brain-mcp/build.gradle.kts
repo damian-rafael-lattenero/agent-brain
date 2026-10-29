@@ -41,7 +41,10 @@ application {
 
 tasks.test {
     useJUnitPlatform()
-    testLogging { events("passed", "failed", "skipped") }
+    testLogging {
+        events("passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
     dependsOn(tasks.installDist)
     systemProperty("brainmcpt.dist", layout.buildDirectory.file("install/brain-mcp/bin/brain-mcp").get().asFile.absolutePath)
     environment("AB_REQUIRE_SERVICES", "")
