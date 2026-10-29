@@ -9,8 +9,7 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
-        // KAP 4.1.0 is consumed from mavenLocal until the Central release is tagged.
-        mavenLocal { content { includeGroup("io.github.damian-rafael-lattenero") } }
+        // KAP is on Maven Central since 4.2.0 (2026-10-29); no mavenLocal friction (plan G5).
         mavenCentral()
     }
 }
