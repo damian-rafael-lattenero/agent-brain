@@ -12,6 +12,9 @@ kotlin {
     }
     compilerOptions {
         allWarningsAsErrors = true
+        // "Compiled with 25, runs on 21+": without this the classes are classfile 69
+        // and every spawned launcher under a 21 runtime dies with UnsupportedClassVersionError.
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
 }
 
