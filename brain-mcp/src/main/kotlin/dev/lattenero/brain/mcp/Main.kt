@@ -2,6 +2,7 @@ package dev.lattenero.brain.mcp
 
 import dev.lattenero.brain.Brain
 import kap.Kap
+import kap.Resource
 import kap.awaiting
 import kap.KapTypeSafe
 import kap.evalGraph
@@ -124,81 +125,92 @@ private class HttpBrainClient(baseUrl: String) {
     }
 }
 
+/**
+ * stdout is the MCP protocol channel; ANY library banner printed to stdout corrupts
+ * it (kotlin-logging's does, via the MCP SDK). The guard is a [Resource] (plan B3):
+ * stdout goes to stderr on acquire and the real stdout is restored on release —
+ * even when startup fails — before the transport (which owns the real stdout)
+ * is created.
+ */
+private fun stdoutGuard(): Resource<Unit> = Resource(
+    acquire = { System.setOut(System.err) },
+    release = { System.setOut(REAL_OUT) },
+)
+
+private val REAL_OUT: java.io.PrintStream = System.out
+
 fun main(argv: Array<String>) {
-    // stdout is the MCP protocol channel; ANY library banner printed to stdout corrupts
-    // it (kotlin-logging's does, via the MCP SDK). Send stdout to stderr until the
-    // transport is up, then restore the real stdout for the protocol only.
-    val realOut = System.out
-    System.setOut(System.err)
-    val parsed = try {
-        Args.parse(argv.toList())
-    } catch (e: IllegalArgumentException) {
-        System.err.println("brain-mcp: ${e.message}")
-        exitProcess(2)
-    }
-    parsed.abBase?.let { System.setProperty("AB_BASE_OVERRIDE", it) }
-    parsed.abConfig?.let { System.setProperty("AB_CONFIG_OVERRIDE", it) }
+    val (server, toolsServed) = runBlocking {
+        stdoutGuard().use { _ ->
+            val parsed = try {
+                Args.parse(argv.toList())
+            } catch (e: IllegalArgumentException) {
+                System.err.println("brain-mcp: ${e.message}")
+                exitProcess(2)
+            }
+            parsed.abBase?.let { System.setProperty("AB_BASE_OVERRIDE", it) }
+            parsed.abConfig?.let { System.setProperty("AB_CONFIG_OVERRIDE", it) }
 
-    val brain = try {
-        Brain(loadConfig())
-    } catch (e: Exception) {
-        System.err.println("brain-mcp: cannot configure the brain: ${e.message}")
-        exitProcess(1)
-    }
-    Runtime.getRuntime().addShutdownHook(Thread { brain.close() })
+            val brain = try {
+                Brain(loadConfig())
+            } catch (e: Exception) {
+                System.err.println("brain-mcp: cannot configure the brain: ${e.message}")
+                exitProcess(1)
+            }
+            Runtime.getRuntime().addShutdownHook(Thread { brain.close() })
 
-    val http = HttpBrainClient("http://${brain.config.httpHost}:${brain.config.httpPort}")
-    // Registry and liveness probe come up together; a dead brain is advisory here (the
-    // envelopes report it per call) but it is logged once at startup.
-    val wiring = runBlocking {
-        kap(::ToolWiring)
-            .with { registry from BrainTools.all }
-            .with { brainReady from brainReady(http) }
-            .evalGraph()
-    }
-    if (!wiring.brainReady) log.warn("the brain's HTTP API is not reachable yet; tool calls will answer brain_unavailable until it is")
-    val toolsServed = AtomicInteger()
+            val http = HttpBrainClient("http://${brain.config.httpHost}:${brain.config.httpPort}")
+            // Registry and liveness probe come up together; a dead brain is advisory here (the
+            // envelopes report it per call) but it is logged once at startup.
+            val wiring = kap(::ToolWiring)
+                .with { registry from BrainTools.all }
+                .with { brainReady from brainReady(http) }
+                .evalGraph()
+            if (!wiring.brainReady) log.warn("the brain's HTTP API is not reachable yet; tool calls will answer brain_unavailable until it is")
+            val served = AtomicInteger()
 
-    val server = Server(
-        serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
-        options = ServerOptions(capabilities = ServerCapabilities(tools = ServerCapabilities.Tools())),
-        instructions = "agent-brain: retrieval (rag_query), memory (memory_search, memory_recent) and bus health (bus_status). " +
-            "Every response is an envelope: {status, result|error{kind,message}, warnings, nextStep, meta{trace_id, tool_version}}.",
-    ) {
-        for (spec in wiring.registry) {
-            addTool(
-                name = spec.name,
-                description = spec.description,
-                inputSchema = Json.decodeFromJsonElement(io.modelcontextprotocol.kotlin.sdk.types.ToolSchema.serializer(), spec.inputSchema),
-            ) { request ->
-                toolsServed.incrementAndGet()
-                envelope(spec, request) { args ->
-                    when (spec.name) {
-                        BrainTools.ragQuery.name -> {
-                            val k = BrainTools.intArg(args, "k", QueryRequest(query = "").k, 50)
-                            http.post("/rag/query", Json.encodeToString(QueryRequest.serializer(), QueryRequest(BrainTools.stringArg(args, "query"), k))).second
+            val wired = Server(
+                serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
+                options = ServerOptions(capabilities = ServerCapabilities(tools = ServerCapabilities.Tools())),
+                instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent) and bus health (bus_status). " +
+                    "Every response is an envelope: {status, result|error{kind,message}, warnings, nextStep, meta{trace_id, tool_version}}.",
+            ) {
+                for (spec in wiring.registry) {
+                    addTool(
+                        name = spec.name,
+                        description = spec.description,
+                        inputSchema = Json.decodeFromJsonElement(io.modelcontextprotocol.kotlin.sdk.types.ToolSchema.serializer(), spec.inputSchema),
+                    ) { request ->
+                        served.incrementAndGet()
+                        envelope(spec, request) { args ->
+                            when (spec.name) {
+                                BrainTools.ragQuery.name -> {
+                                    val k = BrainTools.intArg(args, "k", QueryRequest(query = "").k, 50)
+                                    http.post("/rag/query", Json.encodeToString(QueryRequest.serializer(), QueryRequest(BrainTools.stringArg(args, "query"), k))).second
+                                }
+                                BrainTools.memorySearch.name -> {
+                                    val k = BrainTools.intArg(args, "k", MemoryService.DEFAULT_K, 50)
+                                    http.post("/memory/search", Json.encodeToString(MemorySearchRequest.serializer(), MemorySearchRequest(BrainTools.stringArg(args, "query"), k))).second
+                                }
+                                BrainTools.memoryRecent.name -> {
+                                    val limit = BrainTools.intArg(args, "limit", MemoryService.DEFAULT_K, 50)
+                                    val kind = BrainTools.stringArg(args, "kind")
+                                    http.get("/memory/recent?limit=$limit" + (if (kind.isEmpty()) "" else "&kind=" + java.net.URLEncoder.encode(kind, Charsets.UTF_8))).second
+                                }
+                                BrainTools.busStatus.name -> http.get("/bus/status").second
+                                else -> throw IllegalStateException("unrouted tool ${spec.name}")
+                            }
                         }
-                        BrainTools.memorySearch.name -> {
-                            val k = BrainTools.intArg(args, "k", MemoryService.DEFAULT_K, 50)
-                            http.post("/memory/search", Json.encodeToString(MemorySearchRequest.serializer(), MemorySearchRequest(BrainTools.stringArg(args, "query"), k))).second
-                        }
-                        BrainTools.memoryRecent.name -> {
-                            val limit = BrainTools.intArg(args, "limit", MemoryService.DEFAULT_K, 50)
-                            val kind = BrainTools.stringArg(args, "kind")
-                            http.get("/memory/recent?limit=$limit" + (if (kind.isEmpty()) "" else "&kind=" + java.net.URLEncoder.encode(kind, Charsets.UTF_8))).second
-                        }
-                        BrainTools.busStatus.name -> http.get("/bus/status").second
-                        else -> throw IllegalStateException("unrouted tool ${spec.name}")
                     }
                 }
             }
+            wired to served
         }
     }
 
     // createSession starts the transport on its OWN scope: main returning would kill it.
     // Park on the session's close callback (KAP: the lifecycle as a Kap, cancellable).
     runBlocking {
-        System.setOut(realOut)
         val transport = StdioServerTransport(
             input = System.`in`.asSource().buffered(),
             output = System.out.asSink().buffered(),

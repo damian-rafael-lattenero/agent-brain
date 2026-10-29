@@ -105,23 +105,21 @@ class Migrator(
             ensureLedger(conn)
             val applied = appliedNames(conn).toSet()
             val done = mutableListOf<String>()
-            conn.autoCommit = false
             try {
                 for (migration in migrations) {
                     if (migration.name in applied) continue
-                    conn.createStatement().use { it.execute(Migrations.render(migration.sql, embedDim)) }
-                    conn.prepareStatement("INSERT INTO schema_migrations (name) VALUES (?)").use {
-                        it.setString(1, migration.name)
-                        it.executeUpdate()
+                    // One transaction per migration: applied progress survives a later failure.
+                    conn.inTransaction {
+                        it.createStatement().use { st -> st.execute(Migrations.render(migration.sql, embedDim)) }
+                        it.prepareStatement("INSERT INTO schema_migrations (name) VALUES (?)").use { ps ->
+                            ps.setString(1, migration.name)
+                            ps.executeUpdate()
+                        }
                     }
-                    conn.commit()
                     done += migration.name
                 }
             } catch (e: SQLException) {
-                conn.rollback()
                 throw MigrationException("migration failed: ${e.message}", e)
-            } finally {
-                conn.autoCommit = true
             }
             val stored = storedEmbedDim(conn)
             if (stored != null && stored != embedDim) {

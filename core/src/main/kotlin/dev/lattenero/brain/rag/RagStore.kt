@@ -2,6 +2,7 @@ package dev.lattenero.brain.rag
 
 import com.pgvector.PGvector
 import dev.lattenero.brain.db.Database
+import dev.lattenero.brain.db.inTransaction
 import kap.KapTypeSafe
 import kap.evalGraph
 import kotlinx.serialization.Serializable
@@ -66,35 +67,26 @@ class RagStore(private val db: Database) {
     }
 
     /** Replaces every chunk of a document in one transaction. */
-    suspend fun replaceChunks(docId: Long, embedModel: String, rows: List<ChunkRow>): Int = db.withConnection { conn ->
-        conn.autoCommit = false
-        try {
-            conn.prepareStatement("DELETE FROM chunks WHERE doc_id = ?").use { ps ->
-                ps.setLong(1, docId)
-                ps.executeUpdate()
-            }
-            conn.prepareStatement(
-                "INSERT INTO chunks (doc_id, ordinal, heading, content, embed_model, embedding) VALUES (?, ?, ?, ?, ?, ?)",
-            ).use { ps ->
-                for (row in rows) {
-                    ps.setLong(1, docId)
-                    ps.setInt(2, row.ordinal)
-                    ps.setString(3, row.heading)
-                    ps.setString(4, row.content)
-                    ps.setString(5, embedModel)
-                    ps.setObject(6, PGvector(row.embedding))
-                    ps.addBatch()
-                }
-                ps.executeBatch()
-            }
-            conn.commit()
-            rows.size
-        } catch (e: Exception) {
-            conn.rollback()
-            throw e
-        } finally {
-            conn.autoCommit = true
+    suspend fun replaceChunks(docId: Long, embedModel: String, rows: List<ChunkRow>): Int = db.inTransaction { conn ->
+        conn.prepareStatement("DELETE FROM chunks WHERE doc_id = ?").use { ps ->
+            ps.setLong(1, docId)
+            ps.executeUpdate()
         }
+        conn.prepareStatement(
+            "INSERT INTO chunks (doc_id, ordinal, heading, content, embed_model, embedding) VALUES (?, ?, ?, ?, ?, ?)",
+        ).use { ps ->
+            for (row in rows) {
+                ps.setLong(1, docId)
+                ps.setInt(2, row.ordinal)
+                ps.setString(3, row.heading)
+                ps.setString(4, row.content)
+                ps.setString(5, embedModel)
+                ps.setObject(6, PGvector(row.embedding))
+                ps.addBatch()
+            }
+            ps.executeBatch()
+        }
+        rows.size
     }
 
     suspend fun deleteDocumentsNotIn(source: String, keptUris: Collection<String>): Int = db.withConnection { conn ->
