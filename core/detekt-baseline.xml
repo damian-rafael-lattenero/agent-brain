@@ -1,0 +1,146 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ConstructorParameterNaming:Providers.kt:GlmChatProvider.Usage$val completion_tokens: Int? = null</ID>
+    <ID>ConstructorParameterNaming:Providers.kt:GlmChatProvider.Usage$val prompt_tokens: Int? = null</ID>
+    <ID>ConstructorParameterNaming:Providers.kt:OllamaChatProvider.Response$val eval_count: Int? = null</ID>
+    <ID>ConstructorParameterNaming:Providers.kt:OllamaChatProvider.Response$val prompt_eval_count: Int? = null</ID>
+    <ID>CyclomaticComplexMethod:Main.kt:fun run: Int</ID>
+    <ID>CyclomaticComplexMethod:Main.kt:private fun memory: Int</ID>
+    <ID>CyclomaticComplexMethod:Server.kt:fun Application.brainModule</ID>
+    <ID>LongMethod:Server.kt:fun Application.brainModule</ID>
+    <ID>LoopWithTooManyJumpStatements:Chunker.kt:Chunker$for</ID>
+    <ID>LoopWithTooManyJumpStatements:MemoryWorker.kt:MemoryWorker$for</ID>
+    <ID>MagicNumber:Chunker.kt:Chunker$6</ID>
+    <ID>MagicNumber:EvalRunner.kt:EvalRunner$3</ID>
+    <ID>MagicNumber:EvalRunner.kt:EvalRunner$4</ID>
+    <ID>MagicNumber:EvalRunner.kt:EvalRunner$5</ID>
+    <ID>MagicNumber:EvalRunner.kt:EvalRunner$6</ID>
+    <ID>MagicNumber:FakeProvider.kt:FakeProvider$0xff</ID>
+    <ID>MagicNumber:FakeProvider.kt:FakeProvider$8</ID>
+    <ID>MagicNumber:HttpClients.kt:HttpClients$1_000L</ID>
+    <ID>MagicNumber:Main.kt:200</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$3</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$4</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$5</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$6</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$7</ID>
+    <ID>MagicNumber:RagStore.kt:RagStore$3</ID>
+    <ID>MagicNumber:RagStore.kt:RagStore$4</ID>
+    <ID>MagicNumber:RagStore.kt:RagStore$5</ID>
+    <ID>MagicNumber:RagStore.kt:RagStore$6</ID>
+    <ID>MaxLineLength:Brain.kt:Brain$breaker = CircuitBreaker(maxFailures = config.embedBreakerFailures, resetTimeout = config.embedBreakerResetS.seconds)</ID>
+    <ID>MaxLineLength:Brain.kt:Brain$class</ID>
+    <ID>MaxLineLength:Config.kt:Config.Companion$else -&gt; if (value.isString) value.content else throw ConfigException("$name expects a string in config.json, got $value")</ID>
+    <ID>MaxLineLength:Config.kt:Config.Companion$is Boolean -&gt; value.booleanOrNull ?: throw ConfigException("$name expects true or false in config.json, got $value")</ID>
+    <ID>MaxLineLength:Corpus.kt:Corpus$val root = if (firstWild &lt; 0) Paths.get(glob).parent else Paths.get(parts.take(firstWild).joinToString("/").ifEmpty { "/" })</ID>
+    <ID>MaxLineLength:Corpus.kt:Corpus.Companion$val PRUNED_DIRS = setOf(".git", "node_modules", "build", ".gradle", ".venv", "venv", "__pycache__", ".idea", "dist", "target", ".kotlin")</ID>
+    <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$.</ID>
+    <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$log.warn("embed batch retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)</ID>
+    <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$val breaker: CircuitBreaker = CircuitBreaker(maxFailures = DEFAULT_BREAKER_FAILURES, resetTimeout = DEFAULT_BREAKER_RESET)</ID>
+    <ID>MaxLineLength:EmbeddingProvider.kt:EmbeddingProviders$"glm" -&gt; GlmProvider(client, config.glmBaseUrl, config.glmModel, config.embedDim, config.embedBatch, config.glmApiKey)</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$// macOS hands out /var/folders (a symlink of /private/var/...): normalize or the glob never matches the walked paths.</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$check(indexed.failed.isEmpty() &amp;&amp; indexed.indexed &gt; 0) { "eval: the fixture corpus did not index (${indexed.failed})" }</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$loader.getResourceAsStream("eval/corpus/index.txt")!!.bufferedReader().readLines().filter { it.endsWith(".md") }</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner.Companion$appendLine("- **${report.passed}/${report.total} passed (gate ${report.gate}) → ${if (report.ok) "PASS" else "FAIL"}**")</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner.Companion$appendLine("| ${row.question.replace("|", "\\|")} | ${row.expectedUri.substringAfterLast('/')} | ${row.rank ?: "-"} | ${(row.topUri ?: "-").substringAfterLast('/')} |")</ID>
+    <ID>MaxLineLength:FileTailer.kt:FileTailer$private</ID>
+    <ID>MaxLineLength:FileTailer.kt:FileTailer$return readBytes(minOf(size - offset, (maxLineBytes * 2).toLong()).toInt()).takeIf { it.lastIndexOf(NEWLINE) &gt;= 0 }</ID>
+    <ID>MaxLineLength:Indexer.kt:Indexer$.</ID>
+    <ID>MaxLineLength:Indexer.kt:Indexer$phases = tracer.phases.mapValues { (_, p) -&gt; PhaseStat(p.count.get(), p.failures.get(), p.totalMillis.get()) }</ID>
+    <ID>MaxLineLength:Indexer.kt:Indexer$suspend</ID>
+    <ID>MaxLineLength:Kafka.kt:KafkaBridge$producer.send(ProducerRecord(topic, event.sid.ifEmpty { null }, json.encodeToString(BusEvent.serializer(), event)))</ID>
+    <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$class</ID>
+    <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$log.warn("malformed record skipped at {}-{}@{}: {}", record.topic(), record.partition(), record.offset(), parsed.reason)</ID>
+    <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$stats.lastOffsets = records.partitions().associate { tp -&gt; tp.partition() to records.records(tp).last().offset() }</ID>
+    <ID>MaxLineLength:Main.kt:"quarantine" -&gt; printJson(responseJson.encodeToJsonElement(ListSerializer(QuarantineRow.serializer()), runBlocking { brain.memory.quarantined(MemorySearchRequest(query = "").k) }))</ID>
+    <ID>MaxLineLength:Main.kt:"status" -&gt; printJson(responseJson.encodeToJsonElement(MemoryStatus.serializer(), runBlocking { brain.memory.status() }))</ID>
+    <ID>MaxLineLength:Main.kt:java.nio.file.Files.copy(EvalRunner::class.java.classLoader.getResourceAsStream("eval/questions.json")!!, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING)</ID>
+    <ID>MaxLineLength:Main.kt:java.nio.file.Files.writeString(artifactDir.resolve("eval-${report.startedAt.replace(":", "")}.md"), EvalRunner.markdown(report))</ID>
+    <ID>MaxLineLength:Main.kt:printJson(buildJsonObject { put("produced", produced); put("offset", bridge.tailer.offset); put("topic", config.kafkaTopic) })</ID>
+    <ID>MaxLineLength:Main.kt:runBlocking { brain.bus.tailer.run(kotlin.time.Duration.parse("${config.busPollMs}ms")) { brain.bus.ingest.handle(it) } }</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:Extraction$preferences.map { KIND_PREFERENCE to it }</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$.</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$log.warn("extraction retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$val breaker: CircuitBreaker = CircuitBreaker(maxFailures = DEFAULT_BREAKER_FAILURES, resetTimeout = DEFAULT_BREAKER_RESET)</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$"facts: verifiable statements about the user, their projects, tools or environment that will still be true next week. "</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$const</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$put("required", buildJsonArray { listOf("facts", "decisions", "preferences", "summary").forEach { add(JsonPrimitive(it)) } })</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$return Extraction(list("facts"), list("decisions"), list("preferences"), summary, raw, result.promptTokens, result.completionTokens)</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$summaryElement is JsonPrimitive &amp;&amp; summaryElement.isString -&gt; summaryElement.content.trim().take(MAX_SUMMARY_CHARS)</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$}</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$"INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id) VALUES (?, NULL, ?, ?, ?, ?, NULL) RETURNING id"</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$PendingTurn</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$Transcript(pending.eventId, pending.sessionId, pending.turnId, pending.source, prompt, reply, tools.toList(), title)</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("INSERT INTO memory_quarantine (turn_id, reason, raw, event_id, session_id) VALUES (?, ?, ?, ?, ?)")</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("SELECT id, event_id, session_id, turn_id, reason, raw, ts FROM memory_quarantine ORDER BY ts DESC, id DESC LIMIT ?")</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("SELECT kind, payload::text FROM bus_events WHERE sid = ? AND turn = ? ORDER BY ts, id")</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$generateSequence { if (rs.next()) PendingTurn(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)) else null }.toList()</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend fun countPending: Long</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend fun countProcessed: Long</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$val</ID>
+    <ID>MaxLineLength:MemoryStore.kt:QuarantineRow$data</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$return MemorySearchResponse(text, provider.model, store.search(vector, text, provider.model, request.k, halfLifeDays))</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$return store.recent(1).firstOrNull { it.id == id } ?: Memory(id, request.kind, content, request.sessionId, null, 1.0, "")</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$val id = store.saveManual(request.kind, content.take(MemoryExtractor.MAX_ITEM_CHARS), provider.model, vector, request.sessionId)</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryService.Companion$val KINDS = setOf(Extraction.KIND_FACT, Extraction.KIND_DECISION, Extraction.KIND_PREFERENCE, Extraction.KIND_SUMMARY)</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$log.warn("memory extraction deferred for {} (attempt {}): {}", turn.eventId, turn.attempts + 1, reason)</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$store.quarantine(transcript, turn.eventId, "gave up after ${turn.attempts + 1} attempts: $reason", "")</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$val rows = items.zip(vectors) { (kind, content), vector -&gt; MemoryStore.MemoryRow(kind, content, vector) }</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:WorkerReport$data</ID>
+    <ID>MaxLineLength:Providers.kt:FakeChatProvider$class</ID>
+    <ID>MaxLineLength:Providers.kt:FakeChatProvider.Companion$fun strings: JsonElement</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -&gt; throw ChatException("glm rejected the key (HTTP ${response.status.value}): ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$add(buildJsonObject { put("role", "system"); put("content", system + "\nThe JSON must match this schema: " + schema) })</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$class</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$else -&gt; throw ChatException("glm $url -&gt; HTTP ${response.status.value}: ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$val content = parsed.choices.firstOrNull()?.message?.content ?: throw ChatException("glm answered without choices")</ID>
+    <ID>MaxLineLength:Providers.kt:OllamaChatProvider$HttpStatusCode.NotFound -&gt; throw ChatException("ollama model '$model' is not pulled (ollama pull $model): ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
+    <ID>MaxLineLength:Providers.kt:OllamaChatProvider$else -&gt; throw ChatException("ollama $url -&gt; HTTP ${response.status.value}: ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
+    <ID>MaxLineLength:Providers.kt:OllamaChatProvider$val content = parsed.message?.content ?: throw ChatException("ollama chat answered without a message: ${parsed.error ?: "?"}")</ID>
+    <ID>MaxLineLength:Providers.kt:OllamaChatProvider.Response$private</ID>
+    <ID>MaxLineLength:RagStore.kt:RagStore$"INSERT INTO chunks (doc_id, ordinal, heading, content, embed_model, embedding) VALUES (?, ?, ?, ?, ?, ?)"</ID>
+    <ID>MaxLineLength:RagStore.kt:RagStore$conn.createStatement().use { st -&gt; st.executeQuery("SELECT count(*) FROM $table").use { rs -&gt; rs.next(); rs.getLong(1) } }</ID>
+    <ID>MaxLineLength:RagStore.kt:RagStore$suspend</ID>
+    <ID>MaxLineLength:Server.kt:BrainServer$fun</ID>
+    <ID>MaxLineLength:Server.kt:fun</ID>
+    <ID>MaxLineLength:Server.kt:if (globs.isEmpty()) return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("no globs given and ${config.corpusFile} is empty or missing"))</ID>
+    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"globs\": [string]}: ${e.message}"))</ID>
+    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"kind\": string, \"content\": string}: ${e.message}"))</ID>
+    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"query\": string, \"k\"?: int}: ${e.message}"))</ID>
+    <ID>ReturnCount:BusEvent.kt:BusEvents$fun parse: Parsed</ID>
+    <ID>ReturnCount:Config.kt:Config.Companion$internal fun resolve: Any</ID>
+    <ID>ReturnCount:FileTailer.kt:FileTailer$private fun readChunk: Chunk?</ID>
+    <ID>ReturnCount:FileTailer.kt:FileTailer$private tailrec fun growWindow: ByteArray?</ID>
+    <ID>ReturnCount:FileTailer.kt:FileTailer$suspend fun poll: Int</ID>
+    <ID>ReturnCount:Main.kt:private fun index: Int</ID>
+    <ID>ReturnCount:Main.kt:private fun memory: Int</ID>
+    <ID>SwallowedException:Config.kt:Config.Companion$e: IOException</ID>
+    <ID>SwallowedException:Config.kt:Config.Companion$e: SerializationException</ID>
+    <ID>SwallowedException:Corpus.kt:Corpus$e: java.nio.charset.MalformedInputException</ID>
+    <ID>SwallowedException:Kafka.kt:KafkaTopics$e: Exception</ID>
+    <ID>SwallowedException:MemoryExtractor.kt:MemoryExtractor.Companion$e: SerializationException</ID>
+    <ID>ThrowsCount:Config.kt:Config.Companion$private fun readFile: Map&lt;String, JsonPrimitive&gt;</ID>
+    <ID>ThrowsCount:EmbeddingProvider.kt:BaseProvider$final override suspend fun embed: List&lt;FloatArray&gt;</ID>
+    <ID>ThrowsCount:GlmProvider.kt:GlmProvider$private suspend fun call: List&lt;FloatArray&gt;</ID>
+    <ID>ThrowsCount:MemoryExtractor.kt:MemoryExtractor.Companion$fun list: List&lt;String&gt;</ID>
+    <ID>ThrowsCount:MemoryExtractor.kt:MemoryExtractor.Companion$fun parse: Extraction</ID>
+    <ID>ThrowsCount:OllamaProvider.kt:OllamaProvider$private suspend fun call: List&lt;FloatArray&gt;</ID>
+    <ID>ThrowsCount:Providers.kt:GlmChatProvider$override suspend fun completeJson: ChatResult</ID>
+    <ID>ThrowsCount:Providers.kt:OllamaChatProvider$override suspend fun completeJson: ChatResult</ID>
+    <ID>TooGenericExceptionCaught:EmbeddingProvider.kt:BaseProvider$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:EvalRunner.kt:EvalRunner$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FileTailer.kt:OffsetStore$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Kafka.kt:KafkaBusConsumer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Kafka.kt:KafkaTopics$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MemoryWorker.kt:MemoryWorker$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PgBusIngest.kt:PgBusIngest$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RagStore.kt:RagStore$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Server.kt:Readiness$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Server.kt:e: Exception</ID>
+    <ID>TooManyFunctions:Main.kt:dev.lattenero.brain.Main.kt</ID>
+    <ID>TooManyFunctions:MemoryStore.kt:MemoryStore</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -50,15 +50,13 @@ jobs:
 
       # KAP 4.1.0 (with the fixes this project reported) is consumed from mavenLocal until the
       # Central release is tagged: build it from the library repo. Drop this step afterwards.
+      # KAP is a single-JDK-25 build since its detekt 2.0 upgrade, so the setup-java above
+      # serves the WHOLE job — no daemon flip to 21 anymore.
       - uses: actions/checkout@v4
         with:
           repository: damian-rafael-lattenero/kap
           path: kap
-      - uses: actions/setup-java@v4
-        with:
-          distribution: corretto
-          java-version: "21"
-      - name: KAP 4.2.0 to mavenLocal (daemon on 21, toolchain 25 detected)
+      - name: KAP 4.2.0 to mavenLocal (the same Corretto 25 as the rest of the job)
         run: cd kap && ./gradlew publishToMavenLocal -PskipSigning -x test -x jvmTest
 
       - name: Ollama (the default embedding provider, exercised for real)
@@ -80,6 +78,9 @@ jobs:
 
       - name: "Gate: the tree compiles with warnings as errors"
         run: ./gradlew --no-daemon compileKotlin compileTestKotlin
+
+      - name: "Gate: detekt (baselined findings tolerated, new violations fail)"
+        run: ./gradlew --no-daemon detektAll
 
       - name: "Tiers 1-3: unit, integration, e2e"
         run: ./gradlew --no-daemon test

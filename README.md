@@ -158,6 +158,7 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 | The eval gate: 20/20 recall@5 with the real local model on the shipped fixture corpus, the run persisted in `eval_runs`, the eval database dropped afterwards | `make eval` (`EvalRunnerIT` in the suite) |
 | The installed `brain-mcp` binary speaks real MCP over stdio: initialize, tools/list (4 tools, flat schemas), every tool answers the envelope with a trace id; invalid input and a down brain are error envelopes; unknown argv refuses to start | `./gradlew :brain-mcp:test` |
 | No `while(true)` survives in production sources: every long-lived loop is a KAP `repeat(schedule)` policy, every bounded drain a `repeatUntil`, the plugin parks on `Kap.awaiting` | `grep -rn 'while (true)' core/src/main brain-mcp/src/main` (empty) |
+| detekt 2.0 on the single-JDK-25 build (workers isolated, no daemon dance): both flavours per module — plain + type-resolved — existing findings baselined, any NEW violation fails | `./gradlew detektAll` |
 | Extraction parsing: typed items, every invalid shape quarantined with reason and raw text, caps and hygiene, transport failures retried but invalid output not | `./gradlew test --tests '*MemoryExtractorTest*'` |
 | The worker on real Postgres: the recorded bot bus becomes memories with provenance, re-running does nothing, the bus replayed twice leaves memories identical, invalid output and provider outages land in the right bins | `./gradlew test --tests '*MemoryWorkerIT*'` |
 | The real local chat model produces a valid extraction that mentions what was said | `./gradlew test --tests '*MemoryExtractionOllamaIT*'` |
@@ -269,6 +270,6 @@ core/src/main/resources/migrations/   plain SQL, enumerated by index.txt, shippe
 core/src/test/kotlin/    tiers 1-4 (tier 5 arrives with P1)
 docker-compose.yml       pgvector/pgvector:pg18 (Redpanda joins in P4)
 Makefile, bootstrap.sh   operator entry points
-.github/workflows/ci.yml tiers 1-4 on every push, Ollama installed for real
+.github/workflows/ci.yml tiers 1-4 + detekt on every push, Ollama installed for real
 docs/adr/                decisions
 ```
