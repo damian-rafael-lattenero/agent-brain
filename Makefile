@@ -1,4 +1,4 @@
-.PHONY: bootstrap up down nuke migrate serve index query bridge plugin eval test bb e2e-real e2e-real-login check ci clean
+.PHONY: bootstrap up down nuke migrate serve index query bridge plugin eval test bb detekt e2e-real e2e-real-login check ci clean
 
 BIN := core/build/install/agent-brain/bin/agent-brain
 
@@ -50,6 +50,9 @@ test:               ## tiers 1-3: unit, integration, e2e (skips a tier when its 
 bb:                 ## tier 4: black-box local, real processes, services REQUIRED
 	./gradlew bbLocal
 
+detekt:             ## static analysis: baselined findings tolerated, new violations fail (detekt 2.0)
+	./gradlew detektAll
+
 E2E_PY := tools/e2e-real/.venv/bin/python3
 
 $(E2E_PY):
@@ -61,10 +64,10 @@ e2e-real-login: $(E2E_PY)  ## one-time: create AB_TG_SESSION for your account (n
 e2e-real: $(E2E_PY)  ## tier 5: your Telegram account drives the bot, the brain is observed through it
 	AB_E2E_PYTHON=$(E2E_PY) ./gradlew e2eReal
 
-check: test bb      ## everything CI runs on every push
+check: test bb detekt   ## everything CI runs on every push
 
 ci:                 ## what CI runs, with services required (no silent skips)
-	AB_REQUIRE_SERVICES=1 ./gradlew test bbLocal
+	AB_REQUIRE_SERVICES=1 ./gradlew test bbLocal detektAll
 
 clean:
 	./gradlew clean

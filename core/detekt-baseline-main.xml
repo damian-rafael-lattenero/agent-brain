@@ -1,0 +1,243 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ConstructorParameterNaming:BusPipelineProbeKapBuilder.kt:BusPipelineProbeKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
+    <ID>ConstructorParameterNaming:BusPipelineProbeKapBuilderValidated.kt:BusPipelineProbeValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:ChecksKapBuilder.kt:ChecksKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
+    <ID>ConstructorParameterNaming:ChecksKapBuilderValidated.kt:ChecksValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:IndexerRunKapBuilder.kt:IndexerRunKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
+    <ID>ConstructorParameterNaming:IndexerRunKapBuilderValidated.kt:IndexerRunValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:MemoryStatusKapBuilder.kt:MemoryStatusKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
+    <ID>ConstructorParameterNaming:MemoryStatusKapBuilderValidated.kt:MemoryStatusValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:Providers.kt:GlmChatProvider.Usage$val completion_tokens: Int? = null</ID>
+    <ID>ConstructorParameterNaming:Providers.kt:GlmChatProvider.Usage$val prompt_tokens: Int? = null</ID>
+    <ID>ConstructorParameterNaming:Providers.kt:OllamaChatProvider.Response$val eval_count: Int? = null</ID>
+    <ID>ConstructorParameterNaming:Providers.kt:OllamaChatProvider.Response$val prompt_eval_count: Int? = null</ID>
+    <ID>ConstructorParameterNaming:RagStatsKapBuilder.kt:RagStatsKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
+    <ID>ConstructorParameterNaming:RagStatsKapBuilderValidated.kt:RagStatsValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>CyclomaticComplexMethod:Main.kt:fun run: Int</ID>
+    <ID>CyclomaticComplexMethod:Main.kt:private fun memory: Int</ID>
+    <ID>CyclomaticComplexMethod:Server.kt:fun Application.brainModule</ID>
+    <ID>ImplicitDefaultLocale:Corpus.kt:Corpus.Companion$"%02x".format(it)</ID>
+    <ID>InjectDispatcher:FileTailer.kt:FileTailer$IO</ID>
+    <ID>InjectDispatcher:Kafka.kt:KafkaBridge$IO</ID>
+    <ID>InjectDispatcher:Kafka.kt:KafkaBusConsumer$IO</ID>
+    <ID>InjectDispatcher:Main.kt:Default</ID>
+    <ID>InstanceOfCheckForException:MemoryWorker.kt:MemoryWorker$e is CircuitBreakerOpenException</ID>
+    <ID>LongMethod:Server.kt:fun Application.brainModule</ID>
+    <ID>LongParameterList:EmbedPipeline.kt:EmbedPipeline</ID>
+    <ID>LongParameterList:Server.kt:BrainServer$fun start: EmbeddedServer&lt;*, *&gt;</ID>
+    <ID>LongParameterList:Server.kt:fun Application.brainModule</ID>
+    <ID>LoopWithTooManyJumpStatements:Chunker.kt:Chunker$for</ID>
+    <ID>LoopWithTooManyJumpStatements:MemoryWorker.kt:MemoryWorker$for</ID>
+    <ID>MagicNumber:Chunker.kt:Chunker$6</ID>
+    <ID>MagicNumber:EvalRunner.kt:EvalRunner$3</ID>
+    <ID>MagicNumber:EvalRunner.kt:EvalRunner$4</ID>
+    <ID>MagicNumber:EvalRunner.kt:EvalRunner$5</ID>
+    <ID>MagicNumber:EvalRunner.kt:EvalRunner$6</ID>
+    <ID>MagicNumber:FakeProvider.kt:FakeProvider$0xff</ID>
+    <ID>MagicNumber:FakeProvider.kt:FakeProvider$8</ID>
+    <ID>MagicNumber:HttpClients.kt:HttpClients$1_000L</ID>
+    <ID>MagicNumber:Main.kt:200</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$3</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$4</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$5</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$6</ID>
+    <ID>MagicNumber:MemoryStore.kt:MemoryStore$7</ID>
+    <ID>MagicNumber:RagStore.kt:RagStore$3</ID>
+    <ID>MagicNumber:RagStore.kt:RagStore$4</ID>
+    <ID>MagicNumber:RagStore.kt:RagStore$5</ID>
+    <ID>MagicNumber:RagStore.kt:RagStore$6</ID>
+    <ID>MaxLineLength:Brain.kt:Brain$breaker = CircuitBreaker(maxFailures = config.embedBreakerFailures, resetTimeout = config.embedBreakerResetS.seconds)</ID>
+    <ID>MaxLineLength:Brain.kt:Brain$class</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:BusPipelineProbeKap$class</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:BusPipelineProbeKap(Kap.of({ p0: BusPipelineProbeFileBytes -&gt; { p1: BusPipelineProbeDbEvents -&gt; f(p0.value, p1.value) } }))</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:fun</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:infix</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:infix fun BusPipelineProbeDbEventsTag.from: BusPipelineProbeDbEvents</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:infix fun BusPipelineProbeDbEventsTag.from: Kap&lt;BusPipelineProbeDbEvents&gt;</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:infix fun BusPipelineProbeFileBytesTag.from: BusPipelineProbeFileBytes</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:infix fun BusPipelineProbeFileBytesTag.from: Kap&lt;BusPipelineProbeFileBytes&gt;</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilderValidated.kt:BusPipelineProbeValidatedKap$class</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilderValidated.kt:fun</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilderValidated.kt:infix</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilderValidated.kt:inline</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilderValidated.kt:val fn: (BusPipelineProbeFileBytes) -&gt; (BusPipelineProbeDbEvents) -&gt; dev.lattenero.brain.bus.BusPipeline.Probe = { p0: BusPipelineProbeFileBytes -&gt; { p1: BusPipelineProbeDbEvents -&gt; f(p0.value, p1.value) } }</ID>
+    <ID>MaxLineLength:BusPipelineProbeKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (BusPipelineProbeFileBytes) -&gt; (BusPipelineProbeDbEvents) -&gt; dev.lattenero.brain.bus.BusPipeline.Probe&gt;&gt; = Kap.of(Either.Right(fn))</ID>
+    <ID>MaxLineLength:ChecksKapBuilder.kt:fun</ID>
+    <ID>MaxLineLength:ChecksKapBuilder.kt:infix</ID>
+    <ID>MaxLineLength:ChecksKapBuilder.kt:infix fun ChecksEmbedTag.from: Kap&lt;ChecksEmbed&gt;</ID>
+    <ID>MaxLineLength:ChecksKapBuilderValidated.kt:ChecksValidatedKap$class</ID>
+    <ID>MaxLineLength:ChecksKapBuilderValidated.kt:fun</ID>
+    <ID>MaxLineLength:ChecksKapBuilderValidated.kt:infix</ID>
+    <ID>MaxLineLength:ChecksKapBuilderValidated.kt:val fn: (ChecksDb) -&gt; (ChecksEmbed) -&gt; dev.lattenero.brain.http.Checks = { p0: ChecksDb -&gt; { p1: ChecksEmbed -&gt; f(p0.value, p1.value) } }</ID>
+    <ID>MaxLineLength:ChecksKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (ChecksDb) -&gt; (ChecksEmbed) -&gt; dev.lattenero.brain.http.Checks&gt;&gt; = Kap.of(Either.Right(fn))</ID>
+    <ID>MaxLineLength:Config.kt:Config.Companion$else -&gt; if (value.isString) value.content else throw ConfigException("$name expects a string in config.json, got $value")</ID>
+    <ID>MaxLineLength:Config.kt:Config.Companion$is Boolean -&gt; value.booleanOrNull ?: throw ConfigException("$name expects true or false in config.json, got $value")</ID>
+    <ID>MaxLineLength:Corpus.kt:Corpus$val root = if (firstWild &lt; 0) Paths.get(glob).parent else Paths.get(parts.take(firstWild).joinToString("/").ifEmpty { "/" })</ID>
+    <ID>MaxLineLength:Corpus.kt:Corpus.Companion$val PRUNED_DIRS = setOf(".git", "node_modules", "build", ".gradle", ".venv", "venv", "__pycache__", ".idea", "dist", "target", ".kotlin")</ID>
+    <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$.</ID>
+    <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$log.warn("embed batch retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)</ID>
+    <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$val breaker: CircuitBreaker = CircuitBreaker(maxFailures = DEFAULT_BREAKER_FAILURES, resetTimeout = DEFAULT_BREAKER_RESET)</ID>
+    <ID>MaxLineLength:EmbeddingProvider.kt:EmbeddingProviders$"glm" -&gt; GlmProvider(client, config.glmBaseUrl, config.glmModel, config.embedDim, config.embedBatch, config.glmApiKey)</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$// macOS hands out /var/folders (a symlink of /private/var/...): normalize or the glob never matches the walked paths.</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$check(indexed.failed.isEmpty() &amp;&amp; indexed.indexed &gt; 0) { "eval: the fixture corpus did not index (${indexed.failed})" }</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$loader.getResourceAsStream("eval/corpus/index.txt")!!.bufferedReader().readLines().filter { it.endsWith(".md") }</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner.Companion$appendLine("- **${report.passed}/${report.total} passed (gate ${report.gate}) → ${if (report.ok) "PASS" else "FAIL"}**")</ID>
+    <ID>MaxLineLength:EvalRunner.kt:EvalRunner.Companion$appendLine("| ${row.question.replace("|", "\\|")} | ${row.expectedUri.substringAfterLast('/')} | ${row.rank ?: "-"} | ${(row.topUri ?: "-").substringAfterLast('/')} |")</ID>
+    <ID>MaxLineLength:FileTailer.kt:FileTailer$private</ID>
+    <ID>MaxLineLength:FileTailer.kt:FileTailer$return readBytes(minOf(size - offset, (maxLineBytes * 2).toLong()).toInt()).takeIf { it.lastIndexOf(NEWLINE) &gt;= 0 }</ID>
+    <ID>MaxLineLength:Indexer.kt:Indexer$.</ID>
+    <ID>MaxLineLength:Indexer.kt:Indexer$phases = tracer.phases.mapValues { (_, p) -&gt; PhaseStat(p.count.get(), p.failures.get(), p.totalMillis.get()) }</ID>
+    <ID>MaxLineLength:Indexer.kt:Indexer$suspend</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilder.kt:IndexerRunKap$class</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilder.kt:IndexerRunOutcomes</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilder.kt:fun</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilder.kt:infix</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilder.kt:infix fun IndexerRunOutcomesTag.from: IndexerRunOutcomes</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilder.kt:infix fun IndexerRunOutcomesTag.from: Kap&lt;IndexerRunOutcomes&gt;</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilderValidated.kt:IndexerRunValidatedKap$class</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilderValidated.kt:fun</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilderValidated.kt:infix</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilderValidated.kt:val fn: (IndexerRunOutcomes) -&gt; (IndexerRunPruned) -&gt; dev.lattenero.brain.rag.Indexer.Run = { p0: IndexerRunOutcomes -&gt; { p1: IndexerRunPruned -&gt; f(p0.value, p1.value) } }</ID>
+    <ID>MaxLineLength:IndexerRunKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (IndexerRunOutcomes) -&gt; (IndexerRunPruned) -&gt; dev.lattenero.brain.rag.Indexer.Run&gt;&gt; = Kap.of(Either.Right(fn))</ID>
+    <ID>MaxLineLength:Kafka.kt:KafkaBridge$producer.send(ProducerRecord(topic, event.sid.ifEmpty { null }, json.encodeToString(BusEvent.serializer(), event)))</ID>
+    <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$class</ID>
+    <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$log.warn("malformed record skipped at {}-{}@{}: {}", record.topic(), record.partition(), record.offset(), parsed.reason)</ID>
+    <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$stats.lastOffsets = records.partitions().associate { tp -&gt; tp.partition() to records.records(tp).last().offset() }</ID>
+    <ID>MaxLineLength:Main.kt:"quarantine" -&gt; printJson(responseJson.encodeToJsonElement(ListSerializer(QuarantineRow.serializer()), runBlocking { brain.memory.quarantined(MemorySearchRequest(query = "").k) }))</ID>
+    <ID>MaxLineLength:Main.kt:"status" -&gt; printJson(responseJson.encodeToJsonElement(MemoryStatus.serializer(), runBlocking { brain.memory.status() }))</ID>
+    <ID>MaxLineLength:Main.kt:java.nio.file.Files.copy(EvalRunner::class.java.classLoader.getResourceAsStream("eval/questions.json")!!, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING)</ID>
+    <ID>MaxLineLength:Main.kt:java.nio.file.Files.writeString(artifactDir.resolve("eval-${report.startedAt.replace(":", "")}.md"), EvalRunner.markdown(report))</ID>
+    <ID>MaxLineLength:Main.kt:printJson(buildJsonObject { put("produced", produced); put("offset", bridge.tailer.offset); put("topic", config.kafkaTopic) })</ID>
+    <ID>MaxLineLength:Main.kt:runBlocking { brain.bus.tailer.run(kotlin.time.Duration.parse("${config.busPollMs}ms")) { brain.bus.ingest.handle(it) } }</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:Extraction$preferences.map { KIND_PREFERENCE to it }</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$.</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$log.warn("extraction retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$val breaker: CircuitBreaker = CircuitBreaker(maxFailures = DEFAULT_BREAKER_FAILURES, resetTimeout = DEFAULT_BREAKER_RESET)</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$"facts: verifiable statements about the user, their projects, tools or environment that will still be true next week. "</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$const</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$put("required", buildJsonArray { listOf("facts", "decisions", "preferences", "summary").forEach { add(JsonPrimitive(it)) } })</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$return Extraction(list("facts"), list("decisions"), list("preferences"), summary, raw, result.promptTokens, result.completionTokens)</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$summaryElement is JsonPrimitive &amp;&amp; summaryElement.isString -&gt; summaryElement.content.trim().take(MAX_SUMMARY_CHARS)</ID>
+    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$}</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:MemoryStatusKap$class</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:MemoryStatusKap(Kap.of({ p0: MemoryStatusPendingTurns -&gt; { p1: MemoryStatusProcessedTurns -&gt; { p2: MemoryStatusMemories -&gt; { p3: MemoryStatusByKind -&gt; { p4: MemoryStatusQuarantined -&gt; { p5: MemoryStatusBreaker -&gt; { p6: MemoryStatusChatModel -&gt; { p7: MemoryStatusEmbedModel -&gt; f(p0.value, p1.value, p2.value, p3.value, p4.value, p5.value, p6.value, p7.value) } } } } } } } }))</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:fun</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusBreakerTag.from: Kap&lt;MemoryStatusBreaker&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusByKindTag.from: Kap&lt;MemoryStatusByKind&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusByKindTag.from: MemoryStatusByKind</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusChatModelTag.from: Kap&lt;MemoryStatusChatModel&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusEmbedModelTag.from: Kap&lt;MemoryStatusEmbedModel&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusMemoriesTag.from: Kap&lt;MemoryStatusMemories&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusPendingTurnsTag.from: Kap&lt;MemoryStatusPendingTurns&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusPendingTurnsTag.from: MemoryStatusPendingTurns</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusProcessedTurnsTag.from: Kap&lt;MemoryStatusProcessedTurns&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusProcessedTurnsTag.from: MemoryStatusProcessedTurns</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusQuarantinedTag.from: Kap&lt;MemoryStatusQuarantined&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:MemoryStatusValidatedKap$class</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:fun</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:infix</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:inline</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:val fn: (MemoryStatusPendingTurns) -&gt; (MemoryStatusProcessedTurns) -&gt; (MemoryStatusMemories) -&gt; (MemoryStatusByKind) -&gt; (MemoryStatusQuarantined) -&gt; (MemoryStatusBreaker) -&gt; (MemoryStatusChatModel) -&gt; (MemoryStatusEmbedModel) -&gt; dev.lattenero.brain.memory.MemoryStatus = { p0: MemoryStatusPendingTurns -&gt; { p1: MemoryStatusProcessedTurns -&gt; { p2: MemoryStatusMemories -&gt; { p3: MemoryStatusByKind -&gt; { p4: MemoryStatusQuarantined -&gt; { p5: MemoryStatusBreaker -&gt; { p6: MemoryStatusChatModel -&gt; { p7: MemoryStatusEmbedModel -&gt; f(p0.value, p1.value, p2.value, p3.value, p4.value, p5.value, p6.value, p7.value) } } } } } } } }</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (MemoryStatusPendingTurns) -&gt; (MemoryStatusProcessedTurns) -&gt; (MemoryStatusMemories) -&gt; (MemoryStatusByKind) -&gt; (MemoryStatusQuarantined) -&gt; (MemoryStatusBreaker) -&gt; (MemoryStatusChatModel) -&gt; (MemoryStatusEmbedModel) -&gt; dev.lattenero.brain.memory.MemoryStatus&gt;&gt; = Kap.of(Either.Right(fn))</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$"INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id) VALUES (?, NULL, ?, ?, ?, ?, NULL) RETURNING id"</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$PendingTurn</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$Transcript(pending.eventId, pending.sessionId, pending.turnId, pending.source, prompt, reply, tools.toList(), title)</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("INSERT INTO memory_quarantine (turn_id, reason, raw, event_id, session_id) VALUES (?, ?, ?, ?, ?)")</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("SELECT id, event_id, session_id, turn_id, reason, raw, ts FROM memory_quarantine ORDER BY ts DESC, id DESC LIMIT ?")</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("SELECT kind, payload::text FROM bus_events WHERE sid = ? AND turn = ? ORDER BY ts, id")</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$generateSequence { if (rs.next()) PendingTurn(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)) else null }.toList()</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend fun countPending: Long</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend fun countProcessed: Long</ID>
+    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$val</ID>
+    <ID>MaxLineLength:MemoryStore.kt:QuarantineRow$data</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$return MemorySearchResponse(text, provider.model, store.search(vector, text, provider.model, request.k, halfLifeDays))</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$return store.recent(1).firstOrNull { it.id == id } ?: Memory(id, request.kind, content, request.sessionId, null, 1.0, "")</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$val id = store.saveManual(request.kind, content.take(MemoryExtractor.MAX_ITEM_CHARS), provider.model, vector, request.sessionId)</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryService.Companion$val KINDS = setOf(Extraction.KIND_FACT, Extraction.KIND_DECISION, Extraction.KIND_PREFERENCE, Extraction.KIND_SUMMARY)</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$log.warn("memory extraction deferred for {} (attempt {}): {}", turn.eventId, turn.attempts + 1, reason)</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$store.quarantine(transcript, turn.eventId, "gave up after ${turn.attempts + 1} attempts: $reason", "")</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$val rows = items.zip(vectors) { (kind, content), vector -&gt; MemoryStore.MemoryRow(kind, content, vector) }</ID>
+    <ID>MaxLineLength:MemoryWorker.kt:WorkerReport$data</ID>
+    <ID>MaxLineLength:Providers.kt:FakeChatProvider$class</ID>
+    <ID>MaxLineLength:Providers.kt:FakeChatProvider.Companion$fun strings: JsonElement</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -&gt; throw ChatException("glm rejected the key (HTTP ${response.status.value}): ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$add(buildJsonObject { put("role", "system"); put("content", system + "\nThe JSON must match this schema: " + schema) })</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$class</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$else -&gt; throw ChatException("glm $url -&gt; HTTP ${response.status.value}: ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
+    <ID>MaxLineLength:Providers.kt:GlmChatProvider$val content = parsed.choices.firstOrNull()?.message?.content ?: throw ChatException("glm answered without choices")</ID>
+    <ID>MaxLineLength:Providers.kt:OllamaChatProvider$HttpStatusCode.NotFound -&gt; throw ChatException("ollama model '$model' is not pulled (ollama pull $model): ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
+    <ID>MaxLineLength:Providers.kt:OllamaChatProvider$else -&gt; throw ChatException("ollama $url -&gt; HTTP ${response.status.value}: ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
+    <ID>MaxLineLength:Providers.kt:OllamaChatProvider$val content = parsed.message?.content ?: throw ChatException("ollama chat answered without a message: ${parsed.error ?: "?"}")</ID>
+    <ID>MaxLineLength:Providers.kt:OllamaChatProvider.Response$private</ID>
+    <ID>MaxLineLength:RagStatsKapBuilder.kt:RagStatsKap$class</ID>
+    <ID>MaxLineLength:RagStatsKapBuilder.kt:RagStatsKap(Kap.of({ p0: RagStatsDocuments -&gt; { p1: RagStatsChunks -&gt; { p2: RagStatsBySource -&gt; f(p0.value, p1.value, p2.value) } } }))</ID>
+    <ID>MaxLineLength:RagStatsKapBuilder.kt:fun</ID>
+    <ID>MaxLineLength:RagStatsKapBuilder.kt:infix</ID>
+    <ID>MaxLineLength:RagStatsKapBuilder.kt:infix fun RagStatsBySourceTag.from: Kap&lt;RagStatsBySource&gt;</ID>
+    <ID>MaxLineLength:RagStatsKapBuilder.kt:infix fun RagStatsBySourceTag.from: RagStatsBySource</ID>
+    <ID>MaxLineLength:RagStatsKapBuilderValidated.kt:RagStatsValidatedKap$class</ID>
+    <ID>MaxLineLength:RagStatsKapBuilderValidated.kt:fun</ID>
+    <ID>MaxLineLength:RagStatsKapBuilderValidated.kt:infix</ID>
+    <ID>MaxLineLength:RagStatsKapBuilderValidated.kt:val fn: (RagStatsDocuments) -&gt; (RagStatsChunks) -&gt; (RagStatsBySource) -&gt; dev.lattenero.brain.rag.RagStats = { p0: RagStatsDocuments -&gt; { p1: RagStatsChunks -&gt; { p2: RagStatsBySource -&gt; f(p0.value, p1.value, p2.value) } } }</ID>
+    <ID>MaxLineLength:RagStatsKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (RagStatsDocuments) -&gt; (RagStatsChunks) -&gt; (RagStatsBySource) -&gt; dev.lattenero.brain.rag.RagStats&gt;&gt; = Kap.of(Either.Right(fn))</ID>
+    <ID>MaxLineLength:RagStore.kt:RagStore$"INSERT INTO chunks (doc_id, ordinal, heading, content, embed_model, embedding) VALUES (?, ?, ?, ?, ?, ?)"</ID>
+    <ID>MaxLineLength:RagStore.kt:RagStore$conn.createStatement().use { st -&gt; st.executeQuery("SELECT count(*) FROM $table").use { rs -&gt; rs.next(); rs.getLong(1) } }</ID>
+    <ID>MaxLineLength:RagStore.kt:RagStore$suspend</ID>
+    <ID>MaxLineLength:Server.kt:BrainServer$fun</ID>
+    <ID>MaxLineLength:Server.kt:fun</ID>
+    <ID>MaxLineLength:Server.kt:if (globs.isEmpty()) return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("no globs given and ${config.corpusFile} is empty or missing"))</ID>
+    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"globs\": [string]}: ${e.message}"))</ID>
+    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"kind\": string, \"content\": string}: ${e.message}"))</ID>
+    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"query\": string, \"k\"?: int}: ${e.message}"))</ID>
+    <ID>ReturnCount:BusEvent.kt:BusEvents$fun parse: Parsed</ID>
+    <ID>ReturnCount:Config.kt:Config.Companion$internal fun resolve: Any</ID>
+    <ID>ReturnCount:FileTailer.kt:FileTailer$private fun readChunk: Chunk?</ID>
+    <ID>ReturnCount:FileTailer.kt:FileTailer$private tailrec fun growWindow: ByteArray?</ID>
+    <ID>ReturnCount:FileTailer.kt:FileTailer$suspend fun poll: Int</ID>
+    <ID>ReturnCount:Main.kt:private fun index: Int</ID>
+    <ID>ReturnCount:Main.kt:private fun memory: Int</ID>
+    <ID>SwallowedException:Config.kt:Config.Companion$e: IOException</ID>
+    <ID>SwallowedException:Config.kt:Config.Companion$e: SerializationException</ID>
+    <ID>SwallowedException:Corpus.kt:Corpus$e: java.nio.charset.MalformedInputException</ID>
+    <ID>SwallowedException:Kafka.kt:KafkaTopics$e: Exception</ID>
+    <ID>SwallowedException:MemoryExtractor.kt:MemoryExtractor.Companion$e: SerializationException</ID>
+    <ID>ThrowsCount:Config.kt:Config.Companion$private fun readFile: Map&lt;String, JsonPrimitive&gt;</ID>
+    <ID>ThrowsCount:EmbeddingProvider.kt:BaseProvider$final override suspend fun embed: List&lt;FloatArray&gt;</ID>
+    <ID>ThrowsCount:GlmProvider.kt:GlmProvider$private suspend fun call: List&lt;FloatArray&gt;</ID>
+    <ID>ThrowsCount:MemoryExtractor.kt:MemoryExtractor.Companion$fun list: List&lt;String&gt;</ID>
+    <ID>ThrowsCount:MemoryExtractor.kt:MemoryExtractor.Companion$fun parse: Extraction</ID>
+    <ID>ThrowsCount:OllamaProvider.kt:OllamaProvider$private suspend fun call: List&lt;FloatArray&gt;</ID>
+    <ID>ThrowsCount:Providers.kt:GlmChatProvider$override suspend fun completeJson: ChatResult</ID>
+    <ID>ThrowsCount:Providers.kt:OllamaChatProvider$override suspend fun completeJson: ChatResult</ID>
+    <ID>TooGenericExceptionCaught:EmbeddingProvider.kt:BaseProvider$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:EvalRunner.kt:EvalRunner$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FileTailer.kt:OffsetStore$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Kafka.kt:KafkaBusConsumer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Kafka.kt:KafkaTopics$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MemoryWorker.kt:MemoryWorker$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PgBusIngest.kt:PgBusIngest$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RagStore.kt:RagStore$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Server.kt:Readiness$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Server.kt:e: Exception</ID>
+    <ID>TooManyFunctions:BusPipelineProbeKapBuilder.kt:dev.lattenero.brain.bus.BusPipelineProbeKapBuilder.kt</ID>
+    <ID>TooManyFunctions:BusPipelineProbeKapBuilderValidated.kt:dev.lattenero.brain.bus.BusPipelineProbeKapBuilderValidated.kt</ID>
+    <ID>TooManyFunctions:ChecksKapBuilder.kt:dev.lattenero.brain.http.ChecksKapBuilder.kt</ID>
+    <ID>TooManyFunctions:ChecksKapBuilderValidated.kt:dev.lattenero.brain.http.ChecksKapBuilderValidated.kt</ID>
+    <ID>TooManyFunctions:IndexerRunKapBuilder.kt:dev.lattenero.brain.rag.IndexerRunKapBuilder.kt</ID>
+    <ID>TooManyFunctions:IndexerRunKapBuilderValidated.kt:dev.lattenero.brain.rag.IndexerRunKapBuilderValidated.kt</ID>
+    <ID>TooManyFunctions:Main.kt:dev.lattenero.brain.Main.kt</ID>
+    <ID>TooManyFunctions:MemoryStatusKapBuilder.kt:dev.lattenero.brain.memory.MemoryStatusKapBuilder.kt</ID>
+    <ID>TooManyFunctions:MemoryStatusKapBuilderValidated.kt:dev.lattenero.brain.memory.MemoryStatusKapBuilderValidated.kt</ID>
+    <ID>TooManyFunctions:MemoryStore.kt:MemoryStore</ID>
+    <ID>TooManyFunctions:RagStatsKapBuilder.kt:dev.lattenero.brain.rag.RagStatsKapBuilder.kt</ID>
+    <ID>TooManyFunctions:RagStatsKapBuilderValidated.kt:dev.lattenero.brain.rag.RagStatsKapBuilderValidated.kt</ID>
+    <ID>UnsafeCallOnNullableType:BusPipeline.kt:BusPipeline$kafka!!</ID>
+    <ID>UseOrEmpty:Config.kt:Config.Companion$env["GLM_API_KEY"] ?: env["ZAI_API_KEY"] ?: ""</ID>
+    <ID>UseOrEmpty:MemoryStore.kt:MemoryStore$payload[key]?.jsonPrimitive?.content ?: ""</ID>
+  </CurrentIssues>
+</SmellBaseline>
