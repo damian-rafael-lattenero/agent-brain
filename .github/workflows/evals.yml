@@ -29,8 +29,8 @@ jobs:
       AB_REQUIRE_SERVICES: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: corretto, java-version: "21" }
+      # Single JDK since the detekt 2.0 upgrade: daemon, toolchain and detekt
+      # workers all run on Corretto 25 (the stray 21 setup-java is gone).
       - uses: actions/setup-java@v4
         with: { distribution: corretto, java-version: "25" }
       - uses: actions/setup-python@v5
