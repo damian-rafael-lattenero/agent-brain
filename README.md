@@ -52,7 +52,7 @@ explicitly; see [ADR-005](docs/adr/ADR-005-kotlin-core-python-glue.md).
 ## Quickstart
 
 ```bash
-./bootstrap.sh        # checks Corretto 25, docker (colima), ollama + nomic-embed-text; builds the CLI
+./bootstrap.nu        # checks Corretto 25, docker (colima), ollama + nomic-embed-text; builds the CLI
 make up               # pgvector/pgvector:pg18 + Redpanda (19092), then migrations
 make test             # tiers 1-3 (skips a tier with a reason when its service is down)
 make bb               # tier 4: black-box local, services required
@@ -269,7 +269,7 @@ corpus.example.txt       the author's corpus; copy to ~/.zcode/agent-brain/corpu
 core/src/main/resources/migrations/   plain SQL, enumerated by index.txt, shipped in the jar
 core/src/test/kotlin/    tiers 1-4 (tier 5 arrives with P1)
 docker-compose.yml       pgvector/pgvector:pg18 (Redpanda joins in P4)
-Makefile, bootstrap.sh   operator entry points
+Makefile, bootstrap.nu   operator entry points
 .github/workflows/ci.yml tiers 1-4 + detekt on every push, Ollama installed for real
 docs/adr/                decisions
 ```
