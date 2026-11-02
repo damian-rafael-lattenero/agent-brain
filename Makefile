@@ -3,7 +3,7 @@
 BIN := core/build/install/agent-brain/bin/agent-brain
 
 bootstrap:          ## verify JDK/docker/ollama and build the distribution
-	./bootstrap.sh
+	./bootstrap.nu
 
 up:                 ## start pgvector (compose) and apply migrations
 	docker compose up -d --wait
