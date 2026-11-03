@@ -56,8 +56,12 @@ class Brain private constructor(
         tracer = tracer,
         breaker = CircuitBreaker(maxFailures = config.embedBreakerFailures, resetTimeout = config.embedBreakerResetS.seconds),
     )
-    val indexer: Indexer = Indexer(ragStore, embedPipeline, tracer, docConcurrency = config.indexDocConcurrency)
-        .also { it.embedBatchSize = config.embedBatch }
+    val indexer: Indexer = Indexer(
+        store = ragStore,
+        embed = embedPipeline,
+        tracer = tracer,
+        docConcurrency = config.indexDocConcurrency,
+    )
     val memoryStore: MemoryStore = MemoryStore(db)
     val extractor: MemoryExtractor = MemoryExtractor(
         chat = chat,

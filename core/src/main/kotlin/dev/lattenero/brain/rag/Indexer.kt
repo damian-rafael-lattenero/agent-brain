@@ -49,6 +49,7 @@ class Indexer(
     private val docConcurrency: Int = 2,
     private val corpus: Corpus = Corpus(),
 ) {
+
     sealed interface Outcome {
         val uri: String
 
@@ -64,7 +65,7 @@ class Indexer(
                     is RagStore.Upsert.Unchanged -> Kap.of(Outcome.Unchanged(doc.uri))
                     is RagStore.Upsert.Changed -> {
                         val chunks = chunker.chunk(doc.title, doc.content)
-                        val batches = (chunks.size + embedBatchSizeHint() - 1) / embedBatchSizeHint()
+                        val batches = (chunks.size + embed.batchSize - 1) / embed.batchSize
                         embed.embedAll(chunks.map { it.content })
                             .map { vectors -> chunks.zip(vectors) { c, v -> RagStore.ChunkRow(c.ordinal, c.heading, c.content, v) } }
                             .andThen { rows -> Kap { store.replaceChunks(upsert.docId, embed.model, rows) }.traced(PHASE_STORE, tracer) }
@@ -135,13 +136,8 @@ class Indexer(
         return pruned
     }
 
-    private fun embedBatchSizeHint(): Int = embedBatchSize
-
-    var embedBatchSize: Int = DEFAULT_BATCH_HINT
-
     companion object {
         const val PHASE_UPSERT = "upsert"
         const val PHASE_STORE = "store"
-        const val DEFAULT_BATCH_HINT = 32
     }
 }
