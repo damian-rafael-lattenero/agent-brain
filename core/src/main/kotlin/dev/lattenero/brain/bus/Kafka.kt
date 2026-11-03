@@ -131,8 +131,12 @@ class KafkaBridge(private val config: Config, private val topic: String = config
     }
 }
 
+/**
+ * Business counters (what the consumer committed), not liveness: liveness is
+ * the process handle's restarts and heartbeat age (see [BusStatus]). Plain
+ * until kap `Ref` (Phase G).
+ */
 class KafkaStats {
-    val polls = AtomicLong()
     val records = AtomicLong()
     val malformed = AtomicLong()
     val commits = AtomicLong()
@@ -203,7 +207,6 @@ class KafkaBusConsumer(private val config: Config, private val ingest: PgBusInge
     /** One poll: parse, hand the batch to the ingest handler, commit. Returns records seen. */
     private suspend fun pollOnce(consumer: KafkaConsumer<String, String>, timeout: Duration): Int {
         val records = withContext(Dispatchers.IO) { consumer.poll(timeout) }
-        stats.polls.incrementAndGet()
         if (records.isEmpty) return 0
         val events = ArrayList<BusEvent>()
         var bad = 0
