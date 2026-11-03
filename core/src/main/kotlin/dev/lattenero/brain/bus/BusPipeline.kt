@@ -4,11 +4,10 @@ import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import kap.Kap
 import kap.KapTypeSafe
+import kap.Process
 import kap.evalGraph
 import kap.repeatUntil
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import java.nio.file.Files
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -17,30 +16,28 @@ import kotlin.time.Duration.Companion.milliseconds
  * transport is a knob (`bus_transport: file | kafka`); the handler behind it
  * is the same object either way (ADR-003).
  */
-class BusPipeline(private val config: Config, db: Database) : AutoCloseable {
+class BusPipeline(private val config: Config, db: Database) {
     val tailer: FileTailer = FileTailer.open(config.busFile, config.stateDir)
     val ingest: PgBusIngest = PgBusIngest(db)
     val isKafka: Boolean get() = config.busTransport == TRANSPORT_KAFKA
     val kafka: KafkaBusConsumer? = if (isKafka) KafkaBusConsumer(config, ingest) else null
-    private var job: Job? = null
 
-    fun start(scope: CoroutineScope) {
-        if (job != null) return
-        job = if (isKafka) {
+    /**
+     * The ONE long-lived loop for the configured transport, as a named
+     * [Process]: start it in the process scope, never launch it by hand.
+     */
+    fun process(): Process<Int> =
+        if (isKafka) {
             KafkaTopics.ensure(config)
-            scope.launch { kafka!!.run() }
+            kafka!!.process()
         } else {
-            scope.launch { tailer.run(config.busPollMs.milliseconds) { ingest.handle(it) } }
+            tailer.process(config.busPollMs.milliseconds, handler = { ingest.handle(it) })
         }
-    }
 
-    fun stop() {
-        job?.cancel()
-        job = null
-        kafka?.close()
+    /** Runs the loop for the caller's lifetime (CLI `ingest`); cancellation stops it. */
+    suspend fun run() {
+        coroutineScope { process().startIn(this).await() }
     }
-
-    override fun close() = stop()
 
     /** Drains everything currently available on the transport; returns the events handed over. */
     suspend fun drain(): Int {

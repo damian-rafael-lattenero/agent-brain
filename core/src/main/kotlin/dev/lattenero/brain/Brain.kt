@@ -39,10 +39,10 @@ class Brain private constructor(
     val config: Config,
     val db: Database,
     val httpClient: HttpClient,
-    val bus: BusPipeline,
     val provider: EmbeddingProvider,
     val chat: ChatProvider,
 ) {
+    val bus: BusPipeline = BusPipeline(config, db)
     val migrator: Migrator = Migrator(db, config.embedDim)
     val readiness: Readiness = Readiness(config, db, migrator, provider)
     val ragStore: RagStore = RagStore(db)
@@ -71,16 +71,16 @@ class Brain private constructor(
     companion object {
         const val COMPONENT_DATABASE = "database"
         const val COMPONENT_HTTP = "http-client"
-        const val COMPONENT_BUS = "bus"
         const val COMPONENT_PROVIDER = "embedding-provider"
         const val COMPONENT_CHAT = "chat-provider"
 
         /**
          * The whole composition as one [Resource]. Acquisition is ordered
-         * (pool, HTTP client, bus, providers) and release is its mirror: chat,
-         * embedding provider, bus, HTTP client, pool. [onRelease] observes each
-         * component after its close ran; it is transparent and cannot change
-         * the lifecycle.
+         * (pool, HTTP client, providers) and release is its mirror: chat,
+         * embedding provider, HTTP client, pool. The bus owns no resource any
+         * more — its long-lived loops are Processes under the serve scope
+         * (Phase A2). [onRelease] observes each component after its close ran;
+         * it is transparent and cannot change the lifecycle.
          */
         fun resource(
             config: Config,
@@ -102,12 +102,6 @@ class Brain private constructor(
             )
             return Resource.zip(database, http) { db, client -> db to client }
                 .andThen { (db, client) ->
-                    val bus = component(
-                        name = COMPONENT_BUS,
-                        onRelease = onRelease,
-                        acquire = { BusPipeline(config, db) },
-                        close = { it.close() },
-                    )
                     val provider = component(
                         name = COMPONENT_PROVIDER,
                         onRelease = onRelease,
@@ -120,8 +114,8 @@ class Brain private constructor(
                         acquire = { chatOverride ?: ChatProviders.create(config, client) },
                         close = { it.close() },
                     )
-                    Resource.zip(bus, provider, chat) { busValue, providerValue, chatValue ->
-                        Brain(config, db, client, busValue, providerValue, chatValue)
+                    Resource.zip(provider, chat) { providerValue, chatValue ->
+                        Brain(config, db, client, providerValue, chatValue)
                     }
                 }
         }

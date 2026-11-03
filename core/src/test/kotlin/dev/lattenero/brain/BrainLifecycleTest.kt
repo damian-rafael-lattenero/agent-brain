@@ -45,7 +45,6 @@ class BrainLifecycleTest {
     private val releaseOrder = listOf(
         Brain.COMPONENT_CHAT,
         Brain.COMPONENT_PROVIDER,
-        Brain.COMPONENT_BUS,
         Brain.COMPONENT_HTTP,
         Brain.COMPONENT_DATABASE,
     )
@@ -96,7 +95,6 @@ class BrainLifecycleTest {
         }.isInstanceOf(ConfigException::class.java)
         assertThat(releases).containsExactly(
             Brain.COMPONENT_PROVIDER,
-            Brain.COMPONENT_BUS,
             Brain.COMPONENT_HTTP,
             Brain.COMPONENT_DATABASE,
         )
