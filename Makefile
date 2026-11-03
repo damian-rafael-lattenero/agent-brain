@@ -1,4 +1,4 @@
-.PHONY: bootstrap up down nuke migrate serve index query bridge plugin eval test bb detekt e2e-real e2e-real-login check ci clean
+.PHONY: bootstrap up down nuke migrate serve index index-repos index-repos-dry query bridge plugin eval test bb detekt e2e-real e2e-real-login check ci clean
 
 BIN := core/build/install/agent-brain/bin/agent-brain
 
@@ -27,6 +27,14 @@ serve:              ## run the HTTP service in the foreground
 index:              ## index the corpus (~/.zcode/agent-brain/corpus.txt, see corpus.example.txt)
 	./gradlew --quiet :core:installDist
 	$(BIN) index
+
+index-repos:        ## index the owner's repos under ~/Projects (kap, bot, zcode-bot-kotlin, ZCode, agent-brain)
+	./gradlew --quiet :core:installDist
+	$(BIN) index-repos
+
+index-repos-dry:    ## scan the repos and report documents/bytes per repo; no Postgres needed
+	./gradlew --quiet :core:installDist
+	$(BIN) index-repos --dry-run
 
 query:              ## hybrid retrieval with citations: make query Q="how does the tailer handle truncation"
 	./gradlew --quiet :core:installDist

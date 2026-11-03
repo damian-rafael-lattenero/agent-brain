@@ -24,6 +24,8 @@ import dev.lattenero.brain.memory.MemoryStatus
 import dev.lattenero.brain.memory.QuarantineRow
 import dev.lattenero.brain.memory.WorkerReport
 import dev.lattenero.brain.rag.IndexReport
+import dev.lattenero.brain.rag.RepoScanReport
+import dev.lattenero.brain.rag.Repos
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.coroutines.launch
 import dev.lattenero.brain.rag.QueryRequest
@@ -59,6 +61,9 @@ const val USAGE = """usage: agent-brain <command> [args]
   bus status         the tailer/ingest counters and the database count
   bridge [--once]    tail the bus file into the Kafka topic (bus_transport=kafka deployments)
   index [GLOB...]    index the corpus (globs from args, else ~/.zcode/agent-brain/corpus.txt)
+  index-repos [--dry-run] [--repo NAME]...
+                     index the owner's repos under ~/Projects (kap, bot, zcode-bot-kotlin, ZCode,
+                     agent-brain); --dry-run scans and reports, no Postgres needed
   query TEXT [--k N] hybrid retrieval with citations (no generation)
   memory search TEXT [--k N] | recent [--k N] [--kind K] | save KIND TEXT | quarantine | status | run [--once]
   health [--url U]   GET /ready of a running service; exit 1 when degraded
@@ -83,6 +88,7 @@ fun run(args: Array<String>): Int {
             "bridge" -> bridge(once = "--once" in rest)
             "query" -> query(rest)
             "index" -> index(rest)
+            "index-repos" -> indexRepos(rest)
             "memory" -> memory(rest)
             "eval" -> eval(rest)
             "health" -> health(url = rest.optionValue("--url"))
@@ -157,6 +163,61 @@ private fun index(args: List<String>): Int {
         } catch (e: IllegalArgumentException) {
             return fail("index: ${e.message}")
         }
+        printJson(responseJson.encodeToJsonElement(IndexReport.serializer(), report))
+        return if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
+    }
+}
+
+private data class RepoArgs(val dryRun: Boolean, val names: List<String>)
+
+private fun parseRepoArgs(args: List<String>): RepoArgs? {
+    var dryRun = false
+    val names = ArrayList<String>()
+    var error = false
+    var index = 0
+    while (index < args.size && !error) {
+        when (args[index]) {
+            "--dry-run" -> dryRun = true
+            "--repo" -> {
+                val name = args.getOrNull(index + 1)
+                if (name == null) error = true else { names += name; index++ }
+            }
+            else -> error = true
+        }
+        index++
+    }
+    return if (error) null else RepoArgs(dryRun, names.ifEmpty { Repos.DEFAULT_NAMES })
+}
+
+/** `index-repos`: one glob per repository, the same Corpus/Chunker/RagStore/Indexer path as `index`. */
+internal fun indexRepos(args: List<String>, repos: Repos = Repos()): Int {
+    val request = parseRepoArgs(args)
+        ?: return fail("index-repos: usage: index-repos [--dry-run] [--repo NAME]...")
+    return runRepoIndex(request, repos)
+}
+
+private fun runRepoIndex(request: RepoArgs, repos: Repos): Int {
+    val plan = try {
+        repos.plan(request.names)
+    } catch (e: IllegalArgumentException) {
+        return fail("index-repos: ${e.message}")
+    }
+    return if (request.dryRun) {
+        printJson(responseJson.encodeToJsonElement(RepoScanReport.serializer(), plan.report))
+        EXIT_OK
+    } else {
+        indexPlan(plan)
+    }
+}
+
+private fun indexPlan(plan: Repos.Plan): Int {
+    if (plan.repositories.none { it.present }) {
+        return fail("index-repos: no repository roots found under ${plan.report.projectsDir}")
+    }
+    val config = Config.load()
+    Brain(config).use { brain ->
+        runBlocking { brain.migrator.apply() }
+        val report = runBlocking { brain.indexer.index(plan.scan.documents, plan.scan.skipped, plan.pruneKept) }
         printJson(responseJson.encodeToJsonElement(IndexReport.serializer(), report))
         return if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
     }
