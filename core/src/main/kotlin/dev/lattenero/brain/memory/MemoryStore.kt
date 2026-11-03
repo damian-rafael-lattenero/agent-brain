@@ -2,6 +2,7 @@ package dev.lattenero.brain.memory
 
 import com.pgvector.PGvector
 import dev.lattenero.brain.db.Database
+import dev.lattenero.brain.db.inTransaction
 import kap.KapTypeSafe
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -37,11 +38,25 @@ data class MemoryStatus(
     val embedModel: String,
 )
 
-/** memories, memory_quarantine and the worker's bookkeeping columns on bus_events. */
+/**
+ * memories, memory_quarantine and the worker's bookkeeping columns on bus_events.
+ *
+ * Inserts are dedup-aware ([insertAllDeduped], [saveManual]): a new memory
+ * whose embedding is cosine-similar to an existing row at or above
+ * [MemoryDedup.SIMILARITY] is NOT inserted — the existing row is reinforced
+ * (salience and last_accessed, the decay system's own fields) and its
+ * identity returned. The comparison spans ALL kinds and ALL sessions (the
+ * measured duplicates cross kinds, `scripts/memory-dedup-evidence.sql`),
+ * filtered by embed_model: cosine across embedding models is meaningless
+ * (ADR-004). The store is small, so the exact per-insert scan is fine.
+ */
 class MemoryStore(private val db: Database) {
     data class PendingTurn(val eventId: String, val sessionId: String, val turnId: String, val source: String, val attempts: Int)
 
     data class MemoryRow(val kind: String, val content: String, val embedding: FloatArray)
+
+    /** What one dedup-aware insert pass did: [inserted] new rows, [merged] identities of reinforced rows. */
+    data class InsertReport(val inserted: Int, val merged: List<Long>)
 
     suspend fun pendingTurns(limit: Int, maxAttempts: Int): List<PendingTurn> = db.withConnection { conn ->
         conn.prepareStatement(
@@ -88,6 +103,7 @@ class MemoryStore(private val db: Database) {
         }
     }
 
+    /** The raw insert: exactly these rows, ON CONFLICT DO NOTHING, no dedup. */
     suspend fun insertAll(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): Int = db.withConnection { conn ->
         if (rows.isEmpty()) return@withConnection 0
         conn.prepareStatement(
@@ -111,7 +127,45 @@ class MemoryStore(private val db: Database) {
         }
     }
 
+    /**
+     * The dedup-aware insert (one transaction per turn): per row, in order —
+     * an exact replay of the same (event, kind, content) is absorbed silently
+     * (a crash between insert and mark re-runs the turn; that is idempotence,
+     * never a salience bump); a row cosine-similar to an existing row at or
+     * above [MemoryDedup.SIMILARITY] reinforces the OLDEST such row instead of
+     * landing (the same rule the backfill clusters with, so running the
+     * backfill after insert-time dedup is a no-op); anything else is inserted.
+     * Rows of one extraction see each other: a summary that restates this
+     * turn's fact merges into it.
+     */
+    suspend fun insertAllDeduped(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): InsertReport {
+        if (rows.isEmpty()) return InsertReport(0, emptyList())
+        return db.inTransaction { conn ->
+            val merged = mutableListOf<Long>()
+            var inserted = 0
+            for (row in rows) {
+                val replayed = findReplay(conn, transcript.eventId, row.kind, row.content)
+                if (replayed != null) continue
+                val duplicate = findDuplicate(conn, row.embedding, embedModel, MemoryDedup.SIMILARITY)
+                if (duplicate != null) {
+                    reinforce(conn, duplicate, REINFORCE_STEP)
+                    merged += duplicate
+                } else {
+                    insertRow(conn, transcript, embedModel, row)
+                    inserted += 1
+                }
+            }
+            InsertReport(inserted, merged)
+        }
+    }
+
+    /** Manual saves dedup with the same rule and return the surviving row's id. */
     suspend fun saveManual(kind: String, content: String, embedModel: String, embedding: FloatArray, sessionId: String?): Long = db.withConnection { conn ->
+        val duplicate = findDuplicate(conn, embedding, embedModel, MemoryDedup.SIMILARITY)
+        if (duplicate != null) {
+            reinforce(conn, duplicate, REINFORCE_STEP)
+            return@withConnection duplicate
+        }
         conn.prepareStatement(
             "INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id) VALUES (?, NULL, ?, ?, ?, ?, NULL) RETURNING id",
         ).use { ps ->
@@ -121,6 +175,18 @@ class MemoryStore(private val db: Database) {
             ps.setString(4, embedModel)
             ps.setObject(5, PGvector(embedding))
             ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
+        }
+    }
+
+    suspend fun byId(id: Long): Memory? = db.withConnection { conn ->
+        conn.prepareStatement(
+            """
+            SELECT id, kind, content, session_id, turn_id, salience, created_at, NULL::float8 AS score
+            FROM memories WHERE id = ?
+            """,
+        ).use { ps ->
+            ps.setLong(1, id)
+            ps.executeQuery().use { rs -> readMemories(rs).singleOrNull() }
         }
     }
 
@@ -214,6 +280,68 @@ class MemoryStore(private val db: Database) {
         conn.createStatement().use { st -> st.executeQuery(sql).use { rs -> rs.next(); rs.getLong(1) } }
     }
 
+    /** The same extraction landing again: (event, kind, content) already there. */
+    private fun findReplay(conn: java.sql.Connection, eventId: String, kind: String, content: String): Long? =
+        conn.prepareStatement(
+            "SELECT id FROM memories WHERE source_event_id = ? AND kind = ? AND md5(content) = md5(?) LIMIT 1",
+        ).use { ps ->
+            ps.setString(1, eventId)
+            ps.setString(2, kind)
+            ps.setString(3, content)
+            ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
+        }
+
+    /**
+     * The OLDEST row at or above [threshold] to [embedding] — same embed
+     * model, any kind, any session (`<=>` is pgvector's cosine distance).
+     * Oldest, not most-similar, so insert-time merges and the backfill's
+     * oldest-first clusters agree on the survivor.
+     */
+    private fun findDuplicate(
+        conn: java.sql.Connection,
+        embedding: FloatArray,
+        embedModel: String,
+        threshold: Double,
+    ): Long? = conn.prepareStatement(
+        "SELECT id FROM memories WHERE embed_model = ? AND (1 - (embedding <=> ?::vector)) >= ? " +
+            "ORDER BY created_at, id LIMIT 1",
+    ).use { ps ->
+        ps.setString(1, embedModel)
+        ps.setObject(2, PGvector(embedding))
+        ps.setDouble(3, threshold)
+        ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
+    }
+
+    /** The decay system's own reinforcement: salience up, last_accessed to now. */
+    private fun reinforce(conn: java.sql.Connection, id: Long, by: Double) {
+        conn.prepareStatement(
+            "UPDATE memories SET salience = salience + ?, last_accessed = now() WHERE id = ?",
+        ).use { ps ->
+            ps.setDouble(1, by)
+            ps.setLong(2, id)
+            ps.executeUpdate()
+        }
+    }
+
+    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow) {
+        conn.prepareStatement(
+            """
+            INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
+            """,
+        ).use { ps ->
+            ps.setString(1, transcript.sessionId)
+            ps.setString(2, transcript.turnId)
+            ps.setString(3, row.kind)
+            ps.setString(4, row.content)
+            ps.setString(5, embedModel)
+            ps.setObject(6, PGvector(row.embedding))
+            ps.setString(7, transcript.eventId)
+            ps.executeUpdate()
+        }
+    }
+
     private fun readMemories(rs: java.sql.ResultSet): List<Memory> = generateSequence {
         if (!rs.next()) null else Memory(
             id = rs.getLong("id"),
@@ -232,6 +360,9 @@ class MemoryStore(private val db: Database) {
         const val MIN_CANDIDATES = 50
         const val RRF_K = 60
         const val MAX_REASON_CHARS = 500
+
+        /** Each absorbed duplicate reinforces the survivor by this much salience. */
+        const val REINFORCE_STEP = 1.0
         private val json = Json { ignoreUnknownKeys = true }
 
         // Parameters: 1 query vector, 2 embed model, 3 candidates per leg, 4 query text, 5 half-life days, 6 k.

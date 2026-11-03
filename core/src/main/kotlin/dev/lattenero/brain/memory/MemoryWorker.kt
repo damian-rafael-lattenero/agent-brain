@@ -22,7 +22,7 @@ import kotlin.time.Duration.Companion.seconds
 private val log = LoggerFactory.getLogger("agent-brain.memory")
 
 @Serializable
-data class WorkerReport(val scanned: Int, val processed: Int, val memories: Int, val quarantined: Int, val deferred: Int, val emptyTurns: Int)
+data class WorkerReport(val scanned: Int, val processed: Int, val memories: Int, val merged: Int = 0, val quarantined: Int, val deferred: Int, val emptyTurns: Int)
 
 /**
  * Why one turn's extraction failed — the three bins of the report, as values
@@ -45,19 +45,29 @@ sealed interface TurnOutcome {
     /** The transcript has neither prompt nor reply: nothing to extract, the turn is marked. */
     data object EmptyTurn : TurnOutcome
 
-    /** Extraction and embed landed: [memories] rows inserted and the turn marked. */
-    data class Stored(val memories: Int) : TurnOutcome
+    /**
+     * Extraction and embed landed and the turn is marked. [inserted] rows are
+     * new; [merged] carries the identities of EXISTING rows that the insert
+     * reinforced instead — a near-duplicate (cosine at or above
+     * [MemoryDedup.SIMILARITY]) is a bump of the memory already stored, never
+     * a pretended new row.
+     */
+    data class Stored(val inserted: Int, val merged: List<Long> = emptyList()) : TurnOutcome
 }
 
 /**
  * Polls the bus table for completed turns the memory has not seen, builds
  * the transcript, extracts, embeds, stores, marks. Idempotent by event id:
  * replaying the bus adds no turns (dedup) and a crash between insert and
- * mark is absorbed by the unique index on (event, kind, content). Failures
- * are classified into the [ExtractionFailure] bins as values and the edge
- * writes the rows: invalid output goes to quarantine and the turn is marked;
- * a provider failure defers the turn (attempt counted, retried next cycle);
- * too many deferrals quarantine it with the reason.
+ * mark is absorbed — the exact (event, kind, content) is skipped silently
+ * by [MemoryStore.insertAllDeduped], and the unique index on
+ * (event, kind, content) backs the raw insert path. Near-duplicates (cosine
+ * at or above [MemoryDedup.SIMILARITY]) never land as new rows: the stored
+ * memory is reinforced and [TurnOutcome.Stored] says merged honestly.
+ * Failures are classified into the [ExtractionFailure] bins as values and
+ * the edge writes the rows: invalid output goes to quarantine and the turn
+ * is marked; a provider failure defers the turn (attempt counted, retried
+ * next cycle); too many deferrals quarantine it with the reason.
  *
  * The batch runs through `traverseSettled`: every turn is attempted to
  * completion, no sibling cancels another, and the report is a fold over the
@@ -88,6 +98,7 @@ class MemoryWorker(
             scanned = pending.size,
             processed = 0,
             memories = 0,
+            merged = 0,
             quarantined = 0,
             deferred = 0,
             emptyTurns = 0,
@@ -117,7 +128,7 @@ class MemoryWorker(
         return attempt(transcript, turn).evalGraph().onLeft { quarantineOrDefer(it, transcript, turn) }
     }
 
-    /** The attempt: extract, embed, insert; failures converted at this boundary, never branch on. */
+    /** The attempt: extract, embed, insert (dedup-aware); failures converted at this boundary, never branch on. */
     private fun attempt(
         transcript: Transcript,
         turn: MemoryStore.PendingTurn,
@@ -127,13 +138,13 @@ class MemoryWorker(
             val items = extraction.items
             val vectors = if (items.isEmpty()) emptyList() else embed.embedAll(items.map { it.second }).evalGraph()
             val rows = items.zip(vectors) { (kind, content), vector -> MemoryStore.MemoryRow(kind, content, vector) }
-            store.insertAll(transcript, embed.model, rows).also { store.markProcessed(turn.eventId) }
+            store.insertAllDeduped(transcript, embed.model, rows).also { store.markProcessed(turn.eventId) }
         }
             .attempt()
             .map { settled ->
                 val outcome: Either<ExtractionFailure, TurnOutcome> = when (settled) {
                     is Either.Left -> Either.Left(classify(settled.value, turn.attempts, maxAttempts))
-                    is Either.Right -> Either.Right(TurnOutcome.Stored(settled.value))
+                    is Either.Right -> Either.Right(TurnOutcome.Stored(settled.value.inserted, settled.value.merged))
                 }
                 outcome
             }
@@ -236,10 +247,14 @@ class MemoryWorker(
         is ExtractionFailure.ProviderDown -> copy(deferred = deferred + 1)
     }
 
-    /** The success outcomes, counted: empty turns on their own, stored turns with their rows. */
+    /** The success outcomes, counted: empty turns on their own, stored turns with their rows and merges. */
     private fun WorkerReport.completed(outcome: TurnOutcome): WorkerReport = when (outcome) {
         is TurnOutcome.EmptyTurn -> copy(emptyTurns = emptyTurns + 1)
-        is TurnOutcome.Stored -> copy(processed = processed + 1, memories = memories + outcome.memories)
+        is TurnOutcome.Stored -> copy(
+            processed = processed + 1,
+            memories = memories + outcome.inserted,
+            merged = merged + outcome.merged.size,
+        )
     }
 }
 
@@ -274,7 +289,8 @@ class MemoryService(
         if (content.length < MemoryExtractor.MIN_ITEM_CHARS) throw MemoryRequestException("content too short")
         val vector = provider.embed(listOf(content)).single()
         val id = store.saveManual(request.kind, content.take(MemoryExtractor.MAX_ITEM_CHARS), provider.model, vector, request.sessionId)
-        return store.recent(1).firstOrNull { it.id == id } ?: Memory(id, request.kind, content, request.sessionId, null, 1.0, "")
+        // The id is the surviving row: a near-duplicate save returns the existing memory, reinforced.
+        return store.byId(id) ?: Memory(id, request.kind, content, request.sessionId, null, 1.0, "")
     }
 
     suspend fun recent(limit: Int, kind: String?): List<Memory> {
