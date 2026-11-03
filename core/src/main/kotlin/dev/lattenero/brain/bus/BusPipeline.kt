@@ -46,17 +46,28 @@ class BusPipeline private constructor(
         coroutineScope { process().startIn(this).await() }
     }
 
-    /** Drains everything currently available on the transport; returns the events handed over. */
+    /**
+     * Drains everything currently available on the transport; returns the
+     * events handed over. The repeated body is stateless — the tailer polls
+     * one batch and hands it to the ingest — and the loop terminates on the
+     * same live condition as before (the tail caught up with the file's
+     * current size, re-read each round). The drain's total is not a closure
+     * counter: the ingest folds every accepted batch into its stats `Ref`, so
+     * the caller folds the total from the counter's before/after values
+     * (Phase D: state as values, never side effects on captured vars).
+     * Single-shot: no other handle may run on this ingest while the drain's
+     * two reads bracket the loop.
+     */
     suspend fun drain(): Int {
         if (isKafka) {
             KafkaTopics.ensure(config)
             return kafka!!.drain()
         }
-        var total = 0
-        Kap {
-            tailer.poll { ingest.handle(it) }.also { total += it }
-        }.repeatUntil { tailer.offset >= fileBytes() }.evalGraph()
-        return total
+        val before = ingest.stats.snapshot().seen
+        Kap { tailer.poll { ingest.handle(it) } }
+            .repeatUntil { tailer.offset >= fileBytes() }
+            .evalGraph()
+        return (ingest.stats.snapshot().seen - before).toInt()
     }
 
     private fun fileBytes(): Long = if (Files.exists(config.busFile)) Files.size(config.busFile) else 0
