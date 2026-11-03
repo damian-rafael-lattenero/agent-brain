@@ -47,7 +47,7 @@ class ReposIT {
             breaker = CircuitBreaker(100, 1.minutes),
             attempts = 1,
         )
-        return Indexer(store, pipeline, tracer, docConcurrency = 2).also { it.embedBatchSize = 4 }
+        return Indexer(store, pipeline, tracer, docConcurrency = 2)
     }
 
     private suspend fun idsByUri(db: Database): Map<String, Long> = db.withConnection { conn ->
