@@ -3,6 +3,7 @@ package dev.lattenero.brain.mcp
 import dev.lattenero.brain.Brain
 import kap.Kap
 import kap.KapTimeoutException
+import kap.Ref
 import kap.Resource
 import kap.awaiting
 import kap.race
@@ -40,7 +41,6 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.exitProcess
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -190,7 +190,7 @@ fun main(argv: Array<String>) {
 
 /** Startup, then park until the session closes or the JVM is asked to stop; both leave through the Brain Resource. */
 private suspend fun serve(brain: Brain) {
-    val (server, toolsServed) = stdoutGuard().use { _ ->
+    val (server, served) = stdoutGuard().use { _ ->
         val http = HttpBrainClient(
             baseUrl = "http://${brain.config.httpHost}:${brain.config.httpPort}",
             client = brain.httpClient,
@@ -203,9 +203,12 @@ private suspend fun serve(brain: Brain) {
             .with { brainReady from brainReady(http) }
             .evalGraph()
         if (!wiring.brainReady) log.warn("the brain's HTTP API is not reachable yet; tool calls will answer brain_unavailable until it is")
-        val served = AtomicInteger()
+        // The per-process state (trace ids, tool-call count) is kap Ref state
+        // (Phase G): created by executing the graph, advanced through update.
+        val traces = Traces.of().evalGraph()
+        val served = Ref.of(0).evalGraph()
 
-        newServer(wiring, http, served) to served
+        newServer(wiring, http, traces, served) to served
     }
 
     // createSession starts the transport on its OWN scope: main returning would kill it.
@@ -218,17 +221,18 @@ private suspend fun serve(brain: Brain) {
     val session = server.createSession(transport)
     race(
         Kap.awaiting<Unit> { resume: (Unit) -> Unit, _: (Throwable) -> Unit ->
-            session.onClose {
-                log.info("brain-mcp session closed after {} tool call(s)", toolsServed.get())
-                resume(Unit)
-            }
+            // onClose is the SDK's non-suspend callback: it resumes the await;
+            // the tool-call count is read at the suspend point below (a Ref has
+            // no non-suspend read, by design).
+            session.onClose { resume(Unit) }
         },
         shutdownSignal(Thread.currentThread()),
     ).evalGraph()
+    log.info("brain-mcp session ended after {} tool call(s)", served.get().evalGraph())
 }
 
 /** The MCP server with the four tools; every handler answers with the envelope, never throws. */
-private fun newServer(wiring: ToolWiring, http: HttpBrainClient, served: AtomicInteger): Server = Server(
+private fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces, served: Ref<Int>): Server = Server(
     serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
     options = ServerOptions(capabilities = ServerCapabilities(tools = ServerCapabilities.Tools())),
     instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent) and bus health (bus_status). " +
@@ -240,8 +244,8 @@ private fun newServer(wiring: ToolWiring, http: HttpBrainClient, served: AtomicI
             description = spec.description,
             inputSchema = Json.decodeFromJsonElement(io.modelcontextprotocol.kotlin.sdk.types.ToolSchema.serializer(), spec.inputSchema),
         ) { request ->
-            served.incrementAndGet()
-            envelope(spec, request) { args ->
+            served.update { it + 1 }.evalGraph()
+            envelope(traces, spec, request) { args ->
                 when (spec.name) {
                     BrainTools.ragQuery.name -> {
                         val k = BrainTools.intArg(args, "k", QueryRequest(query = "").k, 50)
@@ -302,11 +306,12 @@ private fun loadConfig(): Config {
 
 /** One handler shape: validate → call the brain over HTTP → envelope; classify failures. */
 private suspend fun envelope(
+    traces: Traces,
     spec: ToolSpec,
     request: CallToolRequest,
     body: suspend (JsonObject?) -> String,
 ): CallToolResult {
-    val trace = Traces.next()
+    val trace = traces.next()
     val args = request.params.arguments
     val result: JsonObject = try {
         val payload = body(args)

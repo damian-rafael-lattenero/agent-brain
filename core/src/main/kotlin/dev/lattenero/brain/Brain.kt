@@ -21,6 +21,7 @@ import dev.lattenero.brain.rag.RagService
 import dev.lattenero.brain.rag.RagStore
 import kap.CircuitBreaker
 import kap.Resource
+import kap.evalGraph
 import kap.zip
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient
@@ -41,8 +42,8 @@ class Brain private constructor(
     val httpClient: HttpClient,
     val provider: EmbeddingProvider,
     val chat: ChatProvider,
+    val bus: BusPipeline,
 ) {
-    val bus: BusPipeline = BusPipeline(config, db)
     val migrator: Migrator = Migrator(db, config.embedDim)
     val readiness: Readiness = Readiness(config, db, migrator, provider)
     val ragStore: RagStore = RagStore(db)
@@ -86,11 +87,14 @@ class Brain private constructor(
 
         /**
          * The whole composition as one [Resource]. Acquisition is ordered
-         * (pool, HTTP client, providers) and release is its mirror: chat,
-         * embedding provider, HTTP client, pool. The bus owns no resource any
-         * more — its long-lived loops are Processes under the serve scope
-         * (Phase A2). [onRelease] observes each component after its close ran;
-         * it is transparent and cannot change the lifecycle.
+         * (pool, HTTP client, providers, bus) and release is its mirror: chat,
+         * embedding provider, HTTP client, pool. The bus owns no resource —
+         * its long-lived loops are Processes under the serve scope (Phase A2)
+         * and its counters are kap `Ref` state — so its step in the chain
+         * releases nothing and records nothing in the observer; it only needs
+         * a suspend context to build the pipeline. [onRelease] observes each
+         * component after its close ran; it is transparent and cannot change
+         * the lifecycle.
          */
         fun resource(
             config: Config,
@@ -124,8 +128,12 @@ class Brain private constructor(
                         acquire = { chatOverride ?: ChatProviders.create(config, client) },
                         close = { it.close() },
                     )
-                    Resource.zip(provider, chat) { providerValue, chatValue ->
-                        Brain(config, db, client, providerValue, chatValue)
+                    val bus = Resource(
+                        acquire = { BusPipeline.of(config, db).evalGraph() },
+                        release = { },
+                    )
+                    Resource.zip(provider, chat, bus) { providerValue, chatValue, busPipeline ->
+                        Brain(config, db, client, providerValue, chatValue, busPipeline)
                     }
                 }
         }

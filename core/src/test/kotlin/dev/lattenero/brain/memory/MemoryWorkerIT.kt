@@ -14,6 +14,7 @@ import dev.lattenero.brain.embeddings.ProviderUnavailable
 import dev.lattenero.brain.rag.CountingTracer
 import dev.lattenero.brain.rag.EmbedPipeline
 import kap.CircuitBreaker
+import kap.evalGraph
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -62,7 +63,7 @@ class MemoryWorkerIT {
     private suspend fun loadBus(f: Fixture): Int {
         Files.createDirectories(f.config.busFile.parent)
         Files.write(f.config.busFile, javaClass.classLoader.getResourceAsStream("bus/sample-bot-publisher.jsonl")!!.readAllBytes())
-        return BusPipeline(f.config, f.db).drain()
+        return BusPipeline.of(f.config, f.db).evalGraph().drain()
     }
 
     private val goodChat = FakeChatProvider { _, user ->
@@ -125,7 +126,7 @@ class MemoryWorkerIT {
             assertThat(first).startsWith("4:")
 
             Files.deleteIfExists(f.config.stateDir.resolve("bus-offset.json"))
-            assertThat(BusPipeline(f.config, f.db).drain()).isEqualTo(6)
+            assertThat(BusPipeline.of(f.config, f.db).evalGraph().drain()).isEqualTo(6)
             val rerun = worker(f, goodChat).processOnce()
             assertThat(rerun.scanned).isZero
             assertThat(snapshot(f)).isEqualTo(first)

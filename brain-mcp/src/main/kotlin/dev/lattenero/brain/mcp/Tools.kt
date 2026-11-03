@@ -1,5 +1,8 @@
 package dev.lattenero.brain.mcp
 
+import kap.Kap
+import kap.Ref
+import kap.evalGraph
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -80,12 +83,18 @@ sealed interface Envelope {
     }
 }
 
-/** Monotonic per-process trace ids: "trace-<epochMillis>-<seq>". */
-object Traces {
-    private val start = Instant.now().toEpochMilli()
-    private val seq = java.util.concurrent.atomic.AtomicLong()
+/**
+ * Monotonic per-process trace ids: "trace-<epochMillis>-<seq>". The sequence is
+ * kap `Ref` state (Phase G: the audit's last AtomicLong global — "Traces
+ * AtomicLong global — espera kap Ref"), so the ids are created by executing
+ * [of] once at startup and [next] advances the sequence atomically.
+ */
+class Traces private constructor(private val start: Long, private val seq: Ref<Long>) {
+    suspend fun next(): String = "trace-$start-${seq.update { it + 1 }.evalGraph()}"
 
-    fun next(): String = "trace-$start-${seq.incrementAndGet()}"
+    companion object {
+        fun of(): Kap<Traces> = Kap { Traces(Instant.now().toEpochMilli(), Ref.of(0L).evalGraph()) }
+    }
 }
 
 /** argv-only configuration, like the haskell-rules server: no flags, no env parsing beyond AB_*. */
