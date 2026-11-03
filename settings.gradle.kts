@@ -9,13 +9,9 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
-        // TEMPORARY (Phase G dogfooding, 2026-11-03): kap 5.0.0 resolves from
-        // mavenLocal because the Central release of 5.0.0 is the owner's call
-        // and has not happened yet. This re-introduces the machine friction G5
-        // removed (4.2.0 is still on Central, hence the fallback order below)
-        // and MUST be dropped — leaving only mavenCentral() — as soon as
-        // 5.0.0 is published there.
-        mavenLocal()
+        // kap 5.0.0 hit Maven Central on 2026-11-03 (release v5.0.0; the four
+        // modules answer 200 on repo1) — the Phase G dogfooding fallback is
+        // retired with it, and G5's Central-only resolution is back for good.
         mavenCentral()
     }
 }
