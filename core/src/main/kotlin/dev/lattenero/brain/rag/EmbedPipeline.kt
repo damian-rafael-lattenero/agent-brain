@@ -64,7 +64,10 @@ class EmbedPipeline(
     private val concurrency: Int,
     private val timeout: Duration,
     private val tracer: KapTracer,
-    val breaker: CircuitBreaker = CircuitBreaker(maxFailures = DEFAULT_BREAKER_FAILURES, resetTimeout = DEFAULT_BREAKER_RESET),
+    val breaker: CircuitBreaker = CircuitBreaker(
+        maxFailures = DEFAULT_BREAKER_FAILURES,
+        retryAfter = DEFAULT_BREAKER_RESET,
+    ),
     private val attempts: Int = DEFAULT_ATTEMPTS,
     private val backoffBase: Duration = DEFAULT_BACKOFF_BASE,
 ) {

@@ -58,8 +58,8 @@ class MemoryWorkerDedupIT {
     }
 
     private fun worker(f: Fixture, chat: FakeChatProvider): MemoryWorker {
-        val extractor = MemoryExtractor(chat, 10.seconds, f.tracer, CircuitBreaker(100, 1.minutes))
-        return MemoryWorker(f.store, extractor, EmbedPipeline(embedder, 8, 2, 10.seconds, f.tracer, CircuitBreaker(100, 1.minutes)))
+        val extractor = MemoryExtractor(chat, 10.seconds, f.tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes))
+        return MemoryWorker(f.store, extractor, EmbedPipeline(embedder, 8, 2, 10.seconds, f.tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes)))
     }
 
     private suspend fun plantTurn(f: Fixture, eventId: String, sid: String, turn: String, prompt: String, reply: String) {

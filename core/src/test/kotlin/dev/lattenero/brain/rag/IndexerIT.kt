@@ -56,7 +56,7 @@ class IndexerIT {
     private fun indexer(provider: EmbeddingProvider = FakeProvider(dim, FakeProvider.Mode.BOW), attempts: Int = 3): Indexer {
         val tracer = CountingTracer()
         val pipeline = EmbedPipeline(provider, batchSize = 4, concurrency = 2, timeout = 30.seconds, tracer = tracer,
-            breaker = CircuitBreaker(100, 1.minutes), attempts = attempts)
+            breaker = CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes), attempts = attempts)
         return Indexer(store, pipeline, tracer, docConcurrency = 2)
     }
 

@@ -21,7 +21,7 @@ class MemoryExtractorTest {
     private val transcript = Transcript("ev1", "ses_1", "17", "bot", "use Kotlin, never push without my ok", "understood", listOf("Bash"), "CV")
 
     private fun extractor(chat: ChatProvider, attempts: Int = 3) =
-        MemoryExtractor(chat, 1.seconds, CountingTracer(), CircuitBreaker(100, 1.minutes), attempts, backoffBase = 10.seconds.div(100))
+        MemoryExtractor(chat, 1.seconds, CountingTracer(), CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes), attempts, backoffBase = 10.seconds.div(100))
 
     @Test
     fun `a valid answer becomes typed items with the summary last`() = runTest {

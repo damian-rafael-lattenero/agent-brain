@@ -49,7 +49,7 @@ class EmbedPipelineTest {
         concurrency: Int = 4,
         timeout: Duration = 1.seconds,
         attempts: Int = 3,
-        breaker: CircuitBreaker = CircuitBreaker(maxFailures = 100, resetTimeout = 1.minutes),
+        breaker: CircuitBreaker = CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes),
     ) = EmbedPipeline(provider, batchSize, concurrency, timeout, CountingTracer(), breaker, attempts, backoffBase = 10.seconds.div(100))
 
     @Test
@@ -108,7 +108,7 @@ class EmbedPipelineTest {
     @Test
     fun `the circuit breaker opens after repeated failures and then fails fast without calling the provider`() = runTest {
         val dead = ScriptedProvider(failFirst = 99)
-        val breaker = CircuitBreaker(maxFailures = 2, resetTimeout = 1.minutes)
+        val breaker = CircuitBreaker(maxFailures = 2, retryAfter = 1.minutes)
         val pipeline = pipeline(dead, attempts = 1, breaker = breaker)
         repeat(2) {
             assertThatThrownBy { kotlinx.coroutines.runBlocking { pipeline.embedBatch(listOf("x")).evalGraph() } }
@@ -124,7 +124,7 @@ class EmbedPipelineTest {
     fun `the tracer counts successes, failures and time per phase`() = runTest {
         val tracer = CountingTracer()
         val flaky = ScriptedProvider(failFirst = 1, perCall = 20.seconds.div(1000))
-        val pipeline = EmbedPipeline(flaky, 1, 1, 1.seconds, tracer, CircuitBreaker(100, 1.minutes), attempts = 2)
+        val pipeline = EmbedPipeline(flaky, 1, 1, 1.seconds, tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes), attempts = 2)
         pipeline.embedAll(listOf("a", "b")).evalGraph()
         val phase = tracer.phases.getValue(EmbedPipeline.PHASE_EMBED)
         // traced wraps the retry, so the retried first call counts as ONE success; durations are wall clock.
@@ -133,7 +133,7 @@ class EmbedPipelineTest {
         assertThat(phase.totalMillis.get()).isGreaterThanOrEqualTo(0)
 
         val dead = ScriptedProvider(failFirst = 99)
-        val failing = EmbedPipeline(dead, 1, 1, 1.seconds, tracer, CircuitBreaker(100, 1.minutes), attempts = 1)
+        val failing = EmbedPipeline(dead, 1, 1, 1.seconds, tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes), attempts = 1)
         assertThatThrownBy { kotlinx.coroutines.runBlocking { failing.embedAll(listOf("z")).evalGraph() } }
         assertThat(phase.count.get()).isEqualTo(3)
         assertThat(phase.failures.get()).isEqualTo(1)

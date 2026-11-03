@@ -44,7 +44,7 @@ class ReposIT {
             concurrency = 2,
             timeout = 30.seconds,
             tracer = tracer,
-            breaker = CircuitBreaker(100, 1.minutes),
+            breaker = CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes),
             attempts = 1,
         )
         return Indexer(store, pipeline, tracer, docConcurrency = 2)
