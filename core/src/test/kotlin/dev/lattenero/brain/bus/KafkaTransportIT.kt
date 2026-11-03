@@ -7,11 +7,14 @@ import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
 import kap.evalGraph
 import kotlinx.coroutines.runBlocking
+import org.apache.kafka.clients.admin.AdminClient
+import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -31,21 +34,44 @@ import java.util.UUID
 class KafkaTransportIT {
     private val json = kotlinx.serialization.json.Json { encodeDefaults = true }
 
+    /** Throwaway topics per test run; deleted in [downTopics] so repeated runs never exhaust Redpanda's FD budget. */
+    private val createdTopics = mutableListOf<String>()
+
     @BeforeAll
     fun up() {
         TestEnv.needPostgres()
         TestEnv.needKafka()
     }
 
+    @AfterAll
+    fun downTopics() {
+        if (createdTopics.isEmpty()) return
+        try {
+            val props = Properties().apply {
+                put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, TestEnv.base.kafkaBootstrap)
+                put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, KafkaTopics.PROBE_TIMEOUT_MS)
+                put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, KafkaTopics.PROBE_TIMEOUT_MS)
+            }
+            AdminClient.create(props).use { it.deleteTopics(createdTopics).all().get() }
+        } catch (e: Exception) {
+            // A leftover topic is an environment cost, never a masked test result.
+            System.err.println("kafka IT: could not delete throwaway topics $createdTopics: ${e.message}")
+        }
+    }
+
     private fun fixtureBytes(): ByteArray = javaClass.classLoader.getResourceAsStream("bus/sample-bot-publisher.jsonl")!!.readAllBytes()
 
-    private fun kafkaConfig(tag: String): Config = TestDatabase.config(
-        tag, extra = mapOf(
-            "AB_BUS_TRANSPORT" to "kafka",
-            "AB_KAFKA_TOPIC" to "agent-brain-test-$tag-" + UUID.randomUUID().toString().take(8),
-            "AB_KAFKA_GROUP" to "agent-brain-test-$tag-" + UUID.randomUUID().toString().take(8),
-        ),
-    )
+    private fun kafkaConfig(tag: String): Config {
+        val topic = "agent-brain-test-$tag-" + UUID.randomUUID().toString().take(8)
+        createdTopics += topic
+        return TestDatabase.config(
+            tag, extra = mapOf(
+                "AB_BUS_TRANSPORT" to "kafka",
+                "AB_KAFKA_TOPIC" to topic,
+                "AB_KAFKA_GROUP" to "agent-brain-test-$tag-" + UUID.randomUUID().toString().take(8),
+            ),
+        )
+    }
 
     private suspend fun snapshot(db: Database): String = db.withConnection { conn ->
         conn.createStatement().use { st ->

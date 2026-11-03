@@ -36,6 +36,7 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.kap.kotest)
+    testImplementation(libs.kotest.property)
 }
 
 // Dry-run of the KAP builders: ./gradlew :core:kspKotlin -PkapDump

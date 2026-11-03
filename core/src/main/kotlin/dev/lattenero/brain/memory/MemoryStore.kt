@@ -3,6 +3,7 @@ package dev.lattenero.brain.memory
 import com.pgvector.PGvector
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.inTransaction
+import dev.lattenero.brain.rag.Rrf
 import kap.KapTypeSafe
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -255,7 +256,11 @@ class MemoryStore(private val db: Database) {
         }
     }
 
-    /** Hybrid RRF like the RAG store, then a half-life decay by age and the row's salience; hits bump last_accessed. */
+    /**
+     * Hybrid RRF ([dev.lattenero.brain.rag.Rrf]) times salience times half-life decay
+     * ([Salience]) — the SQL below is the executable twin of those pure cores,
+     * pinned equivalent on fixtures (`MemorySearchEquivalenceIT`). Hits bump last_accessed.
+     */
     suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int, halfLifeDays: Int): List<Memory> = db.withConnection { conn ->
         val hits = conn.prepareStatement(SEARCH).use { ps ->
             ps.setObject(1, PGvector(queryEmbedding))
@@ -405,7 +410,9 @@ class MemoryStore(private val db: Database) {
     companion object {
         const val CANDIDATE_FACTOR = 4
         const val MIN_CANDIDATES = 50
-        const val RRF_K = 60
+
+        /** The fusion constant lives in the pure core ([Rrf]); the SQL below is its executable twin. */
+        const val RRF_K = Rrf.K
         const val MAX_REASON_CHARS = 500
 
         /** Each absorbed duplicate reinforces the survivor by this much salience. */
