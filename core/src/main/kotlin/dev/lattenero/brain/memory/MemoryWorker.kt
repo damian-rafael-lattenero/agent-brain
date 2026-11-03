@@ -82,6 +82,19 @@ sealed interface TurnOutcome {
  * an open breaker is just a fast provider failure — the turn lands in
  * [ExtractionFailure.ProviderDown] like any other outage and no exception
  * steers the loop.
+ *
+ * Phase G (2026-11-03) evaluated consuming [kap.Supervisor] here with kap
+ * 5.0.0 actually on the classpath, and the verdict is that the documentation
+ * above stands, not the consumption: the worker is ONE process whose body is
+ * the whole batch — there are no per-turn children to watch — and a turn's
+ * failure is a VALUE ([ExtractionFailure] as `Either.Left`), not a crashing
+ * child. A Supervisor restarts bodies; restarting a turn whose provider is
+ * down re-runs it against the same open breaker (a restart cannot fix it),
+ * and raising the bins into exceptions to make them "supervisable" would
+ * undo plan C1. If a batch-wide short-circuit is ever wanted again, its
+ * lawful home is a fold decision over the settled Eithers (a stop predicate,
+ * as a value), not supervision — the old `break` was exactly the
+ * exception-as-control-flow R4 bans.
  */
 class MemoryWorker(
     private val store: MemoryStore,
