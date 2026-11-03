@@ -58,6 +58,8 @@ make test             # tiers 1-3 (skips a tier with a reason when its service i
 make bb               # tier 4: black-box local, services required
 make serve            # http://127.0.0.1:8765/ready
 make index            # index ~/.zcode/agent-brain/corpus.txt (copy corpus.example.txt first)
+make index-repos-dry  # what the repos under ~/Projects would add, without Postgres
+make index-repos      # index those repos incrementally (docs + code)
 make query Q="how does the tailer handle truncation"
 make eval             # the recall gate: 20 questions, real model, eval_runs row, evals/artifacts/latest.md
 ```
@@ -66,7 +68,8 @@ The bus file is `~/.zcode/agent-brain/bus-events.jsonl` (bot side: set `"event_b
 in `~/.zcode/telegram-remote.json`, bot ADR-019). The CLI lives at `core/build/install/agent-brain/bin/agent-brain`:
 
 ```
-agent-brain serve | migrate [--status] | ingest [--once] | bridge [--once] | bus status | index [GLOB...] | query TEXT [--k N]
+agent-brain serve | migrate [--status] | ingest [--once] | bridge [--once] | bus status | index [GLOB...] | index-repos [--dry-run] [--repo NAME]...
+            | query TEXT [--k N]
             | memory search TEXT [--k N] | memory recent [--k N] [--kind K] | memory save KIND TEXT
             | memory quarantine | memory status | memory run [--once]
             | eval [--gate 0.9] | health [--url U] | embed TEXT... | config
@@ -77,6 +80,21 @@ agent-brain serve | migrate [--status] | ingest [--once] | bridge [--once] | bus
 `index` reads `~/.zcode/agent-brain/corpus.txt` (one absolute glob per line, see
 `corpus.example.txt`) and prints a report with per-phase counters; `query` prints
 ranked hits with citations (retrieval only, the caller composes the answer).
+`index-repos` indexes whole repositories instead of a hand-maintained corpus: by
+default `kap`, `bot`, `zcode-bot-kotlin`, `ZCode` and `agent-brain` under
+`~/Projects`, one absolute `**/*.{md,kt,...}` glob per repo built from the same
+text-extension set and prune rules as the corpus (`build/`, `.git/`,
+`node_modules/` and friends stay out). `--repo NAME` (repeatable) narrows the
+scan. `--dry-run` scans and prints the report — documents, total and per-repo
+bytes, skipped files with their reasons — and never opens Postgres, so it works
+before `make up`. A second run over an unchanged tree reports every document
+`unchanged` (idempotent by content sha); a file deleted inside a present
+repository is pruned, while a repository whose root vanished is reported and
+left intact instead of losing its indexed documents. The scan holds the text
+in memory while it walks (the ZCode checkout alone is ~150 MB of text), which
+is why the CLI runs with a 768m heap; files over 1 MB and non-UTF-8 files are
+skipped and listed in the report.
+
 From the Telegram chat: `/brain <question>`, `/brain status`, `/memory <query>`, `/memory recent`,
 `/memory status` (bot ADR-019/020). `serve` also runs the memory worker (knob `memory_worker`).
 
@@ -169,6 +187,9 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 | Hybrid retrieval on real Postgres: both legs agree on the right document, the full-text leg rescues an exact token, another embedding model sees nothing, deletes cascade | `./gradlew test --tests '*RagStoreIT*'` |
 | The KAP embed pipeline under virtual time: batches PROVEN parallel (`shouldProveParallel`), bounded by concurrency, transient failures retried, a timeout retried, the breaker opens and fails fast | `./gradlew test --tests '*EmbedPipelineTest*'` |
 | Indexing lifecycle: first run indexes all, second run embeds nothing, an edit re-indexes one, a deletion prunes, one poisoned document is reported and the rest land | `./gradlew test --tests '*IndexerIT*'` |
+| Repo scan: fixed default list, one absolute alternation glob per repo rooted at the repo, `--repo` filter, noise dirs pruned, same tree = same documents in the same order | `./gradlew test --tests '*ReposTest*'` |
+| `index-repos --dry-run` reports documents/bytes per repo and never opens Postgres | `make index-repos-dry` |
+| Repo indexing on real Postgres: second run all `unchanged` with the same document ids, a deleted file prunes only itself, a vanished repo root prunes nothing | `./gradlew test --tests '*ReposIT*'` |
 | Two KAP 4.0.0 findings pinned (timeout before retry; settled not isolating nested parallel graphs) and the `isolated()` workaround proven | `./gradlew test --tests '*KapFindingsTest*'` |
 | Ten planted facts among distractors, indexed with the REAL model: recall@5 = 1.0 (floor 1.0), recall@1 = 1.0 (floor 0.8) | `./gradlew test --tests '*RecallGateIT*'` |
 | A real `serve` indexes the fixture corpus through the CLI with the real model, answers with the right citation over HTTP and CLI, and a re-index embeds nothing | `make bb` (`P2RagBB`) |
@@ -263,7 +284,7 @@ model name and leave cost at zero until usage accounting for embeddings exists.
 ```
 brain-mcp/               the ZCode plugin: MCP Kotlin SDK stdio server, ToolSpec registry, envelope, plugin manifest
 core/                    Kotlin module: config, db (pool + migrator), embeddings, chat, bus (tailer + ingest),
-                         rag (corpus, chunker, store, KAP embed pipeline, indexer, service),
+                         rag (corpus, repos, chunker, store, KAP embed pipeline, indexer, service),
                          memory (extractor, store, worker, service), http, Main
 corpus.example.txt       the author's corpus; copy to ~/.zcode/agent-brain/corpus.txt
 core/src/main/resources/migrations/   plain SQL, enumerated by index.txt, shipped in the jar

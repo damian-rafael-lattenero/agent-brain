@@ -46,7 +46,10 @@ ksp {
 application {
     applicationName = "agent-brain"
     mainClass = "dev.lattenero.brain.MainKt"
-    applicationDefaultJvmArgs = listOf("-Xmx256m", "-XX:+UseSerialGC")
+    // The corpus is held in memory during a scan. `index` reads a handful of
+    // docs, but `index-repos` walks whole repositories (the ZCode checkout is
+    // ~150 MB of text), so 256m ran out of heap on the default repo set.
+    applicationDefaultJvmArgs = listOf("-Xmx768m", "-XX:+UseSerialGC")
 }
 
 val serviceEnv = mapOf(
