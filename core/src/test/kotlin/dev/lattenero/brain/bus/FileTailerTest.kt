@@ -1,5 +1,6 @@
 package dev.lattenero.brain.bus
 
+import kap.evalGraph
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -11,7 +12,9 @@ class FileTailerTest {
     @TempDir
     lateinit var tmp: Path
 
-    private fun tailer() = FileTailer.open(tmp.resolve("bus.jsonl"), tmp.resolve("state"))
+    private fun tailer(): FileTailer = runBlocking {
+        FileTailer.open(tmp.resolve("bus.jsonl"), tmp.resolve("state")).evalGraph()
+    }
 
     private fun append(text: String) {
         Files.write(tmp.resolve("bus.jsonl"), text.toByteArray(Charsets.UTF_8),
@@ -24,6 +27,8 @@ class FileTailerTest {
     private fun poll(tailer: FileTailer, sink: MutableList<BusEvent>): Int = runBlocking {
         tailer.poll { sink += it }
     }
+
+    private suspend fun counters(tailer: FileTailer): TailCounters = tailer.stats.snapshot()
 
     @Test
     fun `a missing or empty file hands over nothing`() {
@@ -76,8 +81,10 @@ class FileTailerTest {
         val sink = mutableListOf<BusEvent>()
         assertThat(poll(tailer, sink)).isEqualTo(2)
         assertThat(sink.map { it.id }).containsExactly("good", "also-good")
-        assertThat(tailer.stats.malformed.get()).isEqualTo(1)
-        assertThat(tailer.stats.lines.get()).isEqualTo(3)
+        runBlocking {
+            assertThat(counters(tailer).malformed).isEqualTo(1)
+            assertThat(counters(tailer).lines).isEqualTo(3)
+        }
     }
 
     @Test
@@ -91,7 +98,7 @@ class FileTailerTest {
         val sink = mutableListOf<BusEvent>()
         assertThat(poll(tailer, sink)).isEqualTo(1)
         assertThat(sink.single().id).isEqualTo("after-rotation")
-        assertThat(tailer.stats.shrinks.get()).isEqualTo(1)
+        runBlocking { assertThat(counters(tailer).shrinks).isEqualTo(1) }
         assertThat(tailer.offset).isEqualTo(Files.size(tmp.resolve("bus.jsonl")))
     }
 
@@ -127,7 +134,7 @@ class FileTailerTest {
 
     @Test
     fun `a line longer than one read window never stalls the tail`() {
-        val tailer = FileTailer.open(tmp.resolve("bus.jsonl"), tmp.resolve("state"), maxReadBytes = 64)
+        val tailer = runBlocking { FileTailer.open(tmp.resolve("bus.jsonl"), tmp.resolve("state"), maxReadBytes = 64).evalGraph() }
         val big = (1..12).joinToString("") { line("e$it") }
         append(big)
         var total = 0

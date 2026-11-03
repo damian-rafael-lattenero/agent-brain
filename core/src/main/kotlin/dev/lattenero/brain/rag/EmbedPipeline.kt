@@ -21,7 +21,12 @@ import kotlin.time.Duration.Companion.seconds
 
 private val log = LoggerFactory.getLogger("agent-brain.embed")
 
-/** Per-phase counters fed by KAP's `traced` combinator; the index report prints them. */
+/**
+ * Per-phase counters fed by KAP's `traced` combinator; the index report prints
+ * them. These stay [AtomicLong], deliberately: [KapTracer.onEvent] is a
+ * non-suspend SPI callback, and a kap `Ref` update is suspend by design —
+ * converting would need a kap API change (a suspend tracer), not a local edit.
+ */
 class CountingTracer : KapTracer {
     class Phase {
         val count = AtomicLong()

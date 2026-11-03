@@ -37,6 +37,7 @@ import kap.Process
 import kap.ProcessExhaustedException
 import kap.ProcessHandle
 import kap.ProcessStoppedException
+import kap.evalGraph
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -376,15 +377,17 @@ private fun query(args: List<String>): Int {
 private fun bridge(once: Boolean): Int {
     val config = Config.load()
     dev.lattenero.brain.bus.KafkaTopics.ensure(config)
-    dev.lattenero.brain.bus.KafkaBridge(config).use { bridge ->
-        if (once) {
-            val produced = runBlocking { bridge.drain() }
-            printJson(buildJsonObject { put("produced", produced); put("offset", bridge.tailer.offset); put("topic", config.kafkaTopic) })
-            return EXIT_OK
+    return runBlocking {
+        dev.lattenero.brain.bus.KafkaBridge.of(config).evalGraph().use { bridge ->
+            if (once) {
+                val produced = bridge.drain()
+                printJson(buildJsonObject { put("produced", produced); put("offset", bridge.tailer.offset); put("topic", config.kafkaTopic) })
+            } else {
+                bridge.run(kotlin.time.Duration.parse("${config.busPollMs}ms"))
+            }
+            EXIT_OK
         }
-        runBlocking { bridge.run(kotlin.time.Duration.parse("${config.busPollMs}ms")) }
     }
-    return EXIT_OK
 }
 
 private fun busStatus(): Int {

@@ -5,6 +5,7 @@ import dev.lattenero.brain.TestEnv
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
+import kap.evalGraph
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
@@ -43,20 +44,21 @@ class PgBusIngestIT {
 
     @Test
     fun `a batch is inserted once and a repeat of it is counted as duplicates`() = runBlocking<Unit> {
-        val ingest = PgBusIngest(db)
+        val ingest = PgBusIngest.of(db).evalGraph()
         val events = fixtureEvents().map { it.copy(id = "batch-" + it.id) }
         ingest.handle(events)
-        assertThat(ingest.stats.inserted.get()).isEqualTo(events.size.toLong())
+        assertThat(ingest.stats.snapshot().inserted).isEqualTo(events.size.toLong())
         ingest.handle(events)
-        assertThat(ingest.stats.seen.get()).isEqualTo(events.size * 2L)
-        assertThat(ingest.stats.inserted.get()).isEqualTo(events.size.toLong())
-        assertThat(ingest.stats.duplicates.get()).isEqualTo(events.size.toLong())
-        assertThat(ingest.stats.lastKind).isEqualTo("turn.failed")
+        val counters = ingest.stats.snapshot()
+        assertThat(counters.seen).isEqualTo(events.size * 2L)
+        assertThat(counters.inserted).isEqualTo(events.size.toLong())
+        assertThat(counters.duplicates).isEqualTo(events.size.toLong())
+        assertThat(counters.lastKind).isEqualTo("turn.failed")
     }
 
     @Test
     fun `payloads land as jsonb and timestamps as timestamptz`() = runBlocking<Unit> {
-        val ingest = PgBusIngest(db)
+        val ingest = PgBusIngest.of(db).evalGraph()
         val started = fixtureEvents().first { it.kind == "turn.started" }.copy(id = "jsonb-probe")
         ingest.handle(listOf(started))
         val (title, prompt, year) = db.withConnection { conn ->
@@ -82,7 +84,7 @@ class PgBusIngestIT {
             val withNoise = lines.take(3) + listOf(lines[1], "{this is not json") + lines.drop(3)
             Files.writeString(busFile, withNoise.joinToString("\n") + "\n")
 
-            val first = BusPipeline(own, odb)
+            val first = BusPipeline.of(own, odb).evalGraph()
             val handedFirst = first.drain()
             val snapshotFirst = snapshotOf(odb)
             val statusFirst = first.status()
@@ -95,7 +97,7 @@ class PgBusIngestIT {
 
             // Forget the offset (as a lost state dir would) and replay from byte 0.
             Files.deleteIfExists(own.stateDir.resolve("bus-offset.json"))
-            val second = BusPipeline(own, odb)
+            val second = BusPipeline.of(own, odb).evalGraph()
             assertThat(second.tailer.offset).isZero
             val handedSecond = second.drain()
             val statusSecond = second.status()

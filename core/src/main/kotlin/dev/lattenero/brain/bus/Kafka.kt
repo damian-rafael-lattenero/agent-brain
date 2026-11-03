@@ -7,6 +7,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kap.Kap
 import kap.Process
+import kap.Ref
 import kap.RestartPolicy
 import kap.Schedule
 import kap.evalGraph
@@ -31,7 +32,6 @@ import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.Properties
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration as KDuration
 
@@ -77,9 +77,12 @@ object KafkaTopics {
  * before the offset is persisted re-produces a few events, which the
  * consumer's database dedup absorbs (ADR-003).
  */
-class KafkaBridge(private val config: Config, private val topic: String = config.kafkaTopic) : AutoCloseable {
-    val tailer: FileTailer = FileTailer(config.busFile, OffsetStore(config.stateDir.resolve("bus-offset-bridge.json")))
-    val produced = AtomicLong()
+class KafkaBridge private constructor(
+    private val config: Config,
+    private val topic: String,
+    val tailer: FileTailer,
+    val produced: Ref<Long>,
+) : AutoCloseable {
     private val producer: KafkaProducer<String, String> by lazy {
         KafkaProducer<String, String>(
             Properties().apply {
@@ -102,7 +105,7 @@ class KafkaBridge(private val config: Config, private val topic: String = config
             }
             producer.flush()
             futures.forEach { it.get() }
-            produced.addAndGet(events.size.toLong())
+            produced.update { it + events.size }.evalGraph()
         }
     }
 
@@ -128,21 +131,55 @@ class KafkaBridge(private val config: Config, private val topic: String = config
         const val LINGER_MS = 20
         const val DELIVERY_TIMEOUT_MS = 60_000 // must cover linger + request.timeout (30 s default)
         const val CLOSE_TIMEOUT_S = 10L
+
+        /** Construction is a [Kap]: the tailer's stats and the produced counter are kap `Ref` state. */
+        fun of(config: Config, topic: String = config.kafkaTopic): Kap<KafkaBridge> = Kap {
+            val bridgeTailer = FileTailer.of(
+                config.busFile,
+                OffsetStore(config.stateDir.resolve("bus-offset-bridge.json")),
+            ).evalGraph()
+            KafkaBridge(
+                config,
+                topic,
+                tailer = bridgeTailer,
+                produced = Ref.of(0L).evalGraph(),
+            )
+        }
     }
 }
 
+/** The consumer's committed counters as one immutable value (the [KafkaStats] read surface). */
+data class KafkaCounters(
+    val records: Long = 0,
+    val malformed: Long = 0,
+    val commits: Long = 0,
+    val lastOffsets: Map<Int, Long> = emptyMap(),
+)
+
 /**
  * Business counters (what the consumer committed), not liveness: liveness is
- * the process handle's restarts and heartbeat age (see [BusStatus]). Plain
- * until kap `Ref` (Phase G).
+ * the process handle's restarts and heartbeat age (see [BusStatus]). The state
+ * is one kap [Ref] over [KafkaCounters] (Phase G: "true business counters stay
+ * plain until kap Ref") — one atomic update per committed batch.
  */
-class KafkaStats {
-    val records = AtomicLong()
-    val malformed = AtomicLong()
-    val commits = AtomicLong()
+class KafkaStats private constructor(private val state: Ref<KafkaCounters>) {
+    suspend fun accept(recordsCount: Int, malformed: Int, offsets: Map<Int, Long>) {
+        state.update {
+            it.copy(
+                records = it.records + recordsCount,
+                malformed = it.malformed + malformed,
+                commits = it.commits + 1,
+                lastOffsets = offsets,
+            )
+        }.evalGraph()
+    }
 
-    @Volatile
-    var lastOffsets: Map<Int, Long> = emptyMap()
+    /** The counters as a value; the /bus/status surface reads this. */
+    suspend fun snapshot(): KafkaCounters = state.get().evalGraph()
+
+    companion object {
+        fun of(): Kap<KafkaStats> = Kap { KafkaStats(Ref.of(KafkaCounters()).evalGraph()) }
+    }
 }
 
 /**
@@ -156,8 +193,12 @@ class KafkaStats {
  * finally: the supervised loop gets a fresh consumer per body execution,
  * `drain` gets one for the whole drain.
  */
-class KafkaBusConsumer(private val config: Config, private val ingest: PgBusIngest, private val topic: String = config.kafkaTopic) {
-    val stats = KafkaStats()
+class KafkaBusConsumer private constructor(
+    private val config: Config,
+    private val ingest: PgBusIngest,
+    private val topic: String,
+    val stats: KafkaStats,
+) {
 
     /** One poll on a fresh consumer (tests, `ingest --once`). */
     suspend fun poll(timeout: Duration = Duration.ofMillis(POLL_MS)): Int =
@@ -221,10 +262,11 @@ class KafkaBusConsumer(private val config: Config, private val ingest: PgBusInge
         }
         ingest.handle(events)
         withContext(Dispatchers.IO) { consumer.commitSync() }
-        stats.records.addAndGet(records.count().toLong())
-        stats.malformed.addAndGet(bad.toLong())
-        stats.commits.incrementAndGet()
-        stats.lastOffsets = records.partitions().associate { tp -> tp.partition() to records.records(tp).last().offset() }
+        stats.accept(
+            records.count(),
+            bad,
+            records.partitions().associate { tp -> tp.partition() to records.records(tp).last().offset() },
+        )
         return records.count()
     }
 
@@ -263,6 +305,10 @@ class KafkaBusConsumer(private val config: Config, private val ingest: PgBusInge
         const val DRAIN_QUIET_POLLS = 3
         const val MAX_POLL_RECORDS = 500
         const val CLOSE_TIMEOUT_S = 10L
+
+        /** Construction is a [Kap]: the stats are kap `Ref` state (see [KafkaStats]). */
+        fun of(config: Config, ingest: PgBusIngest, topic: String = config.kafkaTopic): Kap<KafkaBusConsumer> =
+            Kap { KafkaBusConsumer(config, ingest, topic, KafkaStats.of().evalGraph()) }
 
         /** The heartbeat answers "is the process there", never "did the cycle finish". */
         val HEARTBEAT_EVERY = 5.seconds

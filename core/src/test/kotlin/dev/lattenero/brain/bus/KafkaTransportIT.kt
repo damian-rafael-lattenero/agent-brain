@@ -5,6 +5,7 @@ import dev.lattenero.brain.TestEnv
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
+import kap.evalGraph
 import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
@@ -68,7 +69,7 @@ class KafkaTransportIT {
         Migrator(fileDb, fileConfig.embedDim).apply()
         Files.createDirectories(fileConfig.busFile.parent)
         Files.write(fileConfig.busFile, fixtureBytes())
-        assertThat(BusPipeline(fileConfig, fileDb).drain()).isEqualTo(6)
+        assertThat(BusPipeline.of(fileConfig, fileDb).evalGraph().drain()).isEqualTo(6)
         val viaFile = snapshot(fileDb)
 
         // Leg 2: bridge the same file into a topic, consume the topic into another database.
@@ -78,8 +79,8 @@ class KafkaTransportIT {
         Files.createDirectories(kafkaConfig.busFile.parent)
         Files.write(kafkaConfig.busFile, fixtureBytes())
         KafkaTopics.ensure(kafkaConfig)
-        KafkaBridge(kafkaConfig).use { bridge -> assertThat(bridge.drain()).isEqualTo(6) }
-        val pipeline = BusPipeline(kafkaConfig, kafkaDb)
+        KafkaBridge.of(kafkaConfig).evalGraph().use { bridge -> assertThat(bridge.drain()).isEqualTo(6) }
+        val pipeline = BusPipeline.of(kafkaConfig, kafkaDb).evalGraph()
         assertThat(pipeline.drain()).isEqualTo(6)
         val status = pipeline.status()
         assertThat(status.transport).isEqualTo("kafka")
@@ -99,10 +100,10 @@ class KafkaTransportIT {
             Files.createDirectories(config.busFile.parent)
             Files.write(config.busFile, fixtureBytes())
             KafkaTopics.ensure(config)
-            KafkaBridge(config).use { it.drain() }
+            KafkaBridge.of(config).evalGraph().use { it.drain() }
             // A lost bridge offset: everything is produced again (at-least-once).
             Files.deleteIfExists(config.stateDir.resolve("bus-offset-bridge.json"))
-            KafkaBridge(config).use { assertThat(it.drain()).isEqualTo(6) }
+            KafkaBridge.of(config).evalGraph().use { assertThat(it.drain()).isEqualTo(6) }
             // And a poison record straight into the topic.
             KafkaProducer<String, String>(
                 Properties().apply {
@@ -112,7 +113,7 @@ class KafkaTransportIT {
                 },
             ).use { it.send(ProducerRecord(config.kafkaTopic, "poison", "{not json")).get() }
 
-            val pipeline = BusPipeline(config, db)
+            val pipeline = BusPipeline.of(config, db).evalGraph()
             assertThat(pipeline.drain()).isEqualTo(13)
             val status = pipeline.status()
             assertThat(status.dbEvents).isEqualTo(6)

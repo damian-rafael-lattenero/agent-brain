@@ -2,29 +2,49 @@ package dev.lattenero.brain.bus
 
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.inTransaction
+import kap.Kap
+import kap.Ref
+import kap.evalGraph
 import kotlinx.serialization.Serializable
-import java.util.concurrent.atomic.AtomicLong
+
+/** The handler's accepted counters as one immutable value (the [IngestStats] read surface). */
+data class IngestCounters(
+    val seen: Long = 0,
+    val inserted: Long = 0,
+    val duplicates: Long = 0,
+    val lastTs: String? = null,
+    val lastKind: String? = null,
+)
 
 /**
  * Business counters (what the handler accepted), not liveness: liveness is the
- * process handle's restarts and heartbeat age (see [BusStatus]). Plain until
- * kap `Ref` (Phase G).
+ * process handle's restarts and heartbeat age (see [BusStatus]). The state is
+ * one kap [Ref] over [IngestCounters] (Phase G: "true business counters stay
+ * plain until kap Ref") — one atomic update per accepted batch.
  */
-class IngestStats {
-    val seen = AtomicLong()
-    val inserted = AtomicLong()
-    val duplicates = AtomicLong()
+class IngestStats private constructor(private val state: Ref<IngestCounters>) {
+    suspend fun accept(events: Int, insertedRows: Int, ts: String, kind: String) {
+        state.update {
+            it.copy(
+                seen = it.seen + events,
+                inserted = it.inserted + insertedRows,
+                duplicates = it.duplicates + (events - insertedRows),
+                lastTs = ts,
+                lastKind = kind,
+            )
+        }.evalGraph()
+    }
 
-    @Volatile
-    var lastTs: String? = null
+    /** The counters as a value; the /bus/status surface reads this. */
+    suspend fun snapshot(): IngestCounters = state.get().evalGraph()
 
-    @Volatile
-    var lastKind: String? = null
+    companion object {
+        fun of(): Kap<IngestStats> = Kap { IngestStats(Ref.of(IngestCounters()).evalGraph()) }
+    }
 }
 
 /** The ONE handler behind every transport (file now, Kafka in P4): a batch insert that ignores ids it already has. */
-class PgBusIngest(private val db: Database) {
-    val stats = IngestStats()
+class PgBusIngest private constructor(private val db: Database, val stats: IngestStats) {
 
     suspend fun handle(events: List<BusEvent>) {
         if (events.isEmpty()) return
@@ -43,13 +63,7 @@ class PgBusIngest(private val db: Database) {
                 ps.executeBatch()
             }.count { it > 0 }
         }
-        stats.seen.addAndGet(events.size.toLong())
-        stats.inserted.addAndGet(inserted.toLong())
-        stats.duplicates.addAndGet((events.size - inserted).toLong())
-        events.last().let {
-            stats.lastTs = it.ts
-            stats.lastKind = it.kind
-        }
+        events.last().let { stats.accept(events.size, inserted, it.ts, it.kind) }
     }
 
     suspend fun count(): Long = db.withConnection { conn ->
@@ -64,6 +78,9 @@ class PgBusIngest(private val db: Database) {
             VALUES (?, ?::timestamptz, ?, ?, ?, ?, ?::jsonb)
             ON CONFLICT (id) DO NOTHING
         """
+
+        /** Construction is a [Kap]: the stats are kap `Ref` state (see [IngestStats]). */
+        fun of(db: Database): Kap<PgBusIngest> = Kap { PgBusIngest(db, IngestStats.of().evalGraph()) }
     }
 }
 

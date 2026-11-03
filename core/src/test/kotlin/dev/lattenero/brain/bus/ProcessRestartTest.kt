@@ -2,6 +2,7 @@ package dev.lattenero.brain.bus
 
 import kap.ProcessExhaustedException
 import kap.RestartPolicy
+import kap.evalGraph
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -39,7 +40,7 @@ class ProcessRestartTest {
     @Test
     fun `a killed body restarts and resumes from the persisted offset floor`() = runBlocking<Unit> {
         append(line("a") + line("b"))
-        val tailer = FileTailer.open(busFile, tmp.resolve("state"))
+        val tailer = FileTailer.open(busFile, tmp.resolve("state")).evalGraph()
         val delivered = Collections.synchronizedList(mutableListOf<String>())
         val failNext = AtomicBoolean(false)
         val handler: suspend (List<BusEvent>) -> Unit = { events ->
@@ -73,7 +74,7 @@ class ProcessRestartTest {
 
         // A fresh tailer resumes from the same persisted floor: nothing is lost,
         // nothing is read twice.
-        val restarted = FileTailer.open(busFile, tmp.resolve("state"))
+        val restarted = FileTailer.open(busFile, tmp.resolve("state")).evalGraph()
         assertThat(restarted.offset).isEqualTo(Files.size(busFile))
         assertThat(restarted.poll(handler)).isZero
     }
@@ -81,7 +82,7 @@ class ProcessRestartTest {
     @Test
     fun `a body that keeps failing exhausts its finite restart policy`() = runBlocking<Unit> {
         append(line("a"))
-        val tailer = FileTailer.open(busFile, tmp.resolve("state"))
+        val tailer = FileTailer.open(busFile, tmp.resolve("state")).evalGraph()
         val handle = tailer
             .process(5.milliseconds, { throw IllegalStateException("database down") }, RestartPolicy.constant(5.milliseconds, maxRestarts = 2))
             .startIn(this)
@@ -96,7 +97,7 @@ class ProcessRestartTest {
 
     @Test
     fun `the handle reports a live heartbeat while the body runs`() = runBlocking<Unit> {
-        val tailer = FileTailer.open(busFile, tmp.resolve("state"))
+        val tailer = FileTailer.open(busFile, tmp.resolve("state")).evalGraph()
         val handle = tailer.process(10.milliseconds, {}).startIn(this)
         try {
             withTimeout(5.seconds) {

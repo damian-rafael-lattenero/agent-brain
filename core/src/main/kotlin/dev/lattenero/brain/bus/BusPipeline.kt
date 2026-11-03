@@ -15,13 +15,17 @@ import kotlin.time.Duration.Companion.milliseconds
 /**
  * Tailer-or-consumer + ingest + status, wired from the injected config. The
  * transport is a knob (`bus_transport: file | kafka`); the handler behind it
- * is the same object either way (ADR-003).
+ * is the same object either way (ADR-003). The pipeline and its parts hold kap
+ * `Ref` state (the business counters), so construction is a [Kap] — run
+ * [of] where the component is born (the composition root's resource chain).
  */
-class BusPipeline(private val config: Config, db: Database) {
-    val tailer: FileTailer = FileTailer.open(config.busFile, config.stateDir)
-    val ingest: PgBusIngest = PgBusIngest(db)
+class BusPipeline private constructor(
+    private val config: Config,
+    val tailer: FileTailer,
+    val ingest: PgBusIngest,
+    val kafka: KafkaBusConsumer?,
+) {
     val isKafka: Boolean get() = config.busTransport == TRANSPORT_KAFKA
-    val kafka: KafkaBusConsumer? = if (isKafka) KafkaBusConsumer(config, ingest) else null
 
     /**
      * The ONE long-lived loop for the configured transport, as a named
@@ -60,11 +64,12 @@ class BusPipeline(private val config: Config, db: Database) {
     data class Probe(val fileBytes: Long, val dbEvents: Long)
 
     /**
-     * The status envelope. Business counters stay plain (Phase G's `Ref` will
-     * own them); liveness comes from the process [handle] — restarts and
-     * heartbeat age — never from a counter that fakes it. Without a handle
-     * (the `bus status` CLI talks to a database, not a running loop) both
-     * liveness fields are null: unknown, not invented.
+     * The status envelope. The business counters come from the components'
+     * kap `Ref` snapshots (one immutable value each); liveness comes from the
+     * process [handle] — restarts and heartbeat age — never from a counter
+     * that fakes it. Without a handle (the `bus status` CLI talks to a
+     * database, not a running loop) both liveness fields are null: unknown,
+     * not invented.
      */
     suspend fun status(handle: ProcessHandle<*>? = null): BusStatus {
         val probe = kap(::Probe)
@@ -72,6 +77,9 @@ class BusPipeline(private val config: Config, db: Database) {
             .with { dbEvents from ingest.count() }
             .evalGraph()
         val bytes = probe.fileBytes
+        val tail = tailer.stats.snapshot()
+        val accepted = ingest.stats.snapshot()
+        val consumed = kafka?.stats?.snapshot()
         return BusStatus(
             transport = config.busTransport,
             file = config.busFile.toString(),
@@ -79,24 +87,36 @@ class BusPipeline(private val config: Config, db: Database) {
             fileBytes = bytes,
             offset = tailer.offset,
             lagBytes = (bytes - tailer.offset).coerceAtLeast(0),
-            linesRead = if (isKafka) kafka!!.stats.records.get() else tailer.stats.lines.get(),
-            malformed = if (isKafka) kafka!!.stats.malformed.get() else tailer.stats.malformed.get(),
-            shrinks = tailer.stats.shrinks.get(),
-            seen = ingest.stats.seen.get(),
-            inserted = ingest.stats.inserted.get(),
-            duplicates = ingest.stats.duplicates.get(),
+            linesRead = consumed?.records ?: tail.lines,
+            malformed = consumed?.malformed ?: tail.malformed,
+            shrinks = tail.shrinks,
+            seen = accepted.seen,
+            inserted = accepted.inserted,
+            duplicates = accepted.duplicates,
             dbEvents = probe.dbEvents,
-            lastTs = ingest.stats.lastTs,
-            lastKind = ingest.stats.lastKind,
+            lastTs = accepted.lastTs,
+            lastKind = accepted.lastKind,
             restarts = handle?.restarts?.value,
             heartbeatAgeMs = handle?.heartbeatAge()?.takeIf { it.isFinite() }?.inWholeMilliseconds,
-            kafkaCommits = kafka?.stats?.commits?.get(),
-            kafkaOffsets = kafka?.stats?.lastOffsets?.mapKeys { it.key.toString() },
+            kafkaCommits = consumed?.commits,
+            kafkaOffsets = consumed?.lastOffsets?.mapKeys { it.key.toString() },
         )
     }
 
     companion object {
         const val TRANSPORT_FILE = "file"
         const val TRANSPORT_KAFKA = "kafka"
+
+        /** Builds the transport's parts (each a [Kap] itself: they hold `Ref` state). */
+        fun of(config: Config, db: Database): Kap<BusPipeline> = Kap {
+            val tailer = FileTailer.open(config.busFile, config.stateDir).evalGraph()
+            val ingest = PgBusIngest.of(db).evalGraph()
+            val kafka = if (config.busTransport == TRANSPORT_KAFKA) {
+                KafkaBusConsumer.of(config, ingest).evalGraph()
+            } else {
+                null
+            }
+            BusPipeline(config, tailer, ingest, kafka)
+        }
     }
 }

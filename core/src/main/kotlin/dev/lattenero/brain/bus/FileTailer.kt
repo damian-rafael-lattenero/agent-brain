@@ -5,6 +5,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kap.Kap
 import kap.Process
+import kap.Ref
 import kap.RestartPolicy
 import kap.Schedule
 import kap.evalGraph
@@ -19,7 +20,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -48,16 +48,35 @@ class OffsetStore(private val path: Path) {
     }
 }
 
+/** The tailer's delivered counters as one immutable value (the [TailStats] read surface). */
+data class TailCounters(val lines: Long = 0, val malformed: Long = 0, val shrinks: Long = 0, val bytes: Long = 0)
+
 /**
  * Business counters (what the tailer delivered), not liveness: liveness is the
- * process handle's restarts and heartbeat age (see [BusStatus]). Plain until
- * kap `Ref` (Phase G).
+ * process handle's restarts and heartbeat age (see [BusStatus]). The state is
+ * one kap [Ref] over [TailCounters] (Phase G: "true business counters stay
+ * plain until kap Ref"). The ref ops are suspend, so a poll applies its counts
+ * at the suspend edge of [FileTailer.poll] — never inside the blocking read.
  */
-class TailStats {
-    val lines = AtomicLong()
-    val malformed = AtomicLong()
-    val shrinks = AtomicLong()
-    val bytes = AtomicLong()
+class TailStats private constructor(private val state: Ref<TailCounters>) {
+    /** One poll's delivery, atomically: lines seen (good and bad), malformed skipped, bytes consumed. */
+    suspend fun add(lines: Int, malformed: Int, bytes: Long) {
+        state.update {
+            it.copy(lines = it.lines + lines, malformed = it.malformed + malformed, bytes = it.bytes + bytes)
+        }.evalGraph()
+    }
+
+    /** The bus file shrank: truncated or rotated, the tail restarts from zero. */
+    suspend fun shrunk() {
+        state.update { it.copy(shrinks = it.shrinks + 1) }.evalGraph()
+    }
+
+    /** The counters as a value; the /bus/status surface reads this. */
+    suspend fun snapshot(): TailCounters = state.get().evalGraph()
+
+    companion object {
+        fun of(): Kap<TailStats> = Kap { TailStats(Ref.of(TailCounters()).evalGraph()) }
+    }
 }
 
 /**
@@ -68,29 +87,27 @@ class TailStats {
  * truncated or rotated and the tail restarts from zero. Delivery is
  * therefore at-least-once; the database deduplicates by id (ADR-003).
  */
-class FileTailer(
+class FileTailer private constructor(
     private val file: Path,
     private val offsets: OffsetStore,
-    private val maxReadBytes: Int = DEFAULT_MAX_READ_BYTES,
-    private val maxLineBytes: Int = DEFAULT_MAX_LINE_BYTES,
+    private val maxReadBytes: Int,
+    private val maxLineBytes: Int,
+    val stats: TailStats,
 ) {
     @Volatile
     var offset: Long = offsets.load()
         private set
 
-    val stats = TailStats()
-
     /** One poll. Returns the number of events handed to the handler. */
     suspend fun poll(handler: suspend (List<BusEvent>) -> Unit): Int {
         val read = withContext(Dispatchers.IO) { readChunk() } ?: return 0
+        if (read.shrank) stats.shrunk()
         val (events, consumedBytes, badLines) = read
         if (consumedBytes == 0L) return 0
         if (events.isNotEmpty()) handler(events)
         offset += consumedBytes
         offsets.save(offset)
-        stats.lines.addAndGet(events.size.toLong() + badLines)
-        stats.malformed.addAndGet(badLines.toLong())
-        stats.bytes.addAndGet(consumedBytes)
+        stats.add(events.size + badLines, badLines, consumedBytes)
         return events.size
     }
 
@@ -127,19 +144,25 @@ class FileTailer(
         coroutineScope { process(interval, handler).startIn(this).await() }
     }
 
-    private data class Chunk(val events: List<BusEvent>, val consumedBytes: Long, val badLines: Int)
+    private data class Chunk(
+        val events: List<BusEvent>,
+        val consumedBytes: Long,
+        val badLines: Int,
+        val shrank: Boolean = false,
+    )
 
     private fun readChunk(): Chunk? {
         if (!Files.exists(file)) return null
         val size = Files.size(file)
+        var shrank = false
         if (size < offset) {
             log.warn("bus file shrank ({} < {}): truncated or rotated, restarting from 0", size, offset)
-            stats.shrinks.incrementAndGet()
             offset = 0
             offsets.save(0)
+            shrank = true
         }
-        if (size == offset) return null
-        val bytes = readUntilNewline(size) ?: return Chunk(emptyList(), 0, 0)
+        if (size == offset) return if (shrank) Chunk(emptyList(), 0, 0, shrank = true) else null
+        val bytes = readUntilNewline(size) ?: return Chunk(emptyList(), 0, 0, shrank)
         val lastNewline = bytes.lastIndexOf(NEWLINE)
         val complete = String(bytes, 0, lastNewline + 1, Charsets.UTF_8)
         val events = ArrayList<BusEvent>()
@@ -158,7 +181,7 @@ class FileTailer(
                 }
             }
         }
-        return Chunk(events, (lastNewline + 1).toLong(), bad)
+        return Chunk(events, (lastNewline + 1).toLong(), bad, shrank)
     }
 
     /**
@@ -210,7 +233,21 @@ class FileTailer(
         val RESTART_MAX_DELAY = 30.seconds
         const val RESTART_MAX = 8
 
-        fun open(file: Path, stateDir: Path, maxReadBytes: Int = DEFAULT_MAX_READ_BYTES): FileTailer =
-            FileTailer(file, OffsetStore(stateDir.resolve("bus-offset.json")), maxReadBytes)
+        /**
+         * The tailer is stateful (its [TailStats] is kap `Ref` state, which only
+         * a suspend context can create), so construction is a [Kap]: run it
+         * where the component is born (the composition root, a test's
+         * `runBlocking`).
+         */
+        fun open(file: Path, stateDir: Path, maxReadBytes: Int = DEFAULT_MAX_READ_BYTES): Kap<FileTailer> =
+            of(file, OffsetStore(stateDir.resolve("bus-offset.json")), maxReadBytes)
+
+        /** The bridge and the tests build a tailer over their own offset store. */
+        fun of(
+            file: Path,
+            offsets: OffsetStore,
+            maxReadBytes: Int = DEFAULT_MAX_READ_BYTES,
+            maxLineBytes: Int = DEFAULT_MAX_LINE_BYTES,
+        ): Kap<FileTailer> = Kap { FileTailer(file, offsets, maxReadBytes, maxLineBytes, TailStats.of().evalGraph()) }
     }
 }
