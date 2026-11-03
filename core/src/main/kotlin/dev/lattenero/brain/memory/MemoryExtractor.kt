@@ -1,5 +1,7 @@
 package dev.lattenero.brain.memory
 
+import arrow.core.Either
+import arrow.core.raise.either
 import dev.lattenero.brain.chat.ChatProvider
 import dev.lattenero.brain.chat.ChatResult
 import dev.lattenero.brain.rag.EmbedPipeline
@@ -74,6 +76,22 @@ data class Extraction(
 class ExtractionInvalid(val reason: String, val raw: String) : RuntimeException(reason)
 
 /**
+ * The parse bins as values (plan E5): the model answered with either an
+ * acceptable [ParseOutcome.Parsed] extraction or nothing usable
+ * ([ParseOutcome.Invalid], with the reason and the raw text for quarantine).
+ * Total, pure, exception-free: the caps (MIN_ITEM_CHARS, MAX_ITEM_CHARS,
+ * MAX_ITEMS_PER_KIND, MAX_SUMMARY_CHARS) are enforced here and pinned by
+ * property laws in `MemoryExtractorParseBinsLawsTest`.
+ * [MemoryExtractor.parse] is this function's throwing twin at the Kap edge —
+ * the bins in a signature, the exception only where the attempt channel
+ * demands one.
+ */
+sealed interface ParseOutcome {
+    data class Parsed(val extraction: Extraction) : ParseOutcome
+    data class Invalid(val reason: String, val raw: String) : ParseOutcome
+}
+
+/**
  * One LLM call per turn, under the same resilience policy as embeddings
  * (timeout converted, retried with jittered backoff, circuit breaker), then
  * a strict parse: the schema constrains shape, the validator enforces caps
@@ -142,30 +160,69 @@ class MemoryExtractor(
 
         private val json = Json { ignoreUnknownKeys = true }
 
-        fun parse(result: ChatResult): Extraction {
-            val raw = result.text
-            val element = try {
-                json.parseToJsonElement(raw)
-            } catch (e: SerializationException) {
-                throw ExtractionInvalid("not JSON: ${e.message?.lineSequence()?.firstOrNull()}", raw)
+        /** One kind's array, or the bin it invalidates into: a missing key is empty, everything else is checked. */
+        private fun kind(
+            obj: JsonObject,
+            key: String,
+            raw: String,
+        ): Either<ParseOutcome.Invalid, List<String>> = either {
+            when (val array = obj[key]) {
+                null -> emptyList()
+                is JsonArray -> array
+                    .map { item ->
+                        val prim = item as? JsonPrimitive
+                            ?: raise(ParseOutcome.Invalid("$key contains a non-string", raw))
+                        if (!prim.isString) raise(ParseOutcome.Invalid("$key contains a non-string", raw))
+                        prim.content.trim()
+                    }
+                    .filter { it.length >= MIN_ITEM_CHARS }
+                    .map { it.take(MAX_ITEM_CHARS) }
+                    .distinct()
+                    .take(MAX_ITEMS_PER_KIND)
+                else -> raise(ParseOutcome.Invalid("$key is not an array", raw))
             }
-            val obj = element as? JsonObject ?: throw ExtractionInvalid("not a JSON object", raw)
-            fun list(key: String): List<String> {
-                val array = obj[key] ?: return emptyList()
-                if (array !is JsonArray) throw ExtractionInvalid("$key is not an array", raw)
-                return array.map { item ->
-                    val prim = item as? JsonPrimitive ?: throw ExtractionInvalid("$key contains a non-string", raw)
-                    if (!prim.isString) throw ExtractionInvalid("$key contains a non-string", raw)
-                    prim.content.trim()
-                }.filter { it.length >= MIN_ITEM_CHARS }.map { it.take(MAX_ITEM_CHARS) }.distinct().take(MAX_ITEMS_PER_KIND)
+        }
+
+        fun parseBins(raw: String): ParseOutcome {
+            val extraction: Either<ParseOutcome.Invalid, ParseOutcome.Parsed> = either {
+                val element = try {
+                    json.parseToJsonElement(raw)
+                } catch (e: SerializationException) {
+                    raise(ParseOutcome.Invalid("not JSON: ${e.message?.lineSequence()?.firstOrNull()}", raw))
+                }
+                val obj = element as? JsonObject ?: raise(ParseOutcome.Invalid("not a JSON object", raw))
+                val summaryText = when (val summaryElement = obj["summary"]) {
+                    null -> ""
+                    is JsonPrimitive ->
+                        if (summaryElement.isString) summaryElement.content.trim().take(MAX_SUMMARY_CHARS)
+                        else raise(ParseOutcome.Invalid("summary is not a string", raw))
+                    else -> raise(ParseOutcome.Invalid("summary is not a string", raw))
+                }
+                ParseOutcome.Parsed(
+                    Extraction(
+                        kind(obj, "facts", raw).bind(),
+                        kind(obj, "decisions", raw).bind(),
+                        kind(obj, "preferences", raw).bind(),
+                        summaryText,
+                        raw,
+                        null,
+                        null,
+                    ),
+                )
             }
-            val summaryElement = obj["summary"]
-            val summary = when {
-                summaryElement == null -> ""
-                summaryElement is JsonPrimitive && summaryElement.isString -> summaryElement.content.trim().take(MAX_SUMMARY_CHARS)
-                else -> throw ExtractionInvalid("summary is not a string", raw)
+            return when (extraction) {
+                is Either.Left -> extraction.value
+                is Either.Right -> extraction.value
             }
-            return Extraction(list("facts"), list("decisions"), list("preferences"), summary, raw, result.promptTokens, result.completionTokens)
+        }
+
+        /** The attempt channel's face of [parseBins]: the Invalid bin becomes [ExtractionInvalid]. */
+        fun parse(result: ChatResult): Extraction = when (val outcome = parseBins(result.text)) {
+            is ParseOutcome.Parsed -> outcome.extraction.copy(
+                promptTokens = result.promptTokens,
+                completionTokens = result.completionTokens,
+            )
+            is ParseOutcome.Invalid -> throw ExtractionInvalid(outcome.reason, outcome.raw)
         }
     }
 }
