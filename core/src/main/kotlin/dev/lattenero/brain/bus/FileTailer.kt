@@ -48,8 +48,12 @@ class OffsetStore(private val path: Path) {
     }
 }
 
+/**
+ * Business counters (what the tailer delivered), not liveness: liveness is the
+ * process handle's restarts and heartbeat age (see [BusStatus]). Plain until
+ * kap `Ref` (Phase G).
+ */
 class TailStats {
-    val polls = AtomicLong()
     val lines = AtomicLong()
     val malformed = AtomicLong()
     val shrinks = AtomicLong()
@@ -78,7 +82,6 @@ class FileTailer(
 
     /** One poll. Returns the number of events handed to the handler. */
     suspend fun poll(handler: suspend (List<BusEvent>) -> Unit): Int {
-        stats.polls.incrementAndGet()
         val read = withContext(Dispatchers.IO) { readChunk() } ?: return 0
         val (events, consumedBytes, badLines) = read
         if (consumedBytes == 0L) return 0

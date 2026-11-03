@@ -134,7 +134,7 @@ private fun serve(): Int {
         // process that exhausts its restarts is logged, never fatal for serve.
         withContext(Dispatchers.Default) {
             supervisorScope {
-                startProcess(brain.bus.process())
+                val busProcess = startProcess(brain.bus.process())
                 if (brain.bus.isKafka) {
                     log.info(
                         "bus consumer on {} topic {} group {}",
@@ -151,7 +151,8 @@ private fun serve(): Int {
                     )
                 }
                 BrainServer.start(
-                    config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory, wait = true,
+                    config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory,
+                    wait = true, busProcess = busProcess,
                 )
             }
         }

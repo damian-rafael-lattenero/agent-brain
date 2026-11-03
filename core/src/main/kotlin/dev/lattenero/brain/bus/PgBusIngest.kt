@@ -5,6 +5,11 @@ import dev.lattenero.brain.db.inTransaction
 import kotlinx.serialization.Serializable
 import java.util.concurrent.atomic.AtomicLong
 
+/**
+ * Business counters (what the handler accepted), not liveness: liveness is the
+ * process handle's restarts and heartbeat age (see [BusStatus]). Plain until
+ * kap `Ref` (Phase G).
+ */
 class IngestStats {
     val seen = AtomicLong()
     val inserted = AtomicLong()
@@ -70,7 +75,6 @@ data class BusStatus(
     val fileBytes: Long,
     val offset: Long,
     val lagBytes: Long,
-    val polls: Long,
     val linesRead: Long,
     val malformed: Long,
     val shrinks: Long,
@@ -80,6 +84,8 @@ data class BusStatus(
     val dbEvents: Long,
     val lastTs: String?,
     val lastKind: String?,
+    val restarts: Int? = null,
+    val heartbeatAgeMs: Long? = null,
     val kafkaCommits: Long? = null,
     val kafkaOffsets: Map<String, Long>? = null,
 )

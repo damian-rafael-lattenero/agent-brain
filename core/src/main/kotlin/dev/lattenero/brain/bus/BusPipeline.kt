@@ -5,6 +5,7 @@ import dev.lattenero.brain.db.Database
 import kap.Kap
 import kap.KapTypeSafe
 import kap.Process
+import kap.ProcessHandle
 import kap.evalGraph
 import kap.repeatUntil
 import kotlinx.coroutines.coroutineScope
@@ -58,7 +59,14 @@ class BusPipeline(private val config: Config, db: Database) {
     @KapTypeSafe
     data class Probe(val fileBytes: Long, val dbEvents: Long)
 
-    suspend fun status(): BusStatus {
+    /**
+     * The status envelope. Business counters stay plain (Phase G's `Ref` will
+     * own them); liveness comes from the process [handle] — restarts and
+     * heartbeat age — never from a counter that fakes it. Without a handle
+     * (the `bus status` CLI talks to a database, not a running loop) both
+     * liveness fields are null: unknown, not invented.
+     */
+    suspend fun status(handle: ProcessHandle<*>? = null): BusStatus {
         val probe = kap(::Probe)
             .with { fileBytes from fileBytes() }
             .with { dbEvents from ingest.count() }
@@ -71,7 +79,6 @@ class BusPipeline(private val config: Config, db: Database) {
             fileBytes = bytes,
             offset = tailer.offset,
             lagBytes = (bytes - tailer.offset).coerceAtLeast(0),
-            polls = if (isKafka) kafka!!.stats.polls.get() else tailer.stats.polls.get(),
             linesRead = if (isKafka) kafka!!.stats.records.get() else tailer.stats.lines.get(),
             malformed = if (isKafka) kafka!!.stats.malformed.get() else tailer.stats.malformed.get(),
             shrinks = tailer.stats.shrinks.get(),
@@ -81,6 +88,8 @@ class BusPipeline(private val config: Config, db: Database) {
             dbEvents = probe.dbEvents,
             lastTs = ingest.stats.lastTs,
             lastKind = ingest.stats.lastKind,
+            restarts = handle?.restarts?.value,
+            heartbeatAgeMs = handle?.heartbeatAge()?.takeIf { it.isFinite() }?.inWholeMilliseconds,
             kafkaCommits = kafka?.stats?.commits?.get(),
             kafkaOffsets = kafka?.stats?.lastOffsets?.mapKeys { it.key.toString() },
         )
