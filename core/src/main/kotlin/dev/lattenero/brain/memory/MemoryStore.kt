@@ -256,7 +256,11 @@ class MemoryStore(private val db: Database) {
         }
     }
 
-    /** Hybrid RRF like the RAG store, then a half-life decay by age and the row's salience; hits bump last_accessed. */
+    /**
+     * Hybrid RRF ([dev.lattenero.brain.rag.Rrf]) times salience times half-life decay
+     * ([Salience]) — the SQL below is the executable twin of those pure cores,
+     * pinned equivalent on fixtures (`MemorySearchEquivalenceIT`). Hits bump last_accessed.
+     */
     suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int, halfLifeDays: Int): List<Memory> = db.withConnection { conn ->
         val hits = conn.prepareStatement(SEARCH).use { ps ->
             ps.setObject(1, PGvector(queryEmbedding))
