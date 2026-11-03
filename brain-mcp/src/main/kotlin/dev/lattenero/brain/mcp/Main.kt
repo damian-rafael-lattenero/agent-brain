@@ -19,7 +19,6 @@ import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.asSource
 import kotlinx.io.asSink
@@ -189,26 +188,15 @@ private suspend fun serve(brain: Brain) {
         output = System.out.asSink().buffered(),
     )
     val session = server.createSession(transport)
-    val shutdown = CompletableDeferred<Unit>()
-    val mainThread = Thread.currentThread()
-    val hook = Thread {
-        shutdown.complete(Unit)
-        mainThread.join(SHUTDOWN_JOIN_MS)
-    }
-    Runtime.getRuntime().addShutdownHook(hook)
-    try {
-        race(
-            Kap.awaiting<Unit> { resume: (Unit) -> Unit, _: (Throwable) -> Unit ->
-                session.onClose {
-                    log.info("brain-mcp session closed after {} tool call(s)", toolsServed.get())
-                    resume(Unit)
-                }
-            },
-            Kap { shutdown.await() },
-        ).evalGraph()
-    } finally {
-        runCatching { Runtime.getRuntime().removeShutdownHook(hook) }
-    }
+    race(
+        Kap.awaiting<Unit> { resume: (Unit) -> Unit, _: (Throwable) -> Unit ->
+            session.onClose {
+                log.info("brain-mcp session closed after {} tool call(s)", toolsServed.get())
+                resume(Unit)
+            }
+        },
+        shutdownSignal(Thread.currentThread()),
+    ).evalGraph()
 }
 
 /** The MCP server with the four tools; every handler answers with the envelope, never throws. */
@@ -247,6 +235,22 @@ private fun newServer(wiring: ToolWiring, http: HttpBrainClient, served: AtomicI
         }
     }
 }
+
+/**
+ * The JVM's stop signal (SIGTERM/SIGINT) as a cancellable [Kap]: the hook only
+ * resumes the await and then holds the shutdown until main has finished the
+ * Brain Resource release — the JVM waits for hooks, not for main, so a hook
+ * that returned immediately could be overtaken by the halt mid-release.
+ */
+private fun shutdownSignal(mainThread: Thread): Kap<Unit> =
+    Kap.awaiting { resume, _ ->
+        Runtime.getRuntime().addShutdownHook(
+            Thread {
+                resume(Unit)
+                mainThread.join(SHUTDOWN_JOIN_MS)
+            },
+        )
+    }
 
 /** How long the shutdown hook waits for main to finish the Resource release before the JVM halts. */
 private const val SHUTDOWN_JOIN_MS = 5_000L
