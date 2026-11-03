@@ -2,6 +2,7 @@ package dev.lattenero.brain.memory
 
 import dev.lattenero.brain.chat.ChatProvider
 import dev.lattenero.brain.chat.ChatResult
+import dev.lattenero.brain.rag.EmbedPipeline
 import kap.CircuitBreaker
 import kap.Kap
 import kap.KapTracer
@@ -86,6 +87,8 @@ class MemoryExtractor(
     val breaker: CircuitBreaker = CircuitBreaker(
         maxFailures = DEFAULT_BREAKER_FAILURES,
         retryAfter = DEFAULT_BREAKER_RESET,
+        // The Python F79e lesson (see EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD).
+        successThreshold = EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
     ),
     private val attempts: Int = DEFAULT_ATTEMPTS,
     private val backoffBase: Duration = DEFAULT_BACKOFF_BASE,
