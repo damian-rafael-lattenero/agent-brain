@@ -29,9 +29,11 @@ class BusPipeline private constructor(
 
     /**
      * The ONE long-lived loop for the configured transport, as a named
-     * [Process]: start it in the process scope, never launch it by hand.
+     * [Process]: start it in the process scope, never launch it by hand. The
+     * tailer's process drains its [FileTailer.stream] (the body never
+     * completes); the Kafka consumer keeps its own cycle value.
      */
-    fun process(): Process<Int> =
+    fun process(): Process<*> =
         if (isKafka) {
             KafkaTopics.ensure(config)
             kafka!!.process()

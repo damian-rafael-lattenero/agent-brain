@@ -3,14 +3,16 @@ package dev.lattenero.brain.bus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kap.Backpressure
 import kap.Kap
+import kap.KapStream
 import kap.Process
 import kap.Ref
 import kap.RestartPolicy
 import kap.Schedule
 import kap.evalGraph
 import kap.process
-import kap.repeat
+import kotlinx.coroutines.flow.collect
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -112,31 +114,59 @@ class FileTailer private constructor(
     }
 
     /**
-     * The supervised long-lived loop: one poll per cadence, and a [RestartPolicy]
+     * The tail as a [KapStream] — the SPEC-5.0 dogfooding surface ("the event
+     * tailer as a stream"): the poll loop IS the stream. [KapStream.emitted]
+     * runs one [poll] per cadence tick and emits the batch size; the schedule
+     * owns the cadence (first poll immediately, then every [interval]) and a
+     * failing poll fails the stream cleanly, which is what [process] restarts.
+     *
+     * The laws live in [poll] and are byte-identical: the offset floor
+     * (persisted only after the handler returned), the partial-line hold, the
+     * shrink restart-from-zero, the per-line dedupe in the ingest below. The
+     * [Backpressure] is a NAMED value and exact by law ([Backpressure.Suspend],
+     * the default): nothing may be dropped and nothing may run ahead, because
+     * every polled batch is delivered before the next poll begins — a drop
+     * policy here would break at-least-once (ADR-003), and read-ahead would
+     * decouple the cadence from the offset floor.
+     */
+    fun stream(
+        interval: Duration,
+        backpressure: Backpressure = BACKPRESSURE,
+        handler: suspend (List<BusEvent>) -> Unit,
+    ): KapStream<Int> =
+        KapStream
+            .emitted(Kap { poll(handler) })
+            .every(Schedule.spaced(interval))
+            .withBackpressure(backpressure)
+
+    /**
+     * The supervised long-lived loop: the [stream] drains into this body — one
+     * poll per cadence comes from the stream's schedule — and a [RestartPolicy]
      * — not a `recover` around the body — owns failures, so a crash between
-     * polls restarts the process too. The offset file is the floor: a failed
-     * poll never advances it, so the restarted body re-reads from the last
-     * persisted byte (at-least-once, ADR-003).
+     * polls (a failing poll fails the stream) restarts the process too. The
+     * offset file is the floor: a failed poll never advances it, so the
+     * restarted body re-reads from the last persisted byte (at-least-once,
+     * ADR-003). The body never completes; only cancellation (stop) ends it.
      */
     fun process(
         interval: Duration,
         handler: suspend (List<BusEvent>) -> Unit,
         restart: RestartPolicy = defaultRestart(interval),
-    ): Process<Int> {
+    ): Process<Unit> {
         require(interval > Duration.ZERO) { "poll interval must be strictly positive, was $interval" }
-        return Kap { poll(handler) }
-            .repeat(Schedule.spaced(interval))
-            .process(
-                name = PROCESS_NAME,
-                restart = restart,
-                heartbeatEvery = HEARTBEAT_EVERY,
-                onRestart = { attempt, error, nextDelay ->
-                    log.warn(
-                        "tailer failed (restart {} in {}): {}: {}",
-                        attempt, nextDelay, error::class.simpleName, error.message,
-                    )
-                },
-            )
+        return Kap {
+            stream(interval, handler = handler).asFlow().collect()
+        }.process(
+            name = PROCESS_NAME,
+            restart = restart,
+            heartbeatEvery = HEARTBEAT_EVERY,
+            onRestart = { attempt, error, nextDelay ->
+                log.warn(
+                    "tailer failed (restart {} in {}): {}: {}",
+                    attempt, nextDelay, error::class.simpleName, error.message,
+                )
+            },
+        )
     }
 
     /** Runs the process for the caller's lifetime (CLI `ingest`); cancellation stops it. */
@@ -222,6 +252,14 @@ class FileTailer private constructor(
         const val NEWLINE: Byte = 0x0A
         const val DEFAULT_MAX_READ_BYTES = 4 * 1024 * 1024
         const val DEFAULT_MAX_LINE_BYTES = 16 * 1024 * 1024
+
+        /**
+         * The tail's named backpressure: exact. Nothing is dropped and nothing
+         * runs ahead — the poller suspends until the drain took the batch.
+         * Every other [Backpressure] policy drops or conflates, which the bus
+         * may not (at-least-once, ADR-003).
+         */
+        val BACKPRESSURE: Backpressure = Backpressure.Suspend
 
         /** The heartbeat answers "is the process there", never "did the cycle finish". */
         val HEARTBEAT_EVERY = 5.seconds
