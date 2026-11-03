@@ -1,16 +1,18 @@
 package dev.lattenero.brain.memory
 
+import arrow.core.Either
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.rag.EmbedPipeline
-import kap.CircuitBreakerOpenException
 import kap.Kap
 import kap.Process
 import kap.RestartPolicy
 import kap.Schedule
+import kap.attempt
 import kap.evalGraph
+import kap.map
 import kap.process
 import kap.repeat
-import kotlinx.coroutines.CancellationException
+import kap.traverseSettled
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
@@ -23,13 +25,53 @@ private val log = LoggerFactory.getLogger("agent-brain.memory")
 data class WorkerReport(val scanned: Int, val processed: Int, val memories: Int, val quarantined: Int, val deferred: Int, val emptyTurns: Int)
 
 /**
+ * Why one turn's extraction failed — the three bins of the report, as values
+ * (plan C1). The turn that produced the failure is known at the edge, so the
+ * bins carry only what the edge needs to write the right row.
+ */
+sealed interface ExtractionFailure {
+    /** The model answered, but not with something we accept: quarantined with the raw output. */
+    data class Invalid(val reason: String, val raw: String) : ExtractionFailure
+
+    /** The provider (chat or embed) could not answer: deferred, attempt counted, retried next cycle. */
+    data class ProviderDown(val attempts: Int, val reason: String) : ExtractionFailure
+
+    /** Deferred past the attempt cap: quarantined with the reason. */
+    data class GaveUp(val attempts: Int, val reason: String) : ExtractionFailure
+}
+
+/** What one turn yielded when nothing failed. */
+sealed interface TurnOutcome {
+    /** The transcript has neither prompt nor reply: nothing to extract, the turn is marked. */
+    data object EmptyTurn : TurnOutcome
+
+    /** Extraction and embed landed: [memories] rows inserted and the turn marked. */
+    data class Stored(val memories: Int) : TurnOutcome
+}
+
+/**
  * Polls the bus table for completed turns the memory has not seen, builds
  * the transcript, extracts, embeds, stores, marks. Idempotent by event id:
  * replaying the bus adds no turns (dedup) and a crash between insert and
  * mark is absorbed by the unique index on (event, kind, content). Failures
- * are sorted into three bins: invalid output goes to quarantine and the
- * turn is marked; a provider failure defers the turn (attempt counted,
- * retried next cycle); too many deferrals quarantine it with the reason.
+ * are classified into the [ExtractionFailure] bins as values and the edge
+ * writes the rows: invalid output goes to quarantine and the turn is marked;
+ * a provider failure defers the turn (attempt counted, retried next cycle);
+ * too many deferrals quarantine it with the reason.
+ *
+ * The batch runs through `traverseSettled`: every turn is attempted to
+ * completion, no sibling cancels another, and the report is a fold over the
+ * settled [Either]s. An unexpected settled failure (only the turn's own
+ * bookkeeping can produce one, e.g. the transcript read) still crashes the
+ * cycle, as before — the process restarts it.
+ *
+ * The early abort on an open circuit breaker (the old
+ * `if (e is CircuitBreakerOpenException) break`) is a supervision policy
+ * without a home: kap 5.0's Supervisor (OneForOne/AllForOne) is its
+ * destination (plan C2). The interim, until the batching loop can host one:
+ * an open breaker is just a fast provider failure — the turn lands in
+ * [ExtractionFailure.ProviderDown] like any other outage and no exception
+ * steers the loop.
  */
 class MemoryWorker(
     private val store: MemoryStore,
@@ -40,47 +82,90 @@ class MemoryWorker(
 ) {
     suspend fun processOnce(): WorkerReport {
         val pending = store.pendingTurns(batch, maxAttempts)
-        var processed = 0
-        var memories = 0
-        var quarantined = 0
-        var deferred = 0
-        var empty = 0
-        for (turn in pending) {
-            val transcript = store.transcript(turn)
-            if (transcript.isEmpty) {
-                store.markProcessed(turn.eventId)
-                empty += 1
-                continue
-            }
-            try {
-                val extraction = extractor.extract(transcript).evalGraph()
-                val items = extraction.items
-                val vectors = if (items.isEmpty()) emptyList() else embed.embedAll(items.map { it.second }).evalGraph()
-                val rows = items.zip(vectors) { (kind, content), vector -> MemoryStore.MemoryRow(kind, content, vector) }
-                memories += store.insertAll(transcript, embed.model, rows)
-                store.markProcessed(turn.eventId)
-                processed += 1
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ExtractionInvalid) {
-                store.quarantine(transcript, turn.eventId, "invalid extraction: ${e.reason}", e.raw)
-                store.markProcessed(turn.eventId)
-                quarantined += 1
-            } catch (e: Exception) {
-                val reason = "${e::class.simpleName}: ${e.message}"
-                if (turn.attempts + 1 >= maxAttempts) {
-                    store.quarantine(transcript, turn.eventId, "gave up after ${turn.attempts + 1} attempts: $reason", "")
-                    store.markProcessed(turn.eventId)
-                    quarantined += 1
-                } else {
-                    store.bumpAttempts(turn.eventId)
-                    deferred += 1
-                    log.warn("memory extraction deferred for {} (attempt {}): {}", turn.eventId, turn.attempts + 1, reason)
-                }
-                if (e is CircuitBreakerOpenException) break
+        val settled: List<Result<Either<ExtractionFailure, TurnOutcome>>> =
+            pending.traverseSettled { turn -> Kap { processTurn(turn) } }.evalGraph()
+        val start = WorkerReport(
+            scanned = pending.size,
+            processed = 0,
+            memories = 0,
+            quarantined = 0,
+            deferred = 0,
+            emptyTurns = 0,
+        )
+        return settled.fold(start) { report, result ->
+            when (val either = result.getOrThrow()) {
+                is Either.Left -> report.binned(either.value)
+                is Either.Right -> report.completed(either.value)
             }
         }
-        return WorkerReport(pending.size, processed, memories, quarantined, deferred, empty)
+    }
+
+    /**
+     * One turn, one settled outcome — the bins are the signature (plan C1).
+     * An empty transcript is decided before the attempt; everything the
+     * attempt raises is classified into [ExtractionFailure] at this edge and
+     * the edge writes the rows ([quarantineOrDefer]); a failure of the
+     * bookkeeping itself (transcript read, mark of an empty turn) is not a
+     * bin — it propagates and the cycle crashes, as before.
+     */
+    private suspend fun processTurn(turn: MemoryStore.PendingTurn): Either<ExtractionFailure, TurnOutcome> {
+        val transcript = store.transcript(turn)
+        if (transcript.isEmpty) {
+            store.markProcessed(turn.eventId)
+            return Either.Right(TurnOutcome.EmptyTurn)
+        }
+        return attempt(transcript, turn).evalGraph().onLeft { quarantineOrDefer(it, transcript, turn) }
+    }
+
+    /** The attempt: extract, embed, insert; failures converted at this boundary, never branch on. */
+    private fun attempt(
+        transcript: Transcript,
+        turn: MemoryStore.PendingTurn,
+    ): Kap<Either<ExtractionFailure, TurnOutcome>> =
+        Kap {
+            val extraction = extractor.extract(transcript).evalGraph()
+            val items = extraction.items
+            val vectors = if (items.isEmpty()) emptyList() else embed.embedAll(items.map { it.second }).evalGraph()
+            val rows = items.zip(vectors) { (kind, content), vector -> MemoryStore.MemoryRow(kind, content, vector) }
+            store.insertAll(transcript, embed.model, rows).also { store.markProcessed(turn.eventId) }
+        }
+            .attempt()
+            .map { settled ->
+                val outcome: Either<ExtractionFailure, TurnOutcome> = when (settled) {
+                    is Either.Left -> Either.Left(classify(settled.value, turn.attempts, maxAttempts))
+                    is Either.Right -> Either.Right(TurnOutcome.Stored(settled.value))
+                }
+                outcome
+            }
+
+    /**
+     * The edge where the bins turn back into rows — the same rows in the same
+     * cases as the try/catch this replaced. Quarantine is a write, not a
+     * value: it lives here and nowhere in the taxonomy.
+     */
+    private suspend fun quarantineOrDefer(
+        failure: ExtractionFailure,
+        transcript: Transcript,
+        turn: MemoryStore.PendingTurn,
+    ) {
+        when (failure) {
+            is ExtractionFailure.Invalid -> {
+                store.quarantine(transcript, turn.eventId, "invalid extraction: ${failure.reason}", failure.raw)
+                store.markProcessed(turn.eventId)
+            }
+            is ExtractionFailure.GaveUp -> {
+                val reason = "gave up after ${failure.attempts} attempts: ${failure.reason}"
+                store.quarantine(transcript, turn.eventId, reason, "")
+                store.markProcessed(turn.eventId)
+            }
+            is ExtractionFailure.ProviderDown -> {
+                store.bumpAttempts(turn.eventId)
+                log.warn(
+                    "memory extraction deferred for {} (attempt {}): {}",
+                    turn.eventId, failure.attempts, failure.reason,
+                )
+            }
+        }
     }
 
     /**
@@ -115,6 +200,24 @@ class MemoryWorker(
         const val DEFAULT_BATCH = 10
         const val DEFAULT_MAX_ATTEMPTS = 5
 
+        /**
+         * The taxonomy, pure and total: any failure of one attempt lands in
+         * exactly one bin. Invalid output is its own bin; any other failure
+         * defers until the attempt cap, then gives up. An open circuit
+         * breaker needs no case of its own (plan C2): it is the provider
+         * failing fast, i.e. [ExtractionFailure.ProviderDown].
+         */
+        internal fun classify(e: Throwable, attemptsSoFar: Int, maxAttempts: Int): ExtractionFailure {
+            if (e is ExtractionInvalid) return ExtractionFailure.Invalid(e.reason, e.raw)
+            val reason = "${e::class.simpleName}: ${e.message}"
+            val attempts = attemptsSoFar + 1
+            return if (attempts >= maxAttempts) {
+                ExtractionFailure.GaveUp(attempts, reason)
+            } else {
+                ExtractionFailure.ProviderDown(attempts, reason)
+            }
+        }
+
         /** The heartbeat answers "is the process there", never "did the cycle finish". */
         val HEARTBEAT_EVERY = 10.seconds
 
@@ -124,6 +227,19 @@ class MemoryWorker(
 
         val RESTART_MAX_DELAY = 60.seconds
         const val RESTART_MAX = 8
+    }
+
+    /** The failure bins, counted: invalid and gave-up quarantined, provider-down deferred. */
+    private fun WorkerReport.binned(failure: ExtractionFailure): WorkerReport = when (failure) {
+        is ExtractionFailure.Invalid -> copy(quarantined = quarantined + 1)
+        is ExtractionFailure.GaveUp -> copy(quarantined = quarantined + 1)
+        is ExtractionFailure.ProviderDown -> copy(deferred = deferred + 1)
+    }
+
+    /** The success outcomes, counted: empty turns on their own, stored turns with their rows. */
+    private fun WorkerReport.completed(outcome: TurnOutcome): WorkerReport = when (outcome) {
+        is TurnOutcome.EmptyTurn -> copy(emptyTurns = emptyTurns + 1)
+        is TurnOutcome.Stored -> copy(processed = processed + 1, memories = memories + outcome.memories)
     }
 }
 

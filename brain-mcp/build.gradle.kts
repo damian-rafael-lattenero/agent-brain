@@ -23,6 +23,9 @@ dependencies {
     implementation(libs.bundles.logging)
     implementation(libs.mcp.kotlin.sdk.server)
     implementation(libs.bundles.kap)
+    // The tool handlers talk to the brain over the SAME ktor client setup as
+    // the core module (plan C4); the client types must resolve here.
+    implementation(libs.bundles.ktor.client)
     ksp(libs.kap.ksp)
 
     testImplementation(platform(libs.junit.bom))
