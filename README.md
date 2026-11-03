@@ -102,7 +102,9 @@ From the Telegram chat: `/brain <question>`, `/brain status`, `/memory <query>`,
 
 `make plugin` builds `brain-mcp/build/plugin/` (manifest + installed distribution). In ZCode add that
 directory as a local marketplace and install `brain-mcp`; the harness gains four tools that talk to the
-running `agent-brain serve` over HTTP. Every tool answers the same envelope, so a model can branch on
+running `agent-brain serve` over HTTP. The exact JSON, the UI and CLI steps, verification and
+troubleshooting live in [docs/install-brain-mcp.md](docs/install-brain-mcp.md). Every tool answers the
+same envelope, so a model can branch on
 `status` and quote `meta.trace_id`:
 
 ```json
@@ -293,4 +295,5 @@ docker-compose.yml       pgvector/pgvector:pg18 (Redpanda joins in P4)
 Makefile, bootstrap.nu   operator entry points
 .github/workflows/ci.yml tiers 1-4 + detekt on every push, Ollama installed for real
 docs/adr/                decisions
+docs/install-brain-mcp.md  plugin install: exact marketplace/plugin JSON, UI and CLI steps, verification
 ```
