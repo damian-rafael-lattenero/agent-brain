@@ -155,6 +155,38 @@ class MemoryExtractorParseBinsLawsTest {
     }
 
     @Test
+    fun `the exact boundaries - min and max are inside, one under and one over are outside`() {
+        // An item at exactly MIN is kept; at MIN-1 it is dropped (the property ranges only straddle it).
+        val atMin = "m".repeat(MemoryExtractor.MIN_ITEM_CHARS)
+        val underMin = "m".repeat(MemoryExtractor.MIN_ITEM_CHARS - 1)
+        // An item at exactly MAX is kept unchanged; at MAX+1 it is clipped to exactly MAX (and still kept).
+        val atMax = "M".repeat(MemoryExtractor.MAX_ITEM_CHARS)
+        val overMax = "O".repeat(MemoryExtractor.MAX_ITEM_CHARS + 1)
+        val facts = rawWith(facts = listOf(atMin, underMin, atMax, overMax))
+        val extraction = (MemoryExtractor.parseBins(facts) as ParseOutcome.Parsed).extraction
+        assertThat(extraction.facts).containsExactly(atMin, atMax, overMax.take(MemoryExtractor.MAX_ITEM_CHARS))
+        assertThat(extraction.facts.last().length).isEqualTo(MemoryExtractor.MAX_ITEM_CHARS)
+
+        // A summary at exactly MAX is kept unchanged; at MAX+1 it is clipped to exactly MAX; blank stays empty.
+        val summaryAtMax = "S".repeat(MemoryExtractor.MAX_SUMMARY_CHARS)
+        val summaryOver = "T".repeat(MemoryExtractor.MAX_SUMMARY_CHARS + 1)
+        assertThat((MemoryExtractor.parseBins(rawWith(summary = summaryAtMax)) as ParseOutcome.Parsed).extraction.summary)
+            .isEqualTo(summaryAtMax)
+        assertThat((MemoryExtractor.parseBins(rawWith(summary = summaryOver)) as ParseOutcome.Parsed).extraction.summary)
+            .isEqualTo(summaryOver.take(MemoryExtractor.MAX_SUMMARY_CHARS))
+        assertThat((MemoryExtractor.parseBins(rawWith(summary = "   ")) as ParseOutcome.Parsed).extraction.summary)
+            .isEmpty()
+    }
+
+    private fun rawWith(facts: List<String> = emptyList(), summary: String = ""): String =
+        buildJsonObject {
+            putJsonArray("facts") { facts.forEach { add(it) } }
+            putJsonArray("decisions") { }
+            putJsonArray("preferences") { }
+            put("summary", summary)
+        }.toString()
+
+    @Test
     fun `parse is the throwing twin of parseBins - same extraction or the same bin as the exception`() {
         runBlocking {
             checkAll(anyAnswer()) { raw ->
