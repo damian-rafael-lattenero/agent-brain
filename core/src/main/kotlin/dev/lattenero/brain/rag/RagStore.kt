@@ -148,7 +148,9 @@ class RagStore(private val db: Database) {
         const val DEFAULT_K = 5
         const val CANDIDATE_FACTOR = 4
         const val MIN_CANDIDATES = 50
-        const val RRF_K = 60
+
+        /** The fusion constant lives in the pure core ([Rrf]); the SQL below is its executable twin. */
+        const val RRF_K = Rrf.K
 
         // Two ranked legs, one fused list: 1/(RRF_K + rank) summed per chunk.
         // Parameters: 1 query vector, 2 embed model, 3 candidates per leg, 4 query text, 5 k.
