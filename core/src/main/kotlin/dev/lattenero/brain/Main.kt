@@ -31,11 +31,16 @@ import kotlinx.coroutines.launch
 import dev.lattenero.brain.rag.QueryRequest
 import dev.lattenero.brain.rag.QueryResponse
 import dev.lattenero.brain.rag.RagQueryException
+import kap.Process
+import kap.ProcessExhaustedException
+import kap.ProcessHandle
+import kap.ProcessStoppedException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -124,24 +129,54 @@ private fun serve(): Int {
     withBrain(config) { brain ->
         val applied = brain.migrator.apply()
         if (applied.isNotEmpty()) log.info("migrations applied: ${applied.joinToString()}")
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        brain.bus.start(scope)
-        if (brain.bus.isKafka) {
-            log.info("bus consumer on ${config.kafkaBootstrap} topic ${config.kafkaTopic} group ${config.kafkaGroup}")
-        } else {
-            log.info("bus tailer on ${config.busFile} every ${config.busPollMs} ms")
-        }
-        if (config.memoryWorker) {
-            scope.launch { brain.memoryWorker.run(config.memoryPollMs.milliseconds) }
-            log.info("memory worker every ${config.memoryPollMs} ms with ${brain.chat.name}/${brain.chat.model}")
-        }
-        try {
-            BrainServer.start(config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory, wait = true)
-        } finally {
-            scope.cancel()
+        // The ONE process scope: every long-lived loop is a child of this scope,
+        // so leaving it stops and joins them all (structured concurrency). A
+        // process that exhausts its restarts is logged, never fatal for serve.
+        withContext(Dispatchers.Default) {
+            supervisorScope {
+                startProcess(brain.bus.process())
+                if (brain.bus.isKafka) {
+                    log.info(
+                        "bus consumer on {} topic {} group {}",
+                        config.kafkaBootstrap, config.kafkaTopic, config.kafkaGroup,
+                    )
+                } else {
+                    log.info("bus tailer on {} every {} ms", config.busFile, config.busPollMs)
+                }
+                if (config.memoryWorker) {
+                    startProcess(brain.memoryWorker.process(config.memoryPollMs.milliseconds))
+                    log.info(
+                        "memory worker every {} ms with {}/{}",
+                        config.memoryPollMs, brain.chat.name, brain.chat.model,
+                    )
+                }
+                BrainServer.start(
+                    config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory, wait = true,
+                )
+            }
         }
     }
     return EXIT_OK
+}
+
+/**
+ * Starts [process] as a child of this scope and logs its terminal outcome. The
+ * returned handle is the process's observability surface (restarts, heartbeat
+ * age); its failure never takes the scope down (a supervised process is a
+ * sibling, not a parent).
+ */
+private fun CoroutineScope.startProcess(process: Process<*>): ProcessHandle<*> {
+    val handle = process.startIn(this)
+    launch {
+        try {
+            handle.await()
+        } catch (e: ProcessExhaustedException) {
+            log.error("process {} exhausted its restarts: {}", handle.name, e.cause?.message)
+        } catch (e: ProcessStoppedException) {
+            log.info("process {} stopped: {}", handle.name, e.message)
+        }
+    }
+    return handle
 }
 
 private fun ingest(once: Boolean): Int {
@@ -154,7 +189,7 @@ private fun ingest(once: Boolean): Int {
             printJson(responseJson.encodeToJsonElement(BusStatus.serializer(), status))
             log.info("drained $handed event(s)")
         } else {
-            brain.bus.tailer.run(config.busPollMs.milliseconds) { brain.bus.ingest.handle(it) }
+            brain.bus.run()
         }
         EXIT_OK
     }

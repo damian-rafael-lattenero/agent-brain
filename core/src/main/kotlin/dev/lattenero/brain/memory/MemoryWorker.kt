@@ -4,14 +4,18 @@ import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.rag.EmbedPipeline
 import kap.CircuitBreakerOpenException
 import kap.Kap
+import kap.Process
+import kap.RestartPolicy
 import kap.Schedule
 import kap.evalGraph
-import kap.recover
+import kap.process
 import kap.repeat
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 private val log = LoggerFactory.getLogger("agent-brain.memory")
 
@@ -79,16 +83,47 @@ class MemoryWorker(
         return WorkerReport(pending.size, processed, memories, quarantined, deferred, empty)
     }
 
+    /**
+     * The supervised worker: one cycle per cadence, and a [RestartPolicy] — not
+     * a `recover` around the body — owns failures, so a crash anywhere in the
+     * cycle restarts the loop instead of silently ending it.
+     */
+    fun process(interval: Duration, restart: RestartPolicy = defaultRestart(interval)): Process<WorkerReport> {
+        require(interval > Duration.ZERO) { "poll interval must be strictly positive, was $interval" }
+        return Kap { processOnce() }
+            .repeat(Schedule.spaced(interval))
+            .process(
+                name = PROCESS_NAME,
+                restart = restart,
+                heartbeatEvery = HEARTBEAT_EVERY,
+                onRestart = { attempt, error, nextDelay ->
+                    log.warn(
+                        "memory worker failed (restart {} in {}): {}: {}",
+                        attempt, nextDelay, error::class.simpleName, error.message,
+                    )
+                },
+            )
+    }
+
+    /** Runs the process for the caller's lifetime (CLI `memory run`); cancellation stops it. */
     suspend fun run(interval: Duration) {
-        Kap { processOnce() }
-            .recover { WorkerReport(0, 0, 0, 0, 0, 0) }   // one bad cycle never ends the worker
-            .repeat(Schedule.spaced<WorkerReport>(interval))
-            .evalGraph()
+        coroutineScope { process(interval).startIn(this).await() }
     }
 
     companion object {
+        const val PROCESS_NAME = "memory-worker"
         const val DEFAULT_BATCH = 10
         const val DEFAULT_MAX_ATTEMPTS = 5
+
+        /** The heartbeat answers "is the process there", never "did the cycle finish". */
+        val HEARTBEAT_EVERY = 10.seconds
+
+        /** Positive base (the cadence), exponential backoff, finite cap: the convergence law. */
+        fun defaultRestart(interval: Duration): RestartPolicy =
+            RestartPolicy.exponential(base = interval, max = RESTART_MAX_DELAY, maxRestarts = RESTART_MAX)
+
+        val RESTART_MAX_DELAY = 60.seconds
+        const val RESTART_MAX = 8
     }
 }
 

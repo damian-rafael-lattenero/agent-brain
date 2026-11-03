@@ -80,16 +80,12 @@ class KafkaTransportIT {
         KafkaTopics.ensure(kafkaConfig)
         KafkaBridge(kafkaConfig).use { bridge -> assertThat(bridge.drain()).isEqualTo(6) }
         val pipeline = BusPipeline(kafkaConfig, kafkaDb)
-        try {
-            assertThat(pipeline.drain()).isEqualTo(6)
-            val status = pipeline.status()
-            assertThat(status.transport).isEqualTo("kafka")
-            assertThat(status.inserted).isEqualTo(6)
-            assertThat(status.kafkaCommits).isGreaterThanOrEqualTo(1)
-            assertThat(status.kafkaOffsets).isNotEmpty
-        } finally {
-            pipeline.stop()
-        }
+        assertThat(pipeline.drain()).isEqualTo(6)
+        val status = pipeline.status()
+        assertThat(status.transport).isEqualTo("kafka")
+        assertThat(status.inserted).isEqualTo(6)
+        assertThat(status.kafkaCommits).isGreaterThanOrEqualTo(1)
+        assertThat(status.kafkaOffsets).isNotEmpty
         assertThat(snapshot(kafkaDb)).isEqualTo(viaFile)
         fileDb.close()
         kafkaDb.close()
@@ -117,16 +113,12 @@ class KafkaTransportIT {
             ).use { it.send(ProducerRecord(config.kafkaTopic, "poison", "{not json")).get() }
 
             val pipeline = BusPipeline(config, db)
-            try {
-                assertThat(pipeline.drain()).isEqualTo(13)
-                val status = pipeline.status()
-                assertThat(status.dbEvents).isEqualTo(6)
-                assertThat(status.inserted).isEqualTo(6)
-                assertThat(status.duplicates).isEqualTo(6)
-                assertThat(status.malformed).isEqualTo(1)
-            } finally {
-                pipeline.stop()
-            }
+            assertThat(pipeline.drain()).isEqualTo(13)
+            val status = pipeline.status()
+            assertThat(status.dbEvents).isEqualTo(6)
+            assertThat(status.inserted).isEqualTo(6)
+            assertThat(status.duplicates).isEqualTo(6)
+            assertThat(status.malformed).isEqualTo(1)
         }
     }
 
