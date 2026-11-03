@@ -218,4 +218,36 @@ class BrainMcpStdioTest {
         assertThat(process.exitValue()).isNotZero()
         assertThat(err).contains("unknown arguments")
     }
+
+    @Test
+    fun `a stop signal unwinds the brain resource and exits without hanging`() {
+        val process = ProcessBuilder(
+            launcher.absolutePath,
+            "--ab-base",
+            java.nio.file.Files.createTempDirectory("brain-mcp-stop").toFile().absolutePath,
+        ).apply {
+            environment()["AB_HTTP_PORT"] = port.toString()
+            environment()["AB_EMBED_PROVIDER"] = "fake"
+            environment()["AB_CHAT_PROVIDER"] = "fake"
+        }.start()
+        try {
+            // The park is armed only after initialize answers: signal after it.
+            val writer = java.io.PrintWriter(process.outputStream, true)
+            writer.println(initialize)
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
+            var answered = false
+            while (!answered) {
+                if (System.nanoTime() > deadline) fail<String>("no initialize answer before the deadline")
+                val line = reader.readLine() ?: break
+                answered = line.contains("\"id\":1")
+            }
+            assertThat(answered).isTrue
+
+            process.destroy()   // SIGTERM: the hook resumes the park, main releases the Brain
+            assertThat(process.waitFor(15, TimeUnit.SECONDS)).isTrue
+        } finally {
+            process.destroyForcibly()
+        }
+    }
 }

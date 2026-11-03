@@ -1,12 +1,16 @@
 package dev.lattenero.brain.bus
 
 import dev.lattenero.brain.config.Config
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kap.Kap
+import kap.Process
+import kap.RestartPolicy
 import kap.Schedule
 import kap.evalGraph
+import kap.process
 import kap.recover
 import kap.repeat
 import kap.repeatUntil
@@ -28,6 +32,7 @@ import java.time.Duration
 import java.util.Properties
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration as KDuration
 
 private val log = LoggerFactory.getLogger("agent-brain.kafka")
@@ -126,8 +131,12 @@ class KafkaBridge(private val config: Config, private val topic: String = config
     }
 }
 
+/**
+ * Business counters (what the consumer committed), not liveness: liveness is
+ * the process handle's restarts and heartbeat age (see [BusStatus]). Plain
+ * until kap `Ref` (Phase G).
+ */
 class KafkaStats {
-    val polls = AtomicLong()
     val records = AtomicLong()
     val malformed = AtomicLong()
     val commits = AtomicLong()
@@ -141,27 +150,63 @@ class KafkaStats {
  * (`PgBusIngest.handle`). Offsets are committed only after the batch is in
  * the database, so a rebalance or a crash redelivers and the primary key
  * absorbs it: at-least-once in, exactly-once in the table.
+ *
+ * A consumer is not thread-safe and a crash must not leave a half-closed one
+ * behind, so every use opens its own and closes it in a NonCancellable
+ * finally: the supervised loop gets a fresh consumer per body execution,
+ * `drain` gets one for the whole drain.
  */
-class KafkaBusConsumer(private val config: Config, private val ingest: PgBusIngest, private val topic: String = config.kafkaTopic) : AutoCloseable {
+class KafkaBusConsumer(private val config: Config, private val ingest: PgBusIngest, private val topic: String = config.kafkaTopic) {
     val stats = KafkaStats()
-    private val consumer: KafkaConsumer<String, String> by lazy {
-        KafkaConsumer<String, String>(
-            Properties().apply {
-                put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, config.kafkaBootstrap)
-                put(ConsumerConfig.GROUP_ID_CONFIG, config.kafkaGroup)
-                put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.name)
-                put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.name)
-                put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
-                put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-                put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, MAX_POLL_RECORDS)
-            },
-        ).also { it.subscribe(listOf(topic)) }
+
+    /** One poll on a fresh consumer (tests, `ingest --once`). */
+    suspend fun poll(timeout: Duration = Duration.ofMillis(POLL_MS)): Int =
+        withConsumer { consumer -> pollOnce(consumer, timeout) }
+
+    /** Polls until [quietPolls] consecutive polls return nothing (tests, `ingest --once`); KAP policy loop. */
+    suspend fun drain(quietPolls: Int = DRAIN_QUIET_POLLS): Int = withConsumer { consumer ->
+        var total = 0
+        var quiet = 0
+        Kap {
+            pollOnce(consumer, Duration.ofMillis(DRAIN_POLL_MS)).also { n ->
+                if (n == 0) quiet += 1 else { quiet = 0; total += n }
+            }
+        }.repeatUntil { quiet >= quietPolls }.evalGraph()
+        total
+    }
+
+    /**
+     * The supervised consume loop: a fresh consumer per body execution, closed
+     * on failure and on cancellation; a failure restarts the body per policy.
+     */
+    fun process(restart: RestartPolicy = defaultRestart()): Process<Int> =
+        Kap { consume() }
+            .process(
+                name = PROCESS_NAME,
+                restart = restart,
+                heartbeatEvery = HEARTBEAT_EVERY,
+                onRestart = { attempt, error, nextDelay ->
+                    log.warn(
+                        "kafka consumer failed (restart {} in {}): {}: {}",
+                        attempt, nextDelay, error::class.simpleName, error.message,
+                    )
+                },
+            )
+
+    /** Runs the process for the caller's lifetime; cancellation stops it. */
+    suspend fun run() {
+        coroutineScope { process().startIn(this).await() }
+    }
+
+    private suspend fun consume(): Int = withConsumer { consumer ->
+        Kap { pollOnce(consumer, Duration.ofMillis(POLL_MS)) }
+            .repeat(Schedule.spaced(RETRY_DELAY))
+            .evalGraph()
     }
 
     /** One poll: parse, hand the batch to the ingest handler, commit. Returns records seen. */
-    suspend fun poll(timeout: Duration = Duration.ofMillis(POLL_MS)): Int {
+    private suspend fun pollOnce(consumer: KafkaConsumer<String, String>, timeout: Duration): Int {
         val records = withContext(Dispatchers.IO) { consumer.poll(timeout) }
-        stats.polls.incrementAndGet()
         if (records.isEmpty) return 0
         val events = ArrayList<BusEvent>()
         var bad = 0
@@ -183,30 +228,27 @@ class KafkaBusConsumer(private val config: Config, private val ingest: PgBusInge
         return records.count()
     }
 
-    /** Polls until [quietPolls] consecutive polls return nothing (tests, `ingest --once`); KAP policy loop. */
-    suspend fun drain(quietPolls: Int = DRAIN_QUIET_POLLS): Int {
-        var total = 0
-        var quiet = 0
-        Kap {
-            poll(Duration.ofMillis(DRAIN_POLL_MS)).also { n ->
-                if (n == 0) quiet += 1 else { quiet = 0; total += n }
-            }
-        }.repeatUntil { quiet >= quietPolls }.evalGraph()
-        return total
-    }
-
-    suspend fun run() {
-        try {
-            Kap { poll() }
-                .recover { 0 }
-                .repeat(Schedule.spaced<Int>(KDuration.parse("${RETRY_DELAY_MS}ms")))
-                .evalGraph()
+    /** Opens a consumer for exactly this block and closes it even on failure or cancellation. */
+    private suspend fun <T> withConsumer(block: suspend (KafkaConsumer<String, String>) -> T): T {
+        val consumer = KafkaConsumer<String, String>(
+            Properties().apply {
+                put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, config.kafkaBootstrap)
+                put(ConsumerConfig.GROUP_ID_CONFIG, config.kafkaGroup)
+                put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.name)
+                put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.name)
+                put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
+                put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+                put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, MAX_POLL_RECORDS)
+            },
+        ).also { it.subscribe(listOf(topic)) }
+        return try {
+            block(consumer)
         } finally {
-            close()
+            withContext(Dispatchers.IO + NonCancellable) { closeQuietly(consumer) }
         }
     }
 
-    override fun close() {
+    private fun closeQuietly(consumer: KafkaConsumer<String, String>) {
         try {
             consumer.close(org.apache.kafka.clients.consumer.CloseOptions.timeout(Duration.ofSeconds(CLOSE_TIMEOUT_S)))
         } catch (e: Exception) {
@@ -215,11 +257,22 @@ class KafkaBusConsumer(private val config: Config, private val ingest: PgBusInge
     }
 
     companion object {
+        const val PROCESS_NAME = "bus-kafka-consumer"
         const val POLL_MS = 500L
         const val DRAIN_POLL_MS = 1_000L
         const val DRAIN_QUIET_POLLS = 3
         const val MAX_POLL_RECORDS = 500
-        const val RETRY_DELAY_MS = 1_000L
         const val CLOSE_TIMEOUT_S = 10L
+
+        /** The heartbeat answers "is the process there", never "did the cycle finish". */
+        val HEARTBEAT_EVERY = 5.seconds
+
+        /** Positive base, exponential backoff, finite cap: the convergence law. */
+        fun defaultRestart(): RestartPolicy =
+            RestartPolicy.exponential(base = RETRY_DELAY, max = RESTART_MAX_DELAY, maxRestarts = RESTART_MAX)
+
+        val RETRY_DELAY = 1.seconds
+        val RESTART_MAX_DELAY = 30.seconds
+        const val RESTART_MAX = 8
     }
 }

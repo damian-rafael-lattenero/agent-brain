@@ -1,12 +1,14 @@
 package dev.lattenero.brain.bus
 
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kap.Kap
+import kap.Process
+import kap.RestartPolicy
 import kap.Schedule
 import kap.evalGraph
-import kap.recover
+import kap.process
 import kap.repeat
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -19,6 +21,7 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 private val log = LoggerFactory.getLogger("agent-brain.tailer")
 
@@ -45,8 +48,12 @@ class OffsetStore(private val path: Path) {
     }
 }
 
+/**
+ * Business counters (what the tailer delivered), not liveness: liveness is the
+ * process handle's restarts and heartbeat age (see [BusStatus]). Plain until
+ * kap `Ref` (Phase G).
+ */
 class TailStats {
-    val polls = AtomicLong()
     val lines = AtomicLong()
     val malformed = AtomicLong()
     val shrinks = AtomicLong()
@@ -75,7 +82,6 @@ class FileTailer(
 
     /** One poll. Returns the number of events handed to the handler. */
     suspend fun poll(handler: suspend (List<BusEvent>) -> Unit): Int {
-        stats.polls.incrementAndGet()
         val read = withContext(Dispatchers.IO) { readChunk() } ?: return 0
         val (events, consumedBytes, badLines) = read
         if (consumedBytes == 0L) return 0
@@ -89,15 +95,36 @@ class FileTailer(
     }
 
     /**
-     * Polls forever at the given cadence. KAP policy loop: the schedule IS the cadence,
-     * a failed poll is recovered as an empty one (the cycle logs nothing fatal), and
-     * cancellation stops the loop between iterations.
+     * The supervised long-lived loop: one poll per cadence, and a [RestartPolicy]
+     * — not a `recover` around the body — owns failures, so a crash between
+     * polls restarts the process too. The offset file is the floor: a failed
+     * poll never advances it, so the restarted body re-reads from the last
+     * persisted byte (at-least-once, ADR-003).
      */
+    fun process(
+        interval: Duration,
+        handler: suspend (List<BusEvent>) -> Unit,
+        restart: RestartPolicy = defaultRestart(interval),
+    ): Process<Int> {
+        require(interval > Duration.ZERO) { "poll interval must be strictly positive, was $interval" }
+        return Kap { poll(handler) }
+            .repeat(Schedule.spaced(interval))
+            .process(
+                name = PROCESS_NAME,
+                restart = restart,
+                heartbeatEvery = HEARTBEAT_EVERY,
+                onRestart = { attempt, error, nextDelay ->
+                    log.warn(
+                        "tailer failed (restart {} in {}): {}: {}",
+                        attempt, nextDelay, error::class.simpleName, error.message,
+                    )
+                },
+            )
+    }
+
+    /** Runs the process for the caller's lifetime (CLI `ingest`); cancellation stops it. */
     suspend fun run(interval: Duration, handler: suspend (List<BusEvent>) -> Unit) {
-        Kap { poll(handler) }
-            .recover { 0 }
-            .repeat(Schedule.spaced<Int>(interval))
-            .evalGraph()
+        coroutineScope { process(interval, handler).startIn(this).await() }
     }
 
     private data class Chunk(val events: List<BusEvent>, val consumedBytes: Long, val badLines: Int)
@@ -168,9 +195,20 @@ class FileTailer(
     }
 
     companion object {
+        const val PROCESS_NAME = "bus-tailer"
         const val NEWLINE: Byte = 0x0A
         const val DEFAULT_MAX_READ_BYTES = 4 * 1024 * 1024
         const val DEFAULT_MAX_LINE_BYTES = 16 * 1024 * 1024
+
+        /** The heartbeat answers "is the process there", never "did the cycle finish". */
+        val HEARTBEAT_EVERY = 5.seconds
+
+        /** Positive base (the cadence), exponential backoff, finite cap: the convergence law. */
+        fun defaultRestart(interval: Duration): RestartPolicy =
+            RestartPolicy.exponential(base = interval, max = RESTART_MAX_DELAY, maxRestarts = RESTART_MAX)
+
+        val RESTART_MAX_DELAY = 30.seconds
+        const val RESTART_MAX = 8
 
         fun open(file: Path, stateDir: Path, maxReadBytes: Int = DEFAULT_MAX_READ_BYTES): FileTailer =
             FileTailer(file, OffsetStore(stateDir.resolve("bus-offset.json")), maxReadBytes)

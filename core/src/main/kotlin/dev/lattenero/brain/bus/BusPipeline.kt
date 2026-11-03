@@ -4,11 +4,11 @@ import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import kap.Kap
 import kap.KapTypeSafe
+import kap.Process
+import kap.ProcessHandle
 import kap.evalGraph
 import kap.repeatUntil
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import java.nio.file.Files
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -22,22 +22,22 @@ class BusPipeline(private val config: Config, db: Database) {
     val ingest: PgBusIngest = PgBusIngest(db)
     val isKafka: Boolean get() = config.busTransport == TRANSPORT_KAFKA
     val kafka: KafkaBusConsumer? = if (isKafka) KafkaBusConsumer(config, ingest) else null
-    private var job: Job? = null
 
-    fun start(scope: CoroutineScope) {
-        if (job != null) return
-        job = if (isKafka) {
+    /**
+     * The ONE long-lived loop for the configured transport, as a named
+     * [Process]: start it in the process scope, never launch it by hand.
+     */
+    fun process(): Process<Int> =
+        if (isKafka) {
             KafkaTopics.ensure(config)
-            scope.launch { kafka!!.run() }
+            kafka!!.process()
         } else {
-            scope.launch { tailer.run(config.busPollMs.milliseconds) { ingest.handle(it) } }
+            tailer.process(config.busPollMs.milliseconds, handler = { ingest.handle(it) })
         }
-    }
 
-    fun stop() {
-        job?.cancel()
-        job = null
-        kafka?.close()
+    /** Runs the loop for the caller's lifetime (CLI `ingest`); cancellation stops it. */
+    suspend fun run() {
+        coroutineScope { process().startIn(this).await() }
     }
 
     /** Drains everything currently available on the transport; returns the events handed over. */
@@ -59,7 +59,14 @@ class BusPipeline(private val config: Config, db: Database) {
     @KapTypeSafe
     data class Probe(val fileBytes: Long, val dbEvents: Long)
 
-    suspend fun status(): BusStatus {
+    /**
+     * The status envelope. Business counters stay plain (Phase G's `Ref` will
+     * own them); liveness comes from the process [handle] — restarts and
+     * heartbeat age — never from a counter that fakes it. Without a handle
+     * (the `bus status` CLI talks to a database, not a running loop) both
+     * liveness fields are null: unknown, not invented.
+     */
+    suspend fun status(handle: ProcessHandle<*>? = null): BusStatus {
         val probe = kap(::Probe)
             .with { fileBytes from fileBytes() }
             .with { dbEvents from ingest.count() }
@@ -72,7 +79,6 @@ class BusPipeline(private val config: Config, db: Database) {
             fileBytes = bytes,
             offset = tailer.offset,
             lagBytes = (bytes - tailer.offset).coerceAtLeast(0),
-            polls = if (isKafka) kafka!!.stats.polls.get() else tailer.stats.polls.get(),
             linesRead = if (isKafka) kafka!!.stats.records.get() else tailer.stats.lines.get(),
             malformed = if (isKafka) kafka!!.stats.malformed.get() else tailer.stats.malformed.get(),
             shrinks = tailer.stats.shrinks.get(),
@@ -82,6 +88,8 @@ class BusPipeline(private val config: Config, db: Database) {
             dbEvents = probe.dbEvents,
             lastTs = ingest.stats.lastTs,
             lastKind = ingest.stats.lastKind,
+            restarts = handle?.restarts?.value,
+            heartbeatAgeMs = handle?.heartbeatAge()?.takeIf { it.isFinite() }?.inWholeMilliseconds,
             kafkaCommits = kafka?.stats?.commits?.get(),
             kafkaOffsets = kafka?.stats?.lastOffsets?.mapKeys { it.key.toString() },
         )

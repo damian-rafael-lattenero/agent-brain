@@ -57,7 +57,7 @@ class IndexerIT {
         val tracer = CountingTracer()
         val pipeline = EmbedPipeline(provider, batchSize = 4, concurrency = 2, timeout = 30.seconds, tracer = tracer,
             breaker = CircuitBreaker(100, 1.minutes), attempts = attempts)
-        return Indexer(store, pipeline, tracer, docConcurrency = 2).also { it.embedBatchSize = 4 }
+        return Indexer(store, pipeline, tracer, docConcurrency = 2)
     }
 
     private val glob get() = "$root/docs/**/*.md"

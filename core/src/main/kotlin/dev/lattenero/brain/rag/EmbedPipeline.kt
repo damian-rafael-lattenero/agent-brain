@@ -60,7 +60,7 @@ class CountingTracer : KapTracer {
  */
 class EmbedPipeline(
     private val provider: EmbeddingProvider,
-    private val batchSize: Int,
+    val batchSize: Int,
     private val concurrency: Int,
     private val timeout: Duration,
     private val tracer: KapTracer,

@@ -9,6 +9,10 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeAll
@@ -16,6 +20,8 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import java.nio.file.Files
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 @Tag("e2e")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -28,7 +34,7 @@ class BusStatusTest {
     @Test
     fun `bus status reflects the file, the offset and the database after a drain`() = testApplication {
         val config = TestDatabase.config("busstatus")
-        Brain(config, FakeProvider(config.embedDim)).use { brain ->
+        Brain.resource(config, FakeProvider(config.embedDim)).use { brain ->
             brain.migrator.apply()
             Files.createDirectories(config.busFile.parent)
             val fixture = javaClass.classLoader.getResourceAsStream("bus/sample-bot-publisher.jsonl")!!.readAllBytes()
@@ -47,6 +53,33 @@ class BusStatusTest {
             assertThat(status.inserted).isEqualTo(6)
             assertThat(status.dbEvents).isEqualTo(6)
             assertThat(status.lastKind).isEqualTo("turn.failed")
+        }
+    }
+
+    @Test
+    fun `liveness comes from the process handle, never from a counter`() = runBlocking<Unit> {
+        val config = TestDatabase.config("busliveness")
+        Brain.resource(config, FakeProvider(config.embedDim)).use { brain ->
+            brain.migrator.apply()
+            supervisorScope {
+                val handle = brain.bus.process().startIn(this)
+                try {
+                    withTimeout(10.seconds) {
+                        while (!handle.heartbeatAge().isFinite()) delay(5.milliseconds)
+                    }
+                    val live = brain.bus.status(handle)
+                    assertThat(live.restarts).isZero
+                    assertThat(live.heartbeatAgeMs).isNotNull
+
+                    // The CLI's view: a database with no running loop has unknown
+                    // liveness, not an invented zero.
+                    val offline = brain.bus.status()
+                    assertThat(offline.restarts).isNull()
+                    assertThat(offline.heartbeatAgeMs).isNull()
+                } finally {
+                    handle.stop()
+                }
+            }
         }
     }
 }
