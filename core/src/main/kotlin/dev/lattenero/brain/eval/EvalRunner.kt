@@ -18,6 +18,8 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.time.Instant
 import java.util.UUID
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import kotlinx.coroutines.runBlocking
 
 @Serializable
@@ -40,7 +42,20 @@ data class EvalReport(
     val durationMs: Long,
 )
 
-class EvalRunner(private val config: Config, private val questions: List<EvalQuestion>, private val gate: Double) {
+/**
+ * The recall gate. Every effect is an injected parameter (plan E7): the
+ * config, the questions, the clock ([timeSource] for the duration, [wallClock]
+ * for the ledger's started-at) — nothing reads `System.currentTimeMillis`
+ * inside — and the temp corpus is a [Resource] ([evalCorpus]), removed on
+ * release whether the run succeeds, fails or is cancelled.
+ */
+class EvalRunner(
+    private val config: Config,
+    private val questions: List<EvalQuestion>,
+    private val gate: Double,
+    private val timeSource: TimeSource = TimeSource.Monotonic,
+    private val wallClock: () -> Instant = Instant::now,
+) {
 
     /** The admin connection through the same kap bracket as everything else (plan B2): close in NonCancellable. */
     private suspend fun <T> withAdminConnection(block: (Connection) -> T): T =
@@ -73,27 +88,26 @@ class EvalRunner(private val config: Config, private val questions: List<EvalQue
     )
 
     fun run(): EvalReport {
-        val started = System.currentTimeMillis()
+        val startedAt = wallClock()
+        val mark = timeSource.markNow()
         val report = runBlocking {
             freshEvalDatabase().use { dbName ->
                 val evalConfig = config.copy(pgUrl = config.pgUrl.substringBeforeLast('/') + "/" + dbName)
-                Brain.resource(evalConfig).use { brain -> evaluate(brain, started) }
+                Brain.resource(evalConfig).use { brain -> evaluate(brain, startedAt, mark) }
             }
         }
         persist(config, report)
         return report
     }
 
-    private suspend fun evaluate(brain: Brain, started: Long): EvalReport {
+    private suspend fun evaluate(brain: Brain, startedAt: Instant, mark: TimeMark): EvalReport {
         brain.migrator.apply()
-        val corpusDir = Files.createTempDirectory("agent-brain-eval-corpus")
-        val loader = javaClass.classLoader
-        // A jar cannot list a directory: the corpus ships with an explicit index (same rule as migrations).
-        loader.getResourceAsStream("eval/corpus/index.txt")!!.bufferedReader().readLines().filter { it.endsWith(".md") }.forEach { name ->
-            Files.write(corpusDir.resolve(name), loader.getResourceAsStream("eval/corpus/$name")!!.readAllBytes())
+        // The corpus lives in a bracketed temp tree: indexed inside the bracket, removed on release.
+        // macOS hands out /var/folders (a symlink of /private/var/...): normalize or the glob
+        // never matches the walked paths.
+        val indexed = evalCorpus().use { corpusDir ->
+            brain.indexer.indexGlobs(listOf("${corpusDir.toRealPath()}/*.md"))
         }
-        // macOS hands out /var/folders (a symlink of /private/var/...): normalize or the glob never matches the walked paths.
-        val indexed = brain.indexer.indexGlobs(listOf("${corpusDir.toRealPath()}/*.md"))
         check(indexed.failed.isEmpty() && indexed.indexed > 0) { "eval: the fixture corpus did not index (${indexed.failed})" }
 
         val rows = questions.map { q ->
@@ -111,8 +125,8 @@ class EvalRunner(private val config: Config, private val questions: List<EvalQue
             gate = gate,
             ok = passed.toDouble() / rows.size >= gate,
             rows = rows,
-            startedAt = Instant.ofEpochMilli(started).toString(),
-            durationMs = System.currentTimeMillis() - started,
+            startedAt = startedAt.toString(),
+            durationMs = mark.elapsedNow().inWholeMilliseconds,
         )
     }
 
@@ -141,6 +155,35 @@ class EvalRunner(private val config: Config, private val questions: List<EvalQue
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
+
+        /**
+         * The fixture corpus as a [Resource] (plan E7): the temp tree is created
+         * and filled on acquire, and removed on release — success, failure or
+         * cancellation — so an eval run never leaks corpus files into the
+         * system temp directory. A jar cannot list a directory: the corpus
+         * ships with an explicit index (same rule as migrations).
+         */
+        internal fun evalCorpus(): Resource<Path> = Resource(
+            acquire = {
+                val dir = Files.createTempDirectory("agent-brain-eval-corpus")
+                val loader = EvalRunner::class.java.classLoader
+                loader.getResourceAsStream("eval/corpus/index.txt")?.bufferedReader()?.use { reader ->
+                    reader.readLines().filter { it.endsWith(".md") }.forEach { name ->
+                        val content = loader.getResourceAsStream("eval/corpus/$name")
+                            ?: error("eval: the corpus file $name is missing from the classpath")
+                        content.use { Files.write(dir.resolve(name), it.readAllBytes()) }
+                    }
+                } ?: error("eval: the corpus index eval/corpus/index.txt is missing from the classpath")
+                dir
+            },
+            release = { dir ->
+                val removed = runCatching { dir.toFile().deleteRecursively() }.getOrElse { e ->
+                    System.err.println("eval: could not remove the corpus tree $dir: ${e.message}")
+                    false
+                }
+                if (!removed) System.err.println("eval: corpus tree $dir was not fully removed")
+            },
+        )
 
         fun loadQuestions(path: Path): List<EvalQuestion> {
             val parsed = json.decodeFromString(ListSerializer(EvalQuestion.serializer()), Files.readString(path))

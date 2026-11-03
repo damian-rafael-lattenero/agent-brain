@@ -36,12 +36,23 @@ class EvalRunnerIT {
     @Test
     fun `the recall gate passes and lands in eval_runs`() {
         val config = TestDatabase.config("evalrunner", provider = "ollama")
-        val report = EvalRunner(config, questions(), gate = 0.9).run()
+        // The clock is injected (plan E7): a fixed wall instant and a test source that never advances
+        // measure zero — any real System.currentTimeMillis read inside would break both assertions.
+        val startedAt = java.time.Instant.parse("2026-11-03T12:00:00Z")
+        val report = EvalRunner(
+            config,
+            questions(),
+            gate = 0.9,
+            timeSource = kotlin.time.TestTimeSource(),
+            wallClock = { startedAt },
+        ).run()
         assertThat(report.total).isEqualTo(20)
         assertThat(report.provider).isEqualTo("ollama")
         assertThat(report.embedModel).isEqualTo(TestEnv.base.ollamaModel)
         assertThat(report.passed).withFailMessage(report.rows.filter { !it.ok }.joinToString { it.question }).isGreaterThanOrEqualTo(18)
         assertThat(report.ok).isTrue()
+        assertThat(report.startedAt).isEqualTo(startedAt.toString())
+        assertThat(report.durationMs).isZero
 
         // The ledger row landed in the run's database (the same table serve reads).
         val count = dev.lattenero.brain.db.Database(config).use { db ->
