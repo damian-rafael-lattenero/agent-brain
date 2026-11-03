@@ -193,6 +193,41 @@ class KafkaStats private constructor(private val state: Ref<KafkaCounters>) {
 }
 
 /**
+ * One quiet-window drain step's accumulated state as an immutable value
+ * (Phase D: the repeated body returns its state instead of mutating a
+ * closure). [total] is the running total of the counts the polls returned;
+ * [quiet] is the run of consecutive empty polls — the loop's termination
+ * state.
+ */
+data class DrainProgress(val total: Int = 0, val quiet: Int = 0) {
+    /** Folds one poll's count in: a non-empty poll adds to the total and resets the quiet run; an empty one extends. */
+    fun tally(count: Int): DrainProgress =
+        if (count == 0) copy(quiet = quiet + 1) else copy(total = total + count, quiet = 0)
+}
+
+/**
+ * The quiet-window drain as a value fold: poll until [quietPolls] consecutive
+ * polls come back empty, return the total the polls handed over. The repeated
+ * body RETURNS its state — [Ref.update] folds the poll's count into a
+ * [DrainProgress] and yields the new state, so `repeatUntil` decides on the
+ * returned value and the caller folds the result out of the last one. The
+ * drain-local [Ref] is only the carrier between iterations (kap `repeat`
+ * re-executes the same body); no closure is mutated.
+ *
+ * This is the hand-rolled STATEFUL schedule plan.md's D2 calls interim: the
+ * lawful home is a kap `Schedule` addition (debounce / only-once-per-key, an
+ * R5 candidate). When kap ships it, the fold becomes a plain
+ * `Kap { poll() }.repeat(schedule)` and this helper dies with it.
+ */
+internal suspend fun drainUntilQuiet(quietPolls: Int, poll: suspend () -> Int): Int {
+    val state = Ref.of(DrainProgress()).evalGraph()
+    return Kap { poll().let { count -> state.update { it.tally(count) }.evalGraph() } }
+        .repeatUntil { (_, quiet) -> quiet >= quietPolls }
+        .evalGraph()
+        .total
+}
+
+/**
  * The Kafka transport feeds the SAME handler the file tailer feeds
  * (`PgBusIngest.handle`). Offsets are committed only after the batch is in
  * the database, so a rebalance or a crash redelivers and the primary key
@@ -214,16 +249,14 @@ class KafkaBusConsumer private constructor(
     suspend fun poll(timeout: Duration = Duration.ofMillis(POLL_MS)): Int =
         withConsumer { consumer -> pollOnce(consumer, timeout) }
 
-    /** Polls until [quietPolls] consecutive polls return nothing (tests, `ingest --once`); KAP policy loop. */
+    /**
+     * Polls until [quietPolls] consecutive polls return nothing (tests,
+     * `ingest --once`): the quiet-window drain, a value fold over one fresh
+     * consumer (see [drainUntilQuiet]) — the body returns its
+     * [DrainProgress] and the loop terminates on the returned quiet run.
+     */
     suspend fun drain(quietPolls: Int = DRAIN_QUIET_POLLS): Int = withConsumer { consumer ->
-        var total = 0
-        var quiet = 0
-        Kap {
-            pollOnce(consumer, Duration.ofMillis(DRAIN_POLL_MS)).also { n ->
-                if (n == 0) quiet += 1 else { quiet = 0; total += n }
-            }
-        }.repeatUntil { quiet >= quietPolls }.evalGraph()
-        total
+        drainUntilQuiet(quietPolls) { pollOnce(consumer, Duration.ofMillis(DRAIN_POLL_MS)) }
     }
 
     /**
