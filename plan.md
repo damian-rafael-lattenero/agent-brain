@@ -113,9 +113,18 @@ offset floor; no `var job: Job?` start/stop guards remain
   bins as `Either`/`Validated` (kap-arrow). The report becomes a fold over
   `Result`s; exception-as-control-flow leaves the business logic. Quarantine
   writes stay at the edge (unchanged behavior).
-- **C2** — the early-abort (`if (e is CircuitBreakerOpenException) break`,
-  `MemoryWorker.kt:76`) is a **supervision policy without a home yet**: document
-  it as the interim, move it to kap `Supervisor` when it lands (Phase G).
+- **C2** — **decided as documentation (2026-11-03, Phase C)**: the early abort
+  (`if (e is CircuitBreakerOpenException) break`) died with the `for` loop it
+  lived in — C1 replaced the loop with `pending.traverseSettled`, and an
+  exception steering the batch is exactly the exception-as-control-flow R4
+  bans. Migrating the policy to kap `Supervisor` (OneForOne/AllForOne, kap
+  5.0) does NOT fit today: this repo pins kap 4.2.0 (Phase C does not bump
+  kap), and the worker is one `Process` whose body is the whole batch — there
+  are no per-turn children for a Supervisor to watch. The interim, documented
+  in `MemoryWorker`'s KDoc: an open circuit breaker is the provider failing
+  fast, classified as `ExtractionFailure.ProviderDown` (defer); no special
+  case, no exception steers the loop. The batch-wide supervision policy stays
+  open as the Phase G item below.
 - **C3** — **amendment to fp-refactor-plan R4**: provider fallback selection
   (Ollama → GLM → Fake) does **NOT** become a runtime `Either` chain. ADR-004:
   `embed_dim` is a database property; runtime fallback across embedding models
@@ -171,7 +180,7 @@ injected parameter.
 
 | Gap | Consumer here (evidence) | Kap milestone |
 |---|---|---|
-| `Supervisor` (OneForOne/AllForOne) | batch abort on open breaker (C2); process group liveness in `serve` | SPEC-5.0 5.0 |
+| `Supervisor` (OneForOne/AllForOne) | batch-wide supervision for the memory worker (C2: interim documented, open breaker defers like any provider failure); process group liveness in `serve` | SPEC-5.0 5.0 |
 | `KapStream` (sources own offsets; fold stages) | drains (D1-D3); tailer as stream | SPEC-5.0 5.0 |
 | `Ref` thin wrapper | remaining monotone counters (A3 leftovers) | SPEC-5.0 5.0 |
 | `Resource`-based server lifecycle (SIGTERM → graceful stop) | `http/Server.kt:216-222` blocks forever; `serve`'s `finally` never runs | R5 candidate — new kap-kap-ktor addition |
