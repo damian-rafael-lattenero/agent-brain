@@ -109,12 +109,22 @@ class KafkaBridge private constructor(
         }
     }
 
+    /**
+     * Drains the file into the topic; returns the events produced. The
+     * repeated body is stateless — one poll — and the loop terminates on the
+     * returned poll count. The drain's total is not a closure counter: [poll]
+     * already folds every produced batch into the [produced] `Ref`, so the
+     * caller folds the total from the counter's before/after values (Phase D:
+     * state as values, never side effects on captured vars). Single-shot: no
+     * other poll may run on this bridge while the drain's two reads bracket
+     * the loop.
+     */
     suspend fun drain(): Int {
-        var total = 0
-        Kap { poll().also { total += it } }
+        val before = produced.get().evalGraph()
+        Kap { poll() }
             .repeatUntil { it == 0 }
             .evalGraph()
-        return total
+        return (produced.get().evalGraph() - before).toInt()
     }
 
     suspend fun run(interval: KDuration) {
