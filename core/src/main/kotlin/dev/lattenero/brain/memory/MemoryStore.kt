@@ -178,6 +178,46 @@ class MemoryStore(private val db: Database) {
         }
     }
 
+    /**
+     * Every row the dedup backfill reads, oldest first. The backfill is a
+     * CLI command, never a migration: a destructive merge must run when the
+     * operator asks for it, not at every startup.
+     */
+    suspend fun dedupRows(): List<DedupRow> = db.withConnection { conn ->
+        conn.createStatement().use { st ->
+            st.executeQuery(
+                "SELECT id, kind, content, embed_model, salience, created_at, embedding::text " +
+                    "FROM memories ORDER BY created_at, id",
+            ).use { rs ->
+                generateSequence {
+                    if (!rs.next()) null else DedupRow(
+                        id = rs.getLong(1),
+                        kind = rs.getString(2),
+                        content = rs.getString(3),
+                        embedModel = rs.getString(4),
+                        salience = rs.getDouble(5),
+                        createdAt = (rs.getObject(6) as Timestamp).toInstant(),
+                        embedding = PGvector(rs.getString(7)).toArray(),
+                    )
+                }.toList()
+            }
+        }
+    }
+
+    /**
+     * Applies a [MemoryDedup.plan] in one transaction: each surviving row is
+     * reinforced by its absorbed duplicates' count (exactly what insert-time
+     * dedup would have accumulated for them) and the absorbed rows are
+     * deleted. Returns the number of rows removed.
+     */
+    suspend fun applyDedup(plan: Plan): Int = db.inTransaction { conn ->
+        for (cluster in plan.clusters) {
+            reinforce(conn, cluster.keepId, REINFORCE_STEP * cluster.reinforcements)
+            deleteMemories(conn, cluster.absorbedIds)
+        }
+        plan.removed
+    }
+
     suspend fun byId(id: Long): Memory? = db.withConnection { conn ->
         conn.prepareStatement(
             """
@@ -319,6 +359,13 @@ class MemoryStore(private val db: Database) {
         ).use { ps ->
             ps.setDouble(1, by)
             ps.setLong(2, id)
+            ps.executeUpdate()
+        }
+    }
+
+    private fun deleteMemories(conn: java.sql.Connection, ids: List<Long>) {
+        conn.prepareStatement("DELETE FROM memories WHERE id = ANY(?)").use { ps ->
+            ps.setArray(1, conn.createArrayOf("bigint", ids.toTypedArray()))
             ps.executeUpdate()
         }
     }

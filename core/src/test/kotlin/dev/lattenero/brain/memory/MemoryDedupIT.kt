@@ -248,4 +248,72 @@ class MemoryDedupIT {
         }
         assertThat(MemoryDedup.cosine(vectors[0], vectors[0])).isCloseTo(1.0, within(1e-9))
     }
+
+    @Test
+    fun `the backfill merges the planted cluster keeping the oldest row, reinforced by the absorbed count`() = runBlocking<Unit> {
+        TestEnv.needPostgres()
+        fixture("memdedupbackfill").use { f ->
+            // The measured production shape: a Spanish trio, an English pair,
+            // one distinct row (ids assigned in insert order, oldest first).
+            f.store.insertAll(
+                transcript("e1", "ses"),
+                model,
+                listOf(
+                    row("fact", "Todos los subagentes han terminado.", TestVectors.at(1.0, axis = 0)),
+                    row("fact", "Todos los subagentes están en estado 'terminado'.", TestVectors.at(0.9994, axis = 0)),
+                    row("summary", "Todos los subagentes han terminado y están en estado 'terminado'.", TestVectors.at(0.9986, axis = 0)),
+                    row("fact", "The subagents have completed their tasks.", TestVectors.at(1.0, axis = 1)),
+                    row("summary", "The subagents have finished their tasks, and the system is in a final state.", TestVectors.at(0.9998, axis = 1)),
+                    row("fact", "The current state of everything is finalized.", TestVectors.at(1.0, axis = 2)),
+                ),
+            )
+            val rows = f.store.dedupRows()
+            assertThat(rows).hasSize(6)
+            val plan = MemoryDedup.plan(rows)
+            assertThat(plan.clusters).hasSize(2)
+            val spanish = plan.clusters.single { it.reinforcements == 2 }
+            val english = plan.clusters.single { it.reinforcements == 1 }
+
+            val applied = f.store.applyDedup(plan)
+            assertThat(applied).isEqualTo(3)
+            assertThat(count(f.db)).isEqualTo(3)
+            // The survivors are the oldest rows; the absorbed ones are gone.
+            assertThat(f.store.byId(spanish.keepId)?.content).isEqualTo("Todos los subagentes han terminado.")
+            assertThat(f.store.byId(english.keepId)?.content).isEqualTo("The subagents have completed their tasks.")
+            (spanish.absorbedIds + english.absorbedIds).forEach { assertThat(f.store.byId(it)).isNull() }
+            // Reinforced by the absorbed count: 1 + 2 and 1 + 1.
+            assertThat(f.store.byId(spanish.keepId)?.salience).isCloseTo(3.0, within(1e-6))
+            assertThat(f.store.byId(english.keepId)?.salience).isCloseTo(2.0, within(1e-6))
+            // Idempotent: what survives plans nothing to merge, a second pass removes nothing.
+            val again = MemoryDedup.plan(f.store.dedupRows())
+            assertThat(again.removed).isZero
+            assertThat(f.store.applyDedup(again)).isZero
+            assertThat(count(f.db)).isEqualTo(3)
+        }
+    }
+
+    @Test
+    fun `the backfill report shows exactly what would be merged and a dry run writes nothing`() = runBlocking<Unit> {
+        TestEnv.needPostgres()
+        fixture("memdedupdry").use { f ->
+            f.store.insertAll(
+                transcript("e1", "ses"),
+                model,
+                listOf(
+                    row("fact", "Todos los subagentes han terminado.", TestVectors.at(1.0, axis = 0)),
+                    row("fact", "Todos los subagentes están en estado 'terminado'.", TestVectors.at(0.9994, axis = 0)),
+                ),
+            )
+            val rows = f.store.dedupRows()
+            val plan = MemoryDedup.plan(rows)
+            val report = MemoryDedup.report(rows, plan, dryRun = true)
+            assertThat(report.dryRun).isTrue
+            assertThat(report.scanned).isEqualTo(2)
+            assertThat(report.removed).isEqualTo(1)
+            assertThat(report.clusters.single().keep).isEqualTo("Todos los subagentes han terminado.")
+            assertThat(report.clusters.single().absorbedContent)
+                .containsExactly("Todos los subagentes están en estado 'terminado'.")
+            assertThat(count(f.db)).isEqualTo(2)
+        }
+    }
 }

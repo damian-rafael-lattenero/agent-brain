@@ -1,5 +1,7 @@
 package dev.lattenero.brain.memory
 
+import kotlinx.serialization.Serializable
+import java.time.Instant
 import kotlin.math.sqrt
 
 /**
@@ -53,4 +55,79 @@ object MemoryDedup {
         if (normA == 0.0 || normB == 0.0) return 0.0
         return dot / (sqrt(normA) * sqrt(normB))
     }
+
+    /**
+     * The backfill as values: [plan] clusters the existing rows with the SAME
+     * rule insert-time dedup applies (same embed model, any kind, any
+     * session, cosine at or above [threshold], OLDEST row wins), [report]
+     * renders the plan for the operator, and the store applies it (reinforce
+     * the survivor, delete the rest). Idempotent: after a plan is applied
+     * every surviving pair is below the threshold, so re-planning yields an
+     * empty plan.
+     */
+    fun plan(rows: List<DedupRow>, threshold: Double = SIMILARITY): Plan {
+        val kept = mutableListOf<DedupRow>()
+        val absorbedBy = LinkedHashMap<Long, MutableList<Long>>()
+        for (row in rows.sortedWith(compareBy({ it.createdAt }, { it.id }))) {
+            val survivor = kept.firstOrNull { candidate ->
+                candidate.embedModel == row.embedModel && cosine(candidate.embedding, row.embedding) >= threshold
+            }
+            if (survivor == null) {
+                kept += row
+            } else {
+                absorbedBy.getOrPut(survivor.id) { mutableListOf() } += row.id
+            }
+        }
+        return Plan(absorbedBy.map { (keepId, absorbed) -> Cluster(keepId, absorbed) })
+    }
+
+    /** The operator's report: what would be (or was) merged, with the contents. */
+    fun report(rows: List<DedupRow>, plan: Plan, dryRun: Boolean): DedupReport {
+        val byId = rows.associateBy { it.id }
+        return DedupReport(
+            scanned = rows.size,
+            dryRun = dryRun,
+            removed = plan.removed,
+            clusters = plan.clusters.map { cluster ->
+                DedupClusterReport(
+                    keepId = cluster.keepId,
+                    keep = byId.getValue(cluster.keepId).content,
+                    absorbed = cluster.absorbedIds,
+                    absorbedContent = cluster.absorbedIds.map { byId.getValue(it).content },
+                )
+            },
+        )
+    }
 }
+
+/** One memory row as the dedup pass reads it. */
+data class DedupRow(
+    val id: Long,
+    val kind: String,
+    val content: String,
+    val embedModel: String,
+    val salience: Double,
+    val createdAt: Instant,
+    val embedding: FloatArray,
+)
+
+/** One duplicate cluster: [Cluster.keepId] survives, [Cluster.absorbedIds] are deleted. */
+data class Cluster(val keepId: Long, val absorbedIds: List<Long>) {
+    val reinforcements: Int get() = absorbedIds.size
+}
+
+/** A whole backfill pass: empty means nothing to merge. */
+data class Plan(val clusters: List<Cluster>) {
+    val removed: Int get() = clusters.sumOf { it.reinforcements }
+}
+
+@Serializable
+data class DedupClusterReport(
+    val keepId: Long,
+    val keep: String,
+    val absorbed: List<Long>,
+    val absorbedContent: List<String>,
+)
+
+@Serializable
+data class DedupReport(val scanned: Int, val dryRun: Boolean, val removed: Int, val clusters: List<DedupClusterReport>)
