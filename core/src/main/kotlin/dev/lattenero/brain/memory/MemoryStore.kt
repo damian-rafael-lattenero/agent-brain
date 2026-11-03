@@ -3,6 +3,7 @@ package dev.lattenero.brain.memory
 import com.pgvector.PGvector
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.inTransaction
+import dev.lattenero.brain.rag.Rrf
 import kap.KapTypeSafe
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -405,7 +406,9 @@ class MemoryStore(private val db: Database) {
     companion object {
         const val CANDIDATE_FACTOR = 4
         const val MIN_CANDIDATES = 50
-        const val RRF_K = 60
+
+        /** The fusion constant lives in the pure core ([Rrf]); the SQL below is its executable twin. */
+        const val RRF_K = Rrf.K
         const val MAX_REASON_CHARS = 500
 
         /** Each absorbed duplicate reinforces the survivor by this much salience. */
