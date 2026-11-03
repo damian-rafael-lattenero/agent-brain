@@ -28,7 +28,7 @@ class BusStatusTest {
     @Test
     fun `bus status reflects the file, the offset and the database after a drain`() = testApplication {
         val config = TestDatabase.config("busstatus")
-        Brain(config, FakeProvider(config.embedDim)).use { brain ->
+        Brain.resource(config, FakeProvider(config.embedDim)).use { brain ->
             brain.migrator.apply()
             Files.createDirectories(config.busFile.parent)
             val fixture = javaClass.classLoader.getResourceAsStream("bus/sample-bot-publisher.jsonl")!!.readAllBytes()

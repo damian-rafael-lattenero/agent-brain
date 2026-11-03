@@ -36,7 +36,7 @@ class ServerReadyTest {
     @Test
     fun `health answers with the version and a redacted config`() = testApplication {
         val secret = "s3cret-that-must-never-leak"
-        Brain(sharedConfig.copy(pgPassword = secret, glmApiKey = "sk-$secret"), FakeProvider(768)).use { brain ->
+        Brain.resource(sharedConfig.copy(pgPassword = secret, glmApiKey = "sk-$secret"), FakeProvider(768)).use { brain ->
             application { brainModule(brain.config, brain.readiness) }
             val response = client.get("/health")
             assertThat(response.status).isEqualTo(HttpStatusCode.OK)
@@ -50,7 +50,7 @@ class ServerReadyTest {
 
     @Test
     fun `ready is green once migrations are applied and the provider embeds`() = testApplication {
-        Brain(sharedConfig, FakeProvider(768)).use { brain ->
+        Brain.resource(sharedConfig, FakeProvider(768)).use { brain ->
             brain.migrator.apply()
             application { brainModule(brain.config, brain.readiness) }
             val response = client.get("/ready")
@@ -73,7 +73,7 @@ class ServerReadyTest {
             override val dim = 768
             override suspend fun embedAll(texts: List<String>): List<FloatArray> = throw ProviderUnavailable("model server offline")
         }
-        Brain(sharedConfig, down).use { brain ->
+        Brain.resource(sharedConfig, down).use { brain ->
             brain.migrator.apply()
             application { brainModule(brain.config, brain.readiness) }
             val response = client.get("/ready")
@@ -89,7 +89,7 @@ class ServerReadyTest {
     @Test
     fun `ready is 503 when the database is unreachable, and says so`() = testApplication {
         val config = sharedConfig.copy(pgUrl = "jdbc:postgresql://127.0.0.1:1/nowhere?connectTimeout=1&loginTimeout=1")
-        Brain(config, FakeProvider(768)).use { brain ->
+        Brain.resource(config, FakeProvider(768)).use { brain ->
             application { brainModule(brain.config, brain.readiness) }
             val response = client.get("/ready")
             assertThat(response.status).isEqualTo(HttpStatusCode.ServiceUnavailable)

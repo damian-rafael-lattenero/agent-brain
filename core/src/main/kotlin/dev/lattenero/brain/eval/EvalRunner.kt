@@ -77,7 +77,7 @@ class EvalRunner(private val config: Config, private val questions: List<EvalQue
         val report = runBlocking {
             freshEvalDatabase().use { dbName ->
                 val evalConfig = config.copy(pgUrl = config.pgUrl.substringBeforeLast('/') + "/" + dbName)
-                Brain(evalConfig).use { brain -> evaluate(brain, started) }
+                Brain.resource(evalConfig).use { brain -> evaluate(brain, started) }
             }
         }
         persist(config, report)

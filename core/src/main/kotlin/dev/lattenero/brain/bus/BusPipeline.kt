@@ -17,7 +17,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * transport is a knob (`bus_transport: file | kafka`); the handler behind it
  * is the same object either way (ADR-003).
  */
-class BusPipeline(private val config: Config, db: Database) {
+class BusPipeline(private val config: Config, db: Database) : AutoCloseable {
     val tailer: FileTailer = FileTailer.open(config.busFile, config.stateDir)
     val ingest: PgBusIngest = PgBusIngest(db)
     val isKafka: Boolean get() = config.busTransport == TRANSPORT_KAFKA
@@ -39,6 +39,8 @@ class BusPipeline(private val config: Config, db: Database) {
         job = null
         kafka?.close()
     }
+
+    override fun close() = stop()
 
     /** Drains everything currently available on the transport; returns the events handed over. */
     suspend fun drain(): Int {
