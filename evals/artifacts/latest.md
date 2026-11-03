@@ -1,6 +1,6 @@
 # eval: recall-fixture · nomic-embed-text (ollama)
 
-- started: 2026-11-03T23:30:12.881814Z · 1884 ms
+- started: 2026-11-03T23:34:30.362950Z · 1417 ms
 - **20/20 passed (gate 0.9) → PASS**
 
 | question | expected | rank@5 | top hit |
