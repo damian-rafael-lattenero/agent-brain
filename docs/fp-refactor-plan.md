@@ -64,8 +64,13 @@ property tests green in CI.
 The extraction pipeline's three bins (invalid → quarantine+reason,
 provider down → bump attempts, gave up → quarantine 'gave up') become an
 `Either`/`Validated` chain (kap-arrow) instead of exception-driven
-branching; the ingest quarantine writes stay at the edge. Same for
-provider fallback selection (Ollama → GLM → Fake).
+branching; the ingest quarantine writes stay at the edge. ~~Same for
+provider fallback selection (Ollama → GLM → Fake).~~ **SUPERSEDED
+(2026-11-03) by plan.md C3:** provider fallback selection does NOT become
+a runtime `Either` chain. ADR-004: `embed_dim` is a database property, and
+a runtime fallback across embedding models would corrupt the index —
+selection stays the config-time pure `when` (`EmbeddingProviders.create`,
+embeddings/EmbeddingProvider.kt), refusing unknown providers at startup.
 
 Exit: no exception as control flow outside the IO edge; signatures show
 `Either` where accumulation matters; suite green, behavior identical
