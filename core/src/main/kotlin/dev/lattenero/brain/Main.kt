@@ -15,7 +15,9 @@ import dev.lattenero.brain.bus.BusStatus
 import dev.lattenero.brain.eval.EvalReport
 import dev.lattenero.brain.eval.EvalRunner
 import dev.lattenero.brain.http.readCorpusFile
+import dev.lattenero.brain.memory.DedupReport
 import dev.lattenero.brain.memory.Memory
+import dev.lattenero.brain.memory.MemoryDedup
 import dev.lattenero.brain.memory.MemoryRequestException
 import dev.lattenero.brain.memory.MemorySaveRequest
 import dev.lattenero.brain.memory.MemorySearchRequest
@@ -72,6 +74,8 @@ const val USAGE = """usage: agent-brain <command> [args]
                      agent-brain); --dry-run scans and reports, no Postgres needed
   query TEXT [--k N] hybrid retrieval with citations (no generation)
   memory search TEXT [--k N] | recent [--k N] [--kind K] | save KIND TEXT | quarantine | status | run [--once]
+  memory dedup [--dry-run]
+                     merge existing near-duplicate memories into their oldest row (one-shot, idempotent)
   health [--url U]   GET /ready of a running service; exit 1 when degraded
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
@@ -322,6 +326,7 @@ private fun memory(args: List<String>): Int {
                 printJson(responseJson.encodeToJsonElement(ListSerializer(QuarantineRow.serializer()), rows))
                 EXIT_OK
             }
+            "dedup" -> memoryDedup(brain, dryRun = "--dry-run" in rest)
             "status" -> {
                 printJson(responseJson.encodeToJsonElement(MemoryStatus.serializer(), brain.memory.status()))
                 EXIT_OK
@@ -343,6 +348,18 @@ private fun memory(args: List<String>): Int {
 
 private fun List<String>.withoutOption(flag: String): List<String> =
     filterIndexed { i, a -> a != flag && (i == 0 || this[i - 1] != flag) }
+
+/**
+ * `memory dedup [--dry-run]`: the one-shot backfill. Plan from values, apply
+ * unless --dry-run; idempotent — a second run plans nothing to merge.
+ */
+private suspend fun memoryDedup(brain: Brain, dryRun: Boolean): Int {
+    val rows = brain.memoryStore.dedupRows()
+    val plan = MemoryDedup.plan(rows)
+    if (!dryRun) brain.memoryStore.applyDedup(plan)
+    printJson(responseJson.encodeToJsonElement(DedupReport.serializer(), MemoryDedup.report(rows, plan, dryRun)))
+    return EXIT_OK
+}
 
 private fun query(args: List<String>): Int {
     val k = args.optionValue("--k")?.toIntOrNull() ?: QueryRequest(query = "").k
