@@ -19,6 +19,7 @@ import dev.lattenero.brain.rag.RagService
 import org.slf4j.LoggerFactory
 import io.ktor.http.HttpStatusCode
 import kap.KapTypeSafe
+import kap.ProcessHandle
 import kap.evalGraph
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -117,7 +118,15 @@ val responseJson = Json {
 @Serializable
 data class ErrorResponse(val error: String)
 
-fun Application.brainModule(config: Config, readiness: Readiness, bus: BusPipeline? = null, rag: RagService? = null, indexer: Indexer? = null, memory: MemoryService? = null) {
+fun Application.brainModule(
+    config: Config,
+    readiness: Readiness,
+    bus: BusPipeline? = null,
+    rag: RagService? = null,
+    indexer: Indexer? = null,
+    memory: MemoryService? = null,
+    busProcess: ProcessHandle<*>? = null,
+) {
     install(ContentNegotiation) { json(responseJson) }
     routing {
         get("/health") {
@@ -129,7 +138,7 @@ fun Application.brainModule(config: Config, readiness: Readiness, bus: BusPipeli
             call.respond(status, report)
         }
         if (bus != null) {
-            get("/bus/status") { call.respond(bus.status()) }
+            get("/bus/status") { call.respond(bus.status(busProcess)) }
         }
         if (rag != null) {
             post("/rag/query") {
@@ -213,9 +222,18 @@ fun readCorpusFile(config: Config): List<String> =
     }
 
 object BrainServer {
-    fun start(config: Config, readiness: Readiness, bus: BusPipeline?, rag: RagService?, indexer: Indexer?, memory: MemoryService?, wait: Boolean): EmbeddedServer<*, *> {
+    fun start(
+        config: Config,
+        readiness: Readiness,
+        bus: BusPipeline?,
+        rag: RagService?,
+        indexer: Indexer?,
+        memory: MemoryService?,
+        wait: Boolean,
+        busProcess: ProcessHandle<*>? = null,
+    ): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, host = config.httpHost, port = config.httpPort) {
-            brainModule(config, readiness, bus, rag, indexer, memory)
+            brainModule(config, readiness, bus, rag, indexer, memory, busProcess)
         }
         log.info("agent-brain $VERSION listening on ${config.httpHost}:${config.httpPort}")
         return server.start(wait = wait)

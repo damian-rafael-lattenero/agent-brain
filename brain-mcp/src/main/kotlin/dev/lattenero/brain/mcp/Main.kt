@@ -4,6 +4,7 @@ import dev.lattenero.brain.Brain
 import kap.Kap
 import kap.Resource
 import kap.awaiting
+import kap.race
 import kap.KapTypeSafe
 import kap.evalGraph
 import dev.lattenero.brain.config.Config
@@ -140,91 +141,119 @@ private fun stdoutGuard(): Resource<Unit> = Resource(
 private val REAL_OUT: java.io.PrintStream = System.out
 
 fun main(argv: Array<String>) {
-    val (server, toolsServed) = runBlocking {
-        stdoutGuard().use { _ ->
-            val parsed = try {
-                Args.parse(argv.toList())
-            } catch (e: IllegalArgumentException) {
-                System.err.println("brain-mcp: ${e.message}")
-                exitProcess(2)
-            }
-            parsed.abBase?.let { System.setProperty("AB_BASE_OVERRIDE", it) }
-            parsed.abConfig?.let { System.setProperty("AB_CONFIG_OVERRIDE", it) }
+    val parsed = try {
+        Args.parse(argv.toList())
+    } catch (e: IllegalArgumentException) {
+        System.err.println("brain-mcp: ${e.message}")
+        exitProcess(2)
+    }
+    parsed.abBase?.let { System.setProperty("AB_BASE_OVERRIDE", it) }
+    parsed.abConfig?.let { System.setProperty("AB_CONFIG_OVERRIDE", it) }
+    val config = try {
+        loadConfig()
+    } catch (e: Exception) {
+        System.err.println("brain-mcp: cannot configure the brain: ${e.message}")
+        exitProcess(1)
+    }
+    try {
+        runBlocking { Brain.resource(config).use { brain -> serve(brain) } }
+    } catch (e: Exception) {
+        System.err.println("brain-mcp: cannot start: ${e.message}")
+        exitProcess(1)
+    }
+    log.info("brain-mcp exiting")
+}
 
-            val brain = try {
-                Brain(loadConfig())
-            } catch (e: Exception) {
-                System.err.println("brain-mcp: cannot configure the brain: ${e.message}")
-                exitProcess(1)
-            }
-            Runtime.getRuntime().addShutdownHook(Thread { brain.close() })
+/** Startup, then park until the session closes or the JVM is asked to stop; both leave through the Brain Resource. */
+private suspend fun serve(brain: Brain) {
+    val (server, toolsServed) = stdoutGuard().use { _ ->
+        val http = HttpBrainClient("http://${brain.config.httpHost}:${brain.config.httpPort}")
+        // Registry and liveness probe come up together; a dead brain is advisory here (the
+        // envelopes report it per call) but it is logged once at startup.
+        val wiring = kap(::ToolWiring)
+            .with { registry from BrainTools.all }
+            .with { brainReady from brainReady(http) }
+            .evalGraph()
+        if (!wiring.brainReady) log.warn("the brain's HTTP API is not reachable yet; tool calls will answer brain_unavailable until it is")
+        val served = AtomicInteger()
 
-            val http = HttpBrainClient("http://${brain.config.httpHost}:${brain.config.httpPort}")
-            // Registry and liveness probe come up together; a dead brain is advisory here (the
-            // envelopes report it per call) but it is logged once at startup.
-            val wiring = kap(::ToolWiring)
-                .with { registry from BrainTools.all }
-                .with { brainReady from brainReady(http) }
-                .evalGraph()
-            if (!wiring.brainReady) log.warn("the brain's HTTP API is not reachable yet; tool calls will answer brain_unavailable until it is")
-            val served = AtomicInteger()
-
-            val wired = Server(
-                serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
-                options = ServerOptions(capabilities = ServerCapabilities(tools = ServerCapabilities.Tools())),
-                instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent) and bus health (bus_status). " +
-                    "Every response is an envelope: {status, result|error{kind,message}, warnings, nextStep, meta{trace_id, tool_version}}.",
-            ) {
-                for (spec in wiring.registry) {
-                    addTool(
-                        name = spec.name,
-                        description = spec.description,
-                        inputSchema = Json.decodeFromJsonElement(io.modelcontextprotocol.kotlin.sdk.types.ToolSchema.serializer(), spec.inputSchema),
-                    ) { request ->
-                        served.incrementAndGet()
-                        envelope(spec, request) { args ->
-                            when (spec.name) {
-                                BrainTools.ragQuery.name -> {
-                                    val k = BrainTools.intArg(args, "k", QueryRequest(query = "").k, 50)
-                                    http.post("/rag/query", Json.encodeToString(QueryRequest.serializer(), QueryRequest(BrainTools.stringArg(args, "query"), k))).second
-                                }
-                                BrainTools.memorySearch.name -> {
-                                    val k = BrainTools.intArg(args, "k", MemoryService.DEFAULT_K, 50)
-                                    http.post("/memory/search", Json.encodeToString(MemorySearchRequest.serializer(), MemorySearchRequest(BrainTools.stringArg(args, "query"), k))).second
-                                }
-                                BrainTools.memoryRecent.name -> {
-                                    val limit = BrainTools.intArg(args, "limit", MemoryService.DEFAULT_K, 50)
-                                    val kind = BrainTools.stringArg(args, "kind")
-                                    http.get("/memory/recent?limit=$limit" + (if (kind.isEmpty()) "" else "&kind=" + java.net.URLEncoder.encode(kind, Charsets.UTF_8))).second
-                                }
-                                BrainTools.busStatus.name -> http.get("/bus/status").second
-                                else -> throw IllegalStateException("unrouted tool ${spec.name}")
-                            }
-                        }
-                    }
-                }
-            }
-            wired to served
-        }
+        newServer(wiring, http, served) to served
     }
 
     // createSession starts the transport on its OWN scope: main returning would kill it.
-    // Park on the session's close callback (KAP: the lifecycle as a Kap, cancellable).
-    runBlocking {
-        val transport = StdioServerTransport(
-            input = System.`in`.asSource().buffered(),
-            output = System.out.asSink().buffered(),
-        )
-        val session = server.createSession(transport)
-        Kap.awaiting<Unit> { resume: (Unit) -> Unit, cancel: (Throwable) -> Unit ->
+    // Park on whichever comes first — the session closing or the JVM's stop signal — so
+    // the Brain Resource above is released before the process ends.
+    val transport = StdioServerTransport(
+        input = System.`in`.asSource().buffered(),
+        output = System.out.asSink().buffered(),
+    )
+    val session = server.createSession(transport)
+    race(
+        Kap.awaiting<Unit> { resume: (Unit) -> Unit, _: (Throwable) -> Unit ->
             session.onClose {
                 log.info("brain-mcp session closed after {} tool call(s)", toolsServed.get())
                 resume(Unit)
             }
-        }.evalGraph()
-    }
-    log.info("brain-mcp exiting")
+        },
+        shutdownSignal(Thread.currentThread()),
+    ).evalGraph()
 }
+
+/** The MCP server with the four tools; every handler answers with the envelope, never throws. */
+private fun newServer(wiring: ToolWiring, http: HttpBrainClient, served: AtomicInteger): Server = Server(
+    serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
+    options = ServerOptions(capabilities = ServerCapabilities(tools = ServerCapabilities.Tools())),
+    instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent) and bus health (bus_status). " +
+        "Every response is an envelope: {status, result|error{kind,message}, warnings, nextStep, meta{trace_id, tool_version}}.",
+) {
+    for (spec in wiring.registry) {
+        addTool(
+            name = spec.name,
+            description = spec.description,
+            inputSchema = Json.decodeFromJsonElement(io.modelcontextprotocol.kotlin.sdk.types.ToolSchema.serializer(), spec.inputSchema),
+        ) { request ->
+            served.incrementAndGet()
+            envelope(spec, request) { args ->
+                when (spec.name) {
+                    BrainTools.ragQuery.name -> {
+                        val k = BrainTools.intArg(args, "k", QueryRequest(query = "").k, 50)
+                        http.post("/rag/query", Json.encodeToString(QueryRequest.serializer(), QueryRequest(BrainTools.stringArg(args, "query"), k))).second
+                    }
+                    BrainTools.memorySearch.name -> {
+                        val k = BrainTools.intArg(args, "k", MemoryService.DEFAULT_K, 50)
+                        http.post("/memory/search", Json.encodeToString(MemorySearchRequest.serializer(), MemorySearchRequest(BrainTools.stringArg(args, "query"), k))).second
+                    }
+                    BrainTools.memoryRecent.name -> {
+                        val limit = BrainTools.intArg(args, "limit", MemoryService.DEFAULT_K, 50)
+                        val kind = BrainTools.stringArg(args, "kind")
+                        http.get("/memory/recent?limit=$limit" + (if (kind.isEmpty()) "" else "&kind=" + java.net.URLEncoder.encode(kind, Charsets.UTF_8))).second
+                    }
+                    BrainTools.busStatus.name -> http.get("/bus/status").second
+                    else -> throw IllegalStateException("unrouted tool ${spec.name}")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The JVM's stop signal (SIGTERM/SIGINT) as a cancellable [Kap]: the hook only
+ * resumes the await and then holds the shutdown until main has finished the
+ * Brain Resource release — the JVM waits for hooks, not for main, so a hook
+ * that returned immediately could be overtaken by the halt mid-release.
+ */
+private fun shutdownSignal(mainThread: Thread): Kap<Unit> =
+    Kap.awaiting { resume, _ ->
+        Runtime.getRuntime().addShutdownHook(
+            Thread {
+                resume(Unit)
+                mainThread.join(SHUTDOWN_JOIN_MS)
+            },
+        )
+    }
+
+/** How long the shutdown hook waits for main to finish the Resource release before the JVM halts. */
+private const val SHUTDOWN_JOIN_MS = 5_000L
 
 private suspend fun brainReady(http: HttpBrainClient): Boolean = try {
     http.get("/ready").first == 200

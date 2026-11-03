@@ -31,11 +31,16 @@ import kotlinx.coroutines.launch
 import dev.lattenero.brain.rag.QueryRequest
 import dev.lattenero.brain.rag.QueryResponse
 import dev.lattenero.brain.rag.RagQueryException
+import kap.Process
+import kap.ProcessExhaustedException
+import kap.ProcessHandle
+import kap.ProcessStoppedException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -45,6 +50,7 @@ import kotlinx.serialization.json.putJsonArray
 import java.io.IOException
 import java.sql.SQLException
 import kotlin.system.exitProcess
+import kotlin.time.Duration.Companion.milliseconds
 
 private val log = LoggerFactory.getLogger("agent-brain")
 
@@ -111,60 +117,98 @@ fun run(args: Array<String>): Int {
     }
 }
 
+/**
+ * One command, one Brain: the Resource graph releases the pool, the clients
+ * and the providers on success, on failure and on cancellation.
+ */
+private fun <T> withBrain(config: Config, block: suspend (Brain) -> T): T =
+    runBlocking { Brain.resource(config).use(block) }
+
 private fun serve(): Int {
     val config = Config.load()
-    Brain(config).use { brain ->
-        val applied = runBlocking { brain.migrator.apply() }
+    withBrain(config) { brain ->
+        val applied = brain.migrator.apply()
         if (applied.isNotEmpty()) log.info("migrations applied: ${applied.joinToString()}")
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        brain.bus.start(scope)
-        if (brain.bus.isKafka) {
-            log.info("bus consumer on ${config.kafkaBootstrap} topic ${config.kafkaTopic} group ${config.kafkaGroup}")
-        } else {
-            log.info("bus tailer on ${config.busFile} every ${config.busPollMs} ms")
-        }
-        if (config.memoryWorker) {
-            scope.launch { brain.memoryWorker.run(kotlin.time.Duration.parse("${config.memoryPollMs}ms")) }
-            log.info("memory worker every ${config.memoryPollMs} ms with ${brain.chat.name}/${brain.chat.model}")
-        }
-        try {
-            BrainServer.start(config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory, wait = true)
-        } finally {
-            scope.cancel()
+        // The ONE process scope: every long-lived loop is a child of this scope,
+        // so leaving it stops and joins them all (structured concurrency). A
+        // process that exhausts its restarts is logged, never fatal for serve.
+        withContext(Dispatchers.Default) {
+            supervisorScope {
+                val busProcess = startProcess(brain.bus.process())
+                if (brain.bus.isKafka) {
+                    log.info(
+                        "bus consumer on {} topic {} group {}",
+                        config.kafkaBootstrap, config.kafkaTopic, config.kafkaGroup,
+                    )
+                } else {
+                    log.info("bus tailer on {} every {} ms", config.busFile, config.busPollMs)
+                }
+                if (config.memoryWorker) {
+                    startProcess(brain.memoryWorker.process(config.memoryPollMs.milliseconds))
+                    log.info(
+                        "memory worker every {} ms with {}/{}",
+                        config.memoryPollMs, brain.chat.name, brain.chat.model,
+                    )
+                }
+                BrainServer.start(
+                    config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory,
+                    wait = true, busProcess = busProcess,
+                )
+            }
         }
     }
     return EXIT_OK
 }
 
+/**
+ * Starts [process] as a child of this scope and logs its terminal outcome. The
+ * returned handle is the process's observability surface (restarts, heartbeat
+ * age); its failure never takes the scope down (a supervised process is a
+ * sibling, not a parent).
+ */
+private fun CoroutineScope.startProcess(process: Process<*>): ProcessHandle<*> {
+    val handle = process.startIn(this)
+    launch {
+        try {
+            handle.await()
+        } catch (e: ProcessExhaustedException) {
+            log.error("process {} exhausted its restarts: {}", handle.name, e.cause?.message)
+        } catch (e: ProcessStoppedException) {
+            log.info("process {} stopped: {}", handle.name, e.message)
+        }
+    }
+    return handle
+}
+
 private fun ingest(once: Boolean): Int {
     val config = Config.load()
-    Brain(config).use { brain ->
-        runBlocking { brain.migrator.apply() }
+    return withBrain(config) { brain ->
+        brain.migrator.apply()
         if (once) {
-            val handed = runBlocking { brain.bus.drain() }
-            val status = runBlocking { brain.bus.status() }
+            val handed = brain.bus.drain()
+            val status = brain.bus.status()
             printJson(responseJson.encodeToJsonElement(BusStatus.serializer(), status))
             log.info("drained $handed event(s)")
-            return EXIT_OK
+        } else {
+            brain.bus.run()
         }
-        runBlocking { brain.bus.tailer.run(kotlin.time.Duration.parse("${config.busPollMs}ms")) { brain.bus.ingest.handle(it) } }
+        EXIT_OK
     }
-    return EXIT_OK
 }
 
 private fun index(args: List<String>): Int {
     val config = Config.load()
     val globs = args.ifEmpty { readCorpusFile(config) }
     if (globs.isEmpty()) return fail("index: no globs given and ${config.corpusFile} is empty or missing")
-    Brain(config).use { brain ->
-        runBlocking { brain.migrator.apply() }
+    return withBrain(config) { brain ->
+        brain.migrator.apply()
         val report = try {
-            runBlocking { brain.indexer.indexGlobs(globs) }
+            brain.indexer.indexGlobs(globs)
         } catch (e: IllegalArgumentException) {
-            return fail("index: ${e.message}")
+            return@withBrain fail("index: ${e.message}")
         }
         printJson(responseJson.encodeToJsonElement(IndexReport.serializer(), report))
-        return if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
+        if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
     }
 }
 
@@ -215,11 +259,11 @@ private fun indexPlan(plan: Repos.Plan): Int {
         return fail("index-repos: no repository roots found under ${plan.report.projectsDir}")
     }
     val config = Config.load()
-    Brain(config).use { brain ->
-        runBlocking { brain.migrator.apply() }
-        val report = runBlocking { brain.indexer.index(plan.scan.documents, plan.scan.skipped, plan.pruneKept) }
+    return withBrain(config) { brain ->
+        brain.migrator.apply()
+        val report = brain.indexer.index(plan.scan.documents, plan.scan.skipped, plan.pruneKept)
         printJson(responseJson.encodeToJsonElement(IndexReport.serializer(), report))
-        return if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
+        if (report.failed.isEmpty()) EXIT_OK else EXIT_FAIL
     }
 }
 
@@ -243,41 +287,58 @@ private fun memory(args: List<String>): Int {
     val sub = args.firstOrNull() ?: return usage()
     val rest = args.drop(1)
     val config = Config.load()
-    Brain(config).use { brain ->
+    return withBrain(config) { brain ->
         when (sub) {
             "search" -> {
                 val k = rest.optionValue("--k")?.toIntOrNull() ?: MemorySearchRequest(query = "").k
                 val text = rest.withoutOption("--k").joinToString(" ")
-                if (text.isBlank()) return usage()
-                val response = runBlocking { brain.memory.search(MemorySearchRequest(text, k)) }
-                printJson(responseJson.encodeToJsonElement(MemorySearchResponse.serializer(), response))
+                if (text.isBlank()) {
+                    usage()
+                } else {
+                    val response = brain.memory.search(MemorySearchRequest(text, k))
+                    printJson(responseJson.encodeToJsonElement(MemorySearchResponse.serializer(), response))
+                    EXIT_OK
+                }
             }
             "recent" -> {
                 val k = rest.optionValue("--k")?.toIntOrNull() ?: MemorySearchRequest(query = "").k
-                val list = runBlocking { brain.memory.recent(k, rest.optionValue("--kind")) }
+                val list = brain.memory.recent(k, rest.optionValue("--kind"))
                 printJson(responseJson.encodeToJsonElement(ListSerializer(Memory.serializer()), list))
+                EXIT_OK
             }
             "save" -> {
-                val kind = rest.firstOrNull() ?: return usage()
-                val text = rest.drop(1).joinToString(" ")
-                val saved = runBlocking { brain.memory.save(MemorySaveRequest(kind, text)) }
-                printJson(responseJson.encodeToJsonElement(Memory.serializer(), saved))
-            }
-            "quarantine" -> printJson(responseJson.encodeToJsonElement(ListSerializer(QuarantineRow.serializer()), runBlocking { brain.memory.quarantined(MemorySearchRequest(query = "").k) }))
-            "status" -> printJson(responseJson.encodeToJsonElement(MemoryStatus.serializer(), runBlocking { brain.memory.status() }))
-            "run" -> {
-                runBlocking { brain.migrator.apply() }
-                if ("--once" in rest) {
-                    val report = runBlocking { brain.memoryWorker.processOnce() }
-                    printJson(responseJson.encodeToJsonElement(WorkerReport.serializer(), report))
+                val kind = rest.firstOrNull()
+                if (kind == null) {
+                    usage()
                 } else {
-                    runBlocking { brain.memoryWorker.run(kotlin.time.Duration.parse("${config.memoryPollMs}ms")) }
+                    val text = rest.drop(1).joinToString(" ")
+                    val saved = brain.memory.save(MemorySaveRequest(kind, text))
+                    printJson(responseJson.encodeToJsonElement(Memory.serializer(), saved))
+                    EXIT_OK
                 }
             }
-            else -> return usage()
+            "quarantine" -> {
+                val rows = brain.memory.quarantined(MemorySearchRequest(query = "").k)
+                printJson(responseJson.encodeToJsonElement(ListSerializer(QuarantineRow.serializer()), rows))
+                EXIT_OK
+            }
+            "status" -> {
+                printJson(responseJson.encodeToJsonElement(MemoryStatus.serializer(), brain.memory.status()))
+                EXIT_OK
+            }
+            "run" -> {
+                brain.migrator.apply()
+                if ("--once" in rest) {
+                    val report = brain.memoryWorker.processOnce()
+                    printJson(responseJson.encodeToJsonElement(WorkerReport.serializer(), report))
+                } else {
+                    brain.memoryWorker.run(config.memoryPollMs.milliseconds)
+                }
+                EXIT_OK
+            }
+            else -> usage()
         }
     }
-    return EXIT_OK
 }
 
 private fun List<String>.withoutOption(flag: String): List<String> =
@@ -288,11 +349,11 @@ private fun query(args: List<String>): Int {
     val text = args.filterIndexed { i, a -> a != "--k" && (i == 0 || args[i - 1] != "--k") }.joinToString(" ")
     if (text.isBlank()) return usage()
     val config = Config.load()
-    Brain(config).use { brain ->
-        val response = runBlocking { brain.rag.query(QueryRequest(text, k)) }
+    return withBrain(config) { brain ->
+        val response = brain.rag.query(QueryRequest(text, k))
         printJson(responseJson.encodeToJsonElement(QueryResponse.serializer(), response))
+        EXIT_OK
     }
-    return EXIT_OK
 }
 
 private fun bridge(once: Boolean): Int {
@@ -311,18 +372,18 @@ private fun bridge(once: Boolean): Int {
 
 private fun busStatus(): Int {
     val config = Config.load()
-    Brain(config).use { brain ->
-        val status = runBlocking { brain.bus.status() }
+    return withBrain(config) { brain ->
+        val status = brain.bus.status()
         printJson(responseJson.encodeToJsonElement(BusStatus.serializer(), status))
+        EXIT_OK
     }
-    return EXIT_OK
 }
 
 private fun migrate(status: Boolean): Int {
     val config = Config.load()
-    Brain(config).use { brain ->
-        val appliedNow = if (status) emptyList() else runBlocking { brain.migrator.apply() }
-        val state = runBlocking { brain.migrator.status() }
+    return withBrain(config) { brain ->
+        val appliedNow = if (status) emptyList() else brain.migrator.apply()
+        val state = brain.migrator.status()
         printJson(
             buildJsonObject {
                 putJsonArray("applied_now") { appliedNow.forEach { add(JsonPrimitive(it)) } }
@@ -331,24 +392,22 @@ private fun migrate(status: Boolean): Int {
                 put("embed_dim", state.embedDim)
             },
         )
-        return if (state.pending.isEmpty()) EXIT_OK else EXIT_FAIL
+        if (state.pending.isEmpty()) EXIT_OK else EXIT_FAIL
     }
 }
 
 private fun health(url: String?): Int {
     val config = Config.load()
     val target = url ?: "http://${config.httpHost}:${config.httpPort}/ready"
-    Brain(config).use { brain ->
-        return runBlocking {
-            try {
-                val response = brain.httpClient.get(target)
-                val body = response.bodyAsText()
-                println(body)
-                val parsed = runCatching { HttpClients.json.decodeFromString<ReadyResponse>(body) }
-                if (response.status.value == 200 && parsed.getOrNull()?.ok == true) EXIT_OK else EXIT_FAIL
-            } catch (e: IOException) {
-                fail("health: $target unreachable (${e.message})")
-            }
+    return withBrain(config) { brain ->
+        try {
+            val response = brain.httpClient.get(target)
+            val body = response.bodyAsText()
+            println(body)
+            val parsed = runCatching { HttpClients.json.decodeFromString<ReadyResponse>(body) }
+            if (response.status.value == 200 && parsed.getOrNull()?.ok == true) EXIT_OK else EXIT_FAIL
+        } catch (e: IOException) {
+            fail("health: $target unreachable (${e.message})")
         }
     }
 }
@@ -356,8 +415,8 @@ private fun health(url: String?): Int {
 private fun embed(texts: List<String>): Int {
     if (texts.isEmpty()) return usage()
     val config = Config.load()
-    Brain(config).use { brain ->
-        val vectors = runBlocking { brain.provider.embed(texts) }
+    return withBrain(config) { brain ->
+        val vectors = brain.provider.embed(texts)
         printJson(
             buildJsonObject {
                 put("provider", brain.provider.name)
@@ -365,8 +424,8 @@ private fun embed(texts: List<String>): Int {
                 put("vectors", previews(texts, vectors))
             },
         )
+        EXIT_OK
     }
-    return EXIT_OK
 }
 
 private fun previews(texts: List<String>, vectors: List<FloatArray>): JsonArray = buildJsonArray {
