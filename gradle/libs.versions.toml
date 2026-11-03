@@ -9,7 +9,10 @@ pgvector = "0.1.6"
 kafka = "4.4.0"
 logback = "1.6.6"
 mcp-kotlin-sdk = "0.16.0"
-kap = "4.2.0"
+# TEMPORARY (Phase G dogfooding): 5.0.0 resolves from mavenLocal (see
+# settings.gradle.kts) until the Central release lands; bump back to Central
+# only, never publish kap from here.
+kap = "5.0.0"
 ksp = "2.3.12"
 arrow = "2.1.2"
 detekt = "2.0.0-alpha.6"
@@ -43,6 +46,7 @@ kap-ksp = { module = "io.github.damian-rafael-lattenero:kap-ksp", version.ref = 
 kap-ksp-annotations = { module = "io.github.damian-rafael-lattenero:kap-ksp-annotations", version.ref = "kap" }
 kap-arrow = { module = "io.github.damian-rafael-lattenero:kap-arrow", version.ref = "kap" }
 kap-ktor = { module = "io.github.damian-rafael-lattenero:kap-ktor", version.ref = "kap" }
+kap-stream = { module = "io.github.damian-rafael-lattenero:kap-stream", version.ref = "kap" }
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
 ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
@@ -56,7 +60,7 @@ ktor-server = ["ktor-server-core", "ktor-server-cio", "ktor-server-content-negot
 ktor-client = ["ktor-client-core", "ktor-client-cio", "ktor-client-content-negotiation", "ktor-serialization-kotlinx-json"]
 db = ["hikaricp", "postgresql", "pgvector"]
 logging = ["logback-classic"]
-kap = ["kap-core", "kap-resilience", "kap-ksp-annotations", "kap-arrow", "kap-ktor", "arrow-core"]
+kap = ["kap-core", "kap-resilience", "kap-stream", "kap-ksp-annotations", "kap-arrow", "kap-ktor", "arrow-core"]
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

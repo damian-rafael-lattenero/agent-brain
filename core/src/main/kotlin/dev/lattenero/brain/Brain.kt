@@ -54,7 +54,10 @@ class Brain private constructor(
         concurrency = config.embedConcurrency,
         timeout = config.httpTimeoutS.seconds,
         tracer = tracer,
-        breaker = CircuitBreaker(maxFailures = config.embedBreakerFailures, resetTimeout = config.embedBreakerResetS.seconds),
+        breaker = CircuitBreaker(
+            maxFailures = config.embedBreakerFailures,
+            retryAfter = config.embedBreakerResetS.seconds,
+        ),
     )
     val indexer: Indexer = Indexer(
         store = ragStore,
@@ -67,7 +70,10 @@ class Brain private constructor(
         chat = chat,
         timeout = config.chatTimeoutS.seconds,
         tracer = tracer,
-        breaker = CircuitBreaker(maxFailures = config.embedBreakerFailures, resetTimeout = config.embedBreakerResetS.seconds),
+        breaker = CircuitBreaker(
+            maxFailures = config.embedBreakerFailures,
+            retryAfter = config.embedBreakerResetS.seconds,
+        ),
     )
     val memoryWorker: MemoryWorker = MemoryWorker(memoryStore, extractor, embedPipeline)
     val memory: MemoryService = MemoryService(provider, memoryStore, extractor, config.memoryHalfLifeDays)

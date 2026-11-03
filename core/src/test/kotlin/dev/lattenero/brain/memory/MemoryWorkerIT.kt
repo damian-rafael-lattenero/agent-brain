@@ -51,10 +51,10 @@ class MemoryWorkerIT {
         return Fixture(config, db)
     }
 
-    private fun pipeline(f: Fixture) = EmbedPipeline(embedder, 8, 2, 10.seconds, f.tracer, CircuitBreaker(100, 1.minutes))
+    private fun pipeline(f: Fixture) = EmbedPipeline(embedder, 8, 2, 10.seconds, f.tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes))
 
     private fun worker(f: Fixture, chat: ChatProvider, attempts: Int = 3, maxAttempts: Int = 3): MemoryWorker {
-        val extractor = MemoryExtractor(chat, 10.seconds, f.tracer, CircuitBreaker(100, 1.minutes), attempts, backoffBase = 10.seconds.div(1000))
+        val extractor = MemoryExtractor(chat, 10.seconds, f.tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes), attempts, backoffBase = 10.seconds.div(1000))
         return MemoryWorker(f.store, extractor, pipeline(f), batch = 10, maxAttempts = maxAttempts)
     }
 
