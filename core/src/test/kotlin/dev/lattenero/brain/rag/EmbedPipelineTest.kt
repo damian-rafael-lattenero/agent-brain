@@ -6,6 +6,8 @@ import dev.lattenero.brain.embeddings.ProviderUnavailable
 import kap.CircuitBreaker
 import kap.CircuitBreakerOpenException
 import kap.evalGraph
+import kap.kotest.shouldBeClosed
+import kap.kotest.shouldBeHalfOpen
 import kap.kotest.shouldBeOpen
 import kap.kotest.shouldProveParallel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -18,7 +20,10 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+import kotlin.time.TimeMark
 
 /** Virtual time throughout: a 50 ms delay costs 0 ms of wall clock, so parallelism is PROVEN, not timed. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -43,8 +48,27 @@ class EmbedPipelineTest {
         }
     }
 
+    /**
+     * The breaker's cooldown is measured by ITS injected [TimeSource], not by
+     * the test's virtual scheduler — so the F79e tests step this clock across
+     * the reset window by hand.
+     */
+    private class SteppingClock : TimeSource {
+        val nowNanos = java.util.concurrent.atomic.AtomicLong()
+        override fun markNow(): TimeMark {
+            val start = nowNanos.get()
+            return object : TimeMark {
+                override fun elapsedNow(): Duration = (nowNanos.get() - start).nanoseconds
+            }
+        }
+
+        fun advance(duration: Duration) {
+            nowNanos.addAndGet(duration.inWholeNanoseconds)
+        }
+    }
+
     private fun pipeline(
-        provider: ScriptedProvider,
+        provider: dev.lattenero.brain.embeddings.EmbeddingProvider,
         batchSize: Int = 1,
         concurrency: Int = 4,
         timeout: Duration = 1.seconds,
@@ -118,6 +142,77 @@ class EmbedPipelineTest {
         assertThatThrownBy { kotlinx.coroutines.runBlocking { pipeline.embedBatch(listOf("x")).evalGraph() } }
             .isInstanceOf(CircuitBreakerOpenException::class.java)
         assertThat(dead.calls.get()).isEqualTo(2)
+    }
+
+    @Test
+    fun `the F79e lesson - the breaker closes on the SECOND consecutive probe success, not the first`() = runTest {
+        // Calls 1..5 fail (the default knob opens the circuit); the provider
+        // answers from call 6 on. One attempt per batch, so one call each.
+        val clock = SteppingClock()
+        val recovering = ScriptedProvider(failFirst = EmbedPipeline.DEFAULT_BREAKER_FAILURES)
+        val breaker = CircuitBreaker(
+            maxFailures = EmbedPipeline.DEFAULT_BREAKER_FAILURES,
+            retryAfter = EmbedPipeline.DEFAULT_BREAKER_RESET,
+            successThreshold = EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
+            timeSource = clock,
+        )
+        val pipeline = pipeline(recovering, attempts = 1, breaker = breaker)
+        repeat(EmbedPipeline.DEFAULT_BREAKER_FAILURES) {
+            assertThatThrownBy { kotlinx.coroutines.runBlocking { pipeline.embedBatch(listOf("x")).evalGraph() } }
+                .isInstanceOf(ProviderUnavailable::class.java)
+        }
+        breaker.shouldBeOpen()
+
+        // The cooldown passes (the breaker's own clock) and a probe is
+        // admitted. The FIRST success leaves the circuit HalfOpen — kap 4.x
+        // closed it here; the Python F79e lesson demands two consecutive
+        // probe successes.
+        clock.advance(EmbedPipeline.DEFAULT_BREAKER_RESET)
+        assertThat(pipeline.embedBatch(listOf("x")).evalGraph()).hasSize(1)
+        breaker.shouldBeHalfOpen()
+        assertThat(recovering.calls.get()).isEqualTo(EmbedPipeline.DEFAULT_BREAKER_FAILURES + 1)
+
+        // The SECOND consecutive success closes the circuit for real.
+        assertThat(pipeline.embedBatch(listOf("x")).evalGraph()).hasSize(1)
+        breaker.shouldBeClosed()
+    }
+
+    @Test
+    fun `a failed probe reopens the breaker - one lucky answer never closes the circuit`() = runTest {
+        // Calls 0..4 fail (opens the circuit), call 5 answers once, call 6 fails again.
+        val clock = SteppingClock()
+        val plan = listOf(false, false, false, false, false, true, false)
+        val calls = AtomicInteger()
+        val scripted = object : BaseProvider() {
+            override val name = "scripted-reopen"
+            override val model = "scripted-reopen-model"
+            override val dim = 8
+            private val inner = FakeProvider(8)
+            override suspend fun embedAll(texts: List<String>): List<FloatArray> {
+                val n = calls.getAndIncrement()
+                return if (n < plan.size && plan[n]) inner.embed(texts) else throw ProviderUnavailable("scripted failure $n")
+            }
+        }
+        val breaker = CircuitBreaker(
+            maxFailures = EmbedPipeline.DEFAULT_BREAKER_FAILURES,
+            retryAfter = EmbedPipeline.DEFAULT_BREAKER_RESET,
+            successThreshold = EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
+            timeSource = clock,
+        )
+        val failing = pipeline(scripted, attempts = 1, breaker = breaker)
+        repeat(EmbedPipeline.DEFAULT_BREAKER_FAILURES) {
+            assertThatThrownBy { kotlinx.coroutines.runBlocking { failing.embedBatch(listOf("x")).evalGraph() } }
+                .isInstanceOf(ProviderUnavailable::class.java)
+        }
+        breaker.shouldBeOpen()
+
+        // One lucky probe answer must NOT close the circuit (F79e): the next
+        // failing probe reopens it instead.
+        clock.advance(EmbedPipeline.DEFAULT_BREAKER_RESET)
+        assertThat(failing.embedBatch(listOf("x")).evalGraph()).hasSize(1)
+        assertThatThrownBy { kotlinx.coroutines.runBlocking { failing.embedBatch(listOf("x")).evalGraph() } }
+            .isInstanceOf(ProviderUnavailable::class.java)
+        breaker.shouldBeOpen()
     }
 
     @Test

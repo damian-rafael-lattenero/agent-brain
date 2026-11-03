@@ -72,6 +72,7 @@ class EmbedPipeline(
     val breaker: CircuitBreaker = CircuitBreaker(
         maxFailures = DEFAULT_BREAKER_FAILURES,
         retryAfter = DEFAULT_BREAKER_RESET,
+        successThreshold = DEFAULT_BREAKER_SUCCESS_THRESHOLD,
     ),
     private val attempts: Int = DEFAULT_ATTEMPTS,
     private val backoffBase: Duration = DEFAULT_BACKOFF_BASE,
@@ -102,6 +103,17 @@ class EmbedPipeline(
         const val PHASE_EMBED = "embed"
         const val DEFAULT_BREAKER_FAILURES = 5
         val DEFAULT_BREAKER_RESET = 30.seconds
+
+        /**
+         * The Python F79e lesson (the bot's transport breaker): ONE successful
+         * probe in HalfOpen must NOT close the circuit — a provider that
+         * answers once and breaks again would flap it open/closed forever.
+         * The circuit closes on the SECOND consecutive probe success; a failed
+         * probe reopens it. kap 4.x could not express this (it closed with 1);
+         * the `successThreshold` unlock (kap 5.0) exists for exactly this.
+         */
+        const val DEFAULT_BREAKER_SUCCESS_THRESHOLD = 2
+
         const val DEFAULT_ATTEMPTS = 3
         val DEFAULT_BACKOFF_BASE = 200.milliseconds
     }

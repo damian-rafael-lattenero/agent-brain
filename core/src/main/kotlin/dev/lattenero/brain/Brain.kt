@@ -58,6 +58,10 @@ class Brain private constructor(
         breaker = CircuitBreaker(
             maxFailures = config.embedBreakerFailures,
             retryAfter = config.embedBreakerResetS.seconds,
+            // The Python F79e lesson: the circuit closes on the SECOND
+            // consecutive HalfOpen success, not the first (kap 5.0's
+            // successThreshold; see EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD).
+            successThreshold = EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
         ),
     )
     val indexer: Indexer = Indexer(
@@ -74,6 +78,8 @@ class Brain private constructor(
         breaker = CircuitBreaker(
             maxFailures = config.embedBreakerFailures,
             retryAfter = config.embedBreakerResetS.seconds,
+            // The same F79e lesson as the embed breaker above (the knobs are shared).
+            successThreshold = EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
         ),
     )
     val memoryWorker: MemoryWorker = MemoryWorker(memoryStore, extractor, embedPipeline)
