@@ -2,15 +2,24 @@ package dev.lattenero.brain.mcp
 
 import dev.lattenero.brain.Brain
 import kap.Kap
+import kap.KapTimeoutException
 import kap.Resource
 import kap.awaiting
 import kap.race
 import kap.KapTypeSafe
 import kap.evalGraph
+import kap.timeoutAsFailure
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.memory.MemorySearchRequest
 import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.rag.QueryRequest
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolRequest
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
@@ -33,6 +42,8 @@ import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.exitProcess
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 private val log = LoggerFactory.getLogger("agent-brain.mcp")
 
@@ -107,23 +118,36 @@ object BrainTools {
     }
 }
 
-private class HttpBrainClient(baseUrl: String) {
+/**
+ * The brain's HTTP API seen from the tools: ONE transport, the same ktor
+ * client the Brain built and owns (plan C4 — the second, `java.net.http`
+ * one is gone). Every call is `Kap { }.timeoutAsFailure(...)` so a slow
+ * brain is an ordinary failure the envelope classifies as brain_unavailable
+ * (a raw timeout is a CancellationException, which nothing here may handle —
+ * ADR-007). ktor CIO suspends; the old blocking `HttpClient.send` needed
+ * Dispatchers.IO, this client does not.
+ */
+private class HttpBrainClient(baseUrl: String, private val client: HttpClient, private val timeout: Duration) {
     private val root = baseUrl.trimEnd('/')
-    private val http = java.net.http.HttpClient.newBuilder().build()
 
-    fun post(path: String, body: String): Pair<Int, String> {
-        val request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(root + path))
-            .header("Content-Type", "application/json")
-            .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body)).build()
-        val response = http.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
-        return response.statusCode() to response.body()
-    }
+    suspend fun post(path: String, body: String): Pair<Int, String> =
+        Kap {
+            val response = client.post(root + path) {
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            response.status.value to response.bodyAsText()
+        }
+            .timeoutAsFailure(timeout)
+            .evalGraph()
 
-    fun get(path: String): Pair<Int, String> {
-        val request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(root + path)).GET().build()
-        val response = http.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
-        return response.statusCode() to response.body()
-    }
+    suspend fun get(path: String): Pair<Int, String> =
+        Kap {
+            val response = client.get(root + path)
+            response.status.value to response.bodyAsText()
+        }
+            .timeoutAsFailure(timeout)
+            .evalGraph()
 }
 
 /**
@@ -167,7 +191,11 @@ fun main(argv: Array<String>) {
 /** Startup, then park until the session closes or the JVM is asked to stop; both leave through the Brain Resource. */
 private suspend fun serve(brain: Brain) {
     val (server, toolsServed) = stdoutGuard().use { _ ->
-        val http = HttpBrainClient("http://${brain.config.httpHost}:${brain.config.httpPort}")
+        val http = HttpBrainClient(
+            baseUrl = "http://${brain.config.httpHost}:${brain.config.httpPort}",
+            client = brain.httpClient,
+            timeout = brain.config.httpTimeoutS.seconds,
+        )
         // Registry and liveness probe come up together; a dead brain is advisory here (the
         // envelopes report it per call) but it is logged once at startup.
         val wiring = kap(::ToolWiring)
@@ -259,6 +287,8 @@ private suspend fun brainReady(http: HttpBrainClient): Boolean = try {
     http.get("/ready").first == 200
 } catch (e: java.io.IOException) {
     false
+} catch (_: KapTimeoutException) {
+    false
 }
 
 private fun loadConfig(): Config {
@@ -271,7 +301,11 @@ private fun loadConfig(): Config {
 }
 
 /** One handler shape: validate → call the brain over HTTP → envelope; classify failures. */
-private fun envelope(spec: ToolSpec, request: CallToolRequest, body: (JsonObject?) -> String): CallToolResult {
+private suspend fun envelope(
+    spec: ToolSpec,
+    request: CallToolRequest,
+    body: suspend (JsonObject?) -> String,
+): CallToolResult {
     val trace = Traces.next()
     val args = request.params.arguments
     val result: JsonObject = try {
@@ -292,6 +326,9 @@ private fun envelope(spec: ToolSpec, request: CallToolRequest, body: (JsonObject
         Envelope.Err(Envelope.KIND_UNAVAILABLE, "the brain's HTTP API is not reachable (is `agent-brain serve` up?)", spec.nextStep, trace, spec.version).toJson()
     } catch (e: java.io.IOException) {
         Envelope.Err(Envelope.KIND_UNAVAILABLE, "the brain's HTTP API failed: ${e.message}", spec.nextStep, trace, spec.version).toJson()
+    } catch (e: KapTimeoutException) {
+        val message = "the brain's HTTP API timed out after ${e.duration}"
+        Envelope.Err(Envelope.KIND_UNAVAILABLE, message, spec.nextStep, trace, spec.version).toJson()
     } catch (e: Exception) {
         log.warn("tool {} failed: {}: {}", spec.name, e::class.simpleName, e.message)
         Envelope.Err(Envelope.KIND_INTERNAL, "${e::class.simpleName}: ${e.message}", spec.nextStep, trace, spec.version).toJson()

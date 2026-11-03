@@ -114,7 +114,11 @@ class BrainMcpStdioTest {
             }
             .start()
         try {
-            java.io.PrintWriter(process.outputStream, true).use { out -> requests.forEach(out::println) }
+            // stdin stays open while the responses are read, like a real MCP client:
+            // EOF on stdin closes the transport's write channel and would discard any
+            // response still in flight (the tool handlers suspend on the brain's HTTP).
+            val writer = java.io.PrintWriter(process.outputStream, true)
+            requests.forEach(writer::println)
             val wanted = requests.mapNotNull { r ->
                 json.parseToJsonElement(r).jsonObject["id"]?.jsonPrimitive?.content?.toIntOrNull()
             }.toSet()
@@ -128,6 +132,7 @@ class BrainMcpStdioTest {
                 val obj = json.parseToJsonElement(line).jsonObject
                 obj["id"]?.jsonPrimitive?.content?.toIntOrNull()?.let { got[it] = obj }
             }
+            writer.close()
             return got
         } finally {
             process.destroy()
