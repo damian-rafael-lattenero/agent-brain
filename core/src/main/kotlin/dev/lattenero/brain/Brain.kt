@@ -12,6 +12,7 @@ import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.EmbeddingProviders
+import dev.lattenero.brain.eval.EvalLedger
 import dev.lattenero.brain.http.HttpClients
 import dev.lattenero.brain.http.Readiness
 import dev.lattenero.brain.rag.CountingTracer
@@ -71,6 +72,10 @@ class Brain private constructor(
         docConcurrency = config.indexDocConcurrency,
     )
     val memoryStore: MemoryStore = MemoryStore(db)
+
+    /** The eval ledger: reads for `/eval/latest` and the CLI, writes from every eval run. */
+    val evalLedger: EvalLedger = EvalLedger(db, config.embedDim)
+
     val extractor: MemoryExtractor = MemoryExtractor(
         chat = chat,
         timeout = config.chatTimeoutS.seconds,

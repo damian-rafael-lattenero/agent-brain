@@ -1,0 +1,28 @@
+{
+  "currency": "USD",
+  "unit": "per 1M tokens",
+  "description": "The declared price table evals multiply tokens by. Local inference (ollama) has no per-token price: its entries are 0 and the report says so. A paid provider's price is never invented here: a null price means 'unknown', the run still happens and the cost column reads 'unknown'.",
+  "entries": [
+    {
+      "provider": "ollama",
+      "model": "*",
+      "promptPer1m": 0.0,
+      "completionPer1m": 0.0,
+      "note": "local inference: no marginal cost; hardware and electricity are not accounted"
+    },
+    {
+      "provider": "fake",
+      "model": "*",
+      "promptPer1m": 0.0,
+      "completionPer1m": 0.0,
+      "note": "test double, no provider call"
+    },
+    {
+      "provider": "glm",
+      "model": "*",
+      "promptPer1m": null,
+      "completionPer1m": null,
+      "note": "paid provider: paste its published per-1M price here before trusting the cost column; null means unknown, never zero"
+    }
+  ]
+}

@@ -12,8 +12,20 @@ import org.slf4j.LoggerFactory
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import dev.lattenero.brain.bus.BusStatus
+import dev.lattenero.brain.db.Database
+import dev.lattenero.brain.eval.EvalLedger
+import dev.lattenero.brain.eval.EvalLedgerMarkdown
+import dev.lattenero.brain.eval.EvalMatrixMarkdown
+import dev.lattenero.brain.eval.EvalMatrixReport
+import dev.lattenero.brain.eval.EvalMatrixRunner
+import dev.lattenero.brain.eval.EvalOptions
 import dev.lattenero.brain.eval.EvalReport
 import dev.lattenero.brain.eval.EvalRunner
+import dev.lattenero.brain.eval.EvalSuite
+import dev.lattenero.brain.eval.EvalSuites
+import dev.lattenero.brain.eval.ModelSpec
+import dev.lattenero.brain.eval.PriceTable
+import dev.lattenero.brain.eval.StoredRun
 import dev.lattenero.brain.http.readCorpusFile
 import dev.lattenero.brain.memory.DedupReport
 import dev.lattenero.brain.memory.Memory
@@ -80,7 +92,12 @@ const val USAGE = """usage: agent-brain <command> [args]
   health [--url U]   GET /ready of a running service; exit 1 when degraded
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
-  eval [--gate 0.9]  recall gate: fresh database, index the fixture corpus, 20 questions, eval_runs row + markdown artifact
+  eval [--suite NAME|PATH[,...]] [--gate G] [--matrix MODEL[@DIM],...] [--out DIR] [--strict]
+                     suites: recall-core (the default gate: 20 questions, gate 0.9),
+                     extraction-core, grounded-citation, or a path to a suite file;
+                     --matrix runs the same suites on >=2 models into one comparative artifact
+  eval latest [--suite S] [--matrix] [--limit N] [--md]
+                     the last persisted run(s) from eval_runs (also GET /eval/latest)
 """
 
 fun main(args: Array<String>) {
@@ -157,7 +174,7 @@ private fun serve(): Int {
                 }
                 BrainServer.start(
                     config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory,
-                    wait = true, busProcess = busProcess,
+                    wait = true, busProcess = busProcess, evalLedger = brain.evalLedger,
                 )
             }
         }
@@ -272,21 +289,116 @@ private fun indexPlan(plan: Repos.Plan): Int {
     }
 }
 
+/** The parsed invocation shared by the single run and the matrix: one place for flags and defaults. */
+private class EvalInvocation(
+    val suites: List<EvalSuite>,
+    val gate: Double?,
+    val prices: PriceTable,
+    val config: Config,
+    val outDir: java.nio.file.Path,
+)
+
+/**
+ * `eval [--suite ...] [--gate G] [--matrix a,b] [--out DIR] [--strict]`.
+ *
+ * The default is the cheap CI gate: the shipped recall suite at its declared
+ * gate. `--matrix` compares >= 2 models on the same suites and produces ONE
+ * artifact — the table plus the recommendation per turn — and reports instead
+ * of gating (a model below the gate is a finding, not a broken build), unless
+ * `--strict` is asked for.
+ */
 private fun eval(args: List<String>): Int {
-    val gate = args.optionValue("--gate")?.toDoubleOrNull() ?: 0.9
-    val config = Config.load()
-    val questions = EvalRunner.loadQuestions(java.nio.file.Files.createTempFile("eval-questions", ".json").also { tmp ->
-        java.nio.file.Files.copy(EvalRunner::class.java.classLoader.getResourceAsStream("eval/questions.json")!!, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-    })
-    val runner = EvalRunner(config, questions, gate)
-    val report = runner.run()
-    val artifactDir = java.nio.file.Path.of("evals", "artifacts")
-    java.nio.file.Files.createDirectories(artifactDir)
-    java.nio.file.Files.writeString(artifactDir.resolve("latest.md"), EvalRunner.markdown(report))
-    java.nio.file.Files.writeString(artifactDir.resolve("eval-${report.startedAt.replace(":", "")}.md"), EvalRunner.markdown(report))
+    if (args.firstOrNull() == "latest") return evalLatest(args.drop(1))
+    return runCatching { parseEvalInvocation(args) }.fold(
+        onSuccess = { invocation ->
+            val matrixSpec = args.optionValue("--matrix")
+            if (matrixSpec == null) evalSuite(invocation) else evalMatrix(invocation, matrixSpec, "--strict" in args)
+        },
+        onFailure = { e -> fail("eval: ${e.message ?: e::class.simpleName}") },
+    )
+}
+
+private fun parseEvalInvocation(args: List<String>): EvalInvocation {
+    val specs = args.optionValue("--suite")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+        ?: listOf(EvalSuite.DEFAULT)
+    val outDir = java.nio.file.Path.of(args.optionValue("--out") ?: "evals/artifacts")
+    java.nio.file.Files.createDirectories(outDir)
+    return EvalInvocation(
+        suites = specs.map { EvalSuites.load(it) },
+        gate = args.optionValue("--gate")?.toDoubleOrNull(),
+        prices = PriceTable.load(),
+        config = Config.load(),
+        outDir = outDir,
+    )
+}
+
+private fun evalSuite(invocation: EvalInvocation): Int {
+    val suite = invocation.suites.singleOrNull()
+        ?: return fail("eval: several suites need --matrix (or run them one at a time)")
+    val gate = invocation.gate ?: suite.gate
+    val report = EvalRunner(invocation.config, suite, EvalOptions(gate = gate, prices = invocation.prices)).run()
+    val name = "eval-${stamp(report.startedAt)}"
+    val markdown = EvalRunner.markdown(report)
+    val json = responseJson.encodeToString(EvalReport.serializer(), report)
+    writeArtifact(invocation.outDir, name, markdown, json)
+    writeArtifact(invocation.outDir, "latest", markdown, json)
     printJson(responseJson.encodeToJsonElement(EvalReport.serializer(), report))
     return if (report.ok) EXIT_OK else EXIT_FAIL
 }
+
+private fun evalMatrix(invocation: EvalInvocation, matrixSpec: String, strict: Boolean): Int {
+    val report = try {
+        val models = ModelSpec.parseList(matrixSpec)
+        val suites = if (invocation.gate == null) {
+            invocation.suites
+        } else {
+            invocation.suites.map { it.copy(gate = invocation.gate) }
+        }
+        EvalMatrixRunner(invocation.config, suites, models, invocation.prices).run()
+    } catch (e: IllegalArgumentException) {
+        return fail("eval: ${e.message}")
+    }
+    val markdown = EvalMatrixMarkdown.render(report)
+    val json = responseJson.encodeToString(EvalMatrixReport.serializer(), report)
+    writeArtifact(invocation.outDir, "matrix-${stamp(report.startedAt)}", markdown, json)
+    writeArtifact(invocation.outDir, "latest-matrix", markdown, json)
+    printJson(responseJson.encodeToJsonElement(EvalMatrixReport.serializer(), report))
+    return if (strict && report.rows.any { !it.ok }) EXIT_FAIL else EXIT_OK
+}
+
+/** `eval latest`: the ledger's own answer, so the bot reads a run instead of re-running one. */
+private fun evalLatest(args: List<String>): Int {
+    val config = Config.load()
+    val limit = args.optionValue("--limit")?.toIntOrNull() ?: EvalLedger.DEFAULT_LIMIT
+    val runs = Database(config).use { db ->
+        runBlocking {
+            EvalLedger(db, config.embedDim).latest(
+                suite = args.optionValue("--suite"),
+                matrix = "--matrix" in args,
+                limit = limit,
+            )
+        }
+    }
+    return if (runs.isEmpty()) {
+        fail("eval latest: no persisted runs")
+    } else {
+        if ("--md" in args) {
+            print(EvalLedgerMarkdown.render(runs))
+        } else {
+            val json = responseJson.encodeToJsonElement(ListSerializer(StoredRun.serializer()), runs)
+            printJson(json)
+        }
+        EXIT_OK
+    }
+}
+
+/** One artifact, two faces: the markdown a human reads and the JSON a machine reads. */
+private fun writeArtifact(dir: java.nio.file.Path, name: String, markdown: String, json: String) {
+    java.nio.file.Files.writeString(dir.resolve("$name.md"), markdown)
+    java.nio.file.Files.writeString(dir.resolve("$name.json"), json)
+}
+
+private fun stamp(startedAt: String): String = startedAt.replace(":", "").replace("+", "_")
 
 private fun memory(args: List<String>): Int {
     val sub = args.firstOrNull() ?: return usage()
