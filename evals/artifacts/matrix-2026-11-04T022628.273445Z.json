@@ -1,5 +1,5 @@
 {
-    "matrixId": "31a183e4-2929-4446-a641-c3e3b560fb34",
+    "matrixId": "38f128c5-6bc1-4744-b26d-073e8e0c2bff",
     "suites": [
         "extraction-core",
         "grounded-citation"
@@ -9,8 +9,8 @@
         "qwen2.5:1.5b",
         "qwen2.5:3b"
     ],
-    "startedAt": "2026-11-04T02:16:52.967141Z",
-    "durationMs": 71124,
+    "startedAt": "2026-11-04T02:26:28.273445Z",
+    "durationMs": 76409,
     "rows": [
         {
             "suite": "extraction-core",
@@ -22,13 +22,13 @@
             "total": 6,
             "gate": 0.6,
             "ok": false,
-            "p50Ms": 2025,
-            "p95Ms": 3738,
+            "p50Ms": 2167,
+            "p95Ms": 5124,
             "promptTokens": 1229,
-            "completionTokens": 598,
+            "completionTokens": 607,
             "costUsd": 0.0,
             "costKnown": true,
-            "durationMs": 14001,
+            "durationMs": 15648,
             "supportChecked": null,
             "supported": null
         },
@@ -42,13 +42,13 @@
             "total": 6,
             "gate": 0.6,
             "ok": true,
-            "p50Ms": 3163,
-            "p95Ms": 7180,
+            "p50Ms": 3901,
+            "p95Ms": 6644,
             "promptTokens": 1229,
             "completionTokens": 563,
             "costUsd": 0.0,
             "costKnown": true,
-            "durationMs": 23002,
+            "durationMs": 24745,
             "supportChecked": null,
             "supported": null
         },
@@ -62,13 +62,13 @@
             "total": 5,
             "gate": 0.8,
             "ok": true,
-            "p50Ms": 1991,
-            "p95Ms": 3012,
+            "p50Ms": 1996,
+            "p95Ms": 3257,
             "promptTokens": 4698,
-            "completionTokens": 147,
+            "completionTokens": 145,
             "costUsd": 0.0,
             "costKnown": true,
-            "durationMs": 11435,
+            "durationMs": 12310,
             "supportChecked": 5,
             "supported": 5
         },
@@ -82,13 +82,13 @@
             "total": 5,
             "gate": 0.8,
             "ok": true,
-            "p50Ms": 4116,
-            "p95Ms": 5843,
+            "p50Ms": 3885,
+            "p95Ms": 6287,
             "promptTokens": 4698,
             "completionTokens": 147,
             "costUsd": 0.0,
             "costKnown": true,
-            "durationMs": 22320,
+            "durationMs": 23399,
             "supportChecked": 5,
             "supported": 5
         }
@@ -98,18 +98,18 @@
             "turn": "memory extraction (one chat call per turn)",
             "suite": "extraction-core",
             "model": "qwen2.5:3b",
-            "reason": "qwen2.5:3b: 4/6 at gate 0.6 (p50 3163 ms, 1229 in / 563 out tokens, cost 0.000000 USD); beats qwen2.5:1.5b: 3/6, p50 2025 ms, cost 0.000000 USD. Every miss is a memory the bot never gets back, so quality wins over a slower call."
+            "reason": "qwen2.5:3b: 4/6 at gate 0.6 (p50 3901 ms, 1229 in / 563 out tokens, cost 0.000000 USD); beats qwen2.5:1.5b: 3/6, p50 2167 ms, cost 0.000000 USD. Every miss is a memory the bot never gets back, so quality wins over a slower call."
         },
         {
             "turn": "answer composition (one chat call per answered turn)",
             "suite": "grounded-citation",
             "model": "qwen2.5:1.5b",
-            "reason": "qwen2.5:1.5b: 5/5 at gate 0.8 (p50 1991 ms, 4698 in / 147 out tokens, cost 0.000000 USD); beats qwen2.5:3b: 5/5, p50 4116 ms, cost 0.000000 USD. An answer the question can be checked against first; among models that clear the gate, the cheapest one."
+            "reason": "qwen2.5:1.5b: 5/5 at gate 0.8 (p50 1996 ms, 4698 in / 145 out tokens, cost 0.000000 USD); beats qwen2.5:3b: 5/5, p50 3885 ms, cost 0.000000 USD. An answer the question can be checked against first; among models that clear the gate, the cheapest one."
         }
     ],
     "runs": [
         {
-            "runId": "9b34bd8b-f506-47a6-9b2e-bddb9d9e624d",
+            "runId": "833a19b9-a4d0-4b8c-a13c-8de62bb98525",
             "suite": "extraction-core",
             "kind": "extraction",
             "axis": "chat",
@@ -121,13 +121,13 @@
             "total": 6,
             "ok": false,
             "metrics": {
-                "p50Ms": 2025,
-                "p95Ms": 3738,
+                "p50Ms": 2167,
+                "p95Ms": 5124,
                 "promptTokens": 1229,
-                "completionTokens": 598,
+                "completionTokens": 607,
                 "costUsd": 0.0,
                 "costKnown": true,
-                "durationMs": 14001,
+                "durationMs": 15648,
                 "supportChecked": null,
                 "supported": null
             },
@@ -135,7 +135,7 @@
                 {
                     "id": "git-policy-preference",
                     "ok": false,
-                    "durationMs": 3738,
+                    "durationMs": 5124,
                     "promptTokens": 230,
                     "completionTokens": 157,
                     "tokensEstimated": false,
@@ -155,7 +155,7 @@
                 {
                     "id": "environment-fact",
                     "ok": true,
-                    "durationMs": 2598,
+                    "durationMs": 2520,
                     "promptTokens": 219,
                     "completionTokens": 115,
                     "tokensEstimated": false,
@@ -175,9 +175,9 @@
                 {
                     "id": "decision-kapstream",
                     "ok": true,
-                    "durationMs": 2336,
+                    "durationMs": 2397,
                     "promptTokens": 206,
-                    "completionTokens": 99,
+                    "completionTokens": 108,
                     "tokensEstimated": false,
                     "question": null,
                     "expectedUri": null,
@@ -186,16 +186,16 @@
                     "supported": null,
                     "citedUris": [],
                     "answer": null,
-                    "facts": 1,
+                    "facts": 2,
                     "decisions": 1,
                     "preferences": 1,
-                    "summary": "The tailer for the bus has been updated to use KapStream.pollUntilQuiet and ensure offsets are owned by the source.",
+                    "summary": "The user changed the tailer from Flow to KapStream to manage offsets.",
                     "failure": null
                 },
                 {
                     "id": "language-preference",
                     "ok": true,
-                    "durationMs": 1710,
+                    "durationMs": 1771,
                     "promptTokens": 187,
                     "completionTokens": 75,
                     "tokensEstimated": false,
@@ -215,7 +215,7 @@
                 {
                     "id": "small-talk-nothing-durable",
                     "ok": false,
-                    "durationMs": 1363,
+                    "durationMs": 1475,
                     "promptTokens": 173,
                     "completionTokens": 62,
                     "tokensEstimated": false,
@@ -235,7 +235,7 @@
                 {
                     "id": "eval-clock-decision",
                     "ok": false,
-                    "durationMs": 2025,
+                    "durationMs": 2167,
                     "promptTokens": 214,
                     "completionTokens": 90,
                     "tokensEstimated": false,
@@ -253,13 +253,13 @@
                     "failure": "decisions has none of [clock, timeSource, pure] (got [No while(true);])"
                 }
             ],
-            "startedAt": "2026-11-04T02:16:52.970375Z",
-            "durationMs": 14001,
-            "matrixId": "31a183e4-2929-4446-a641-c3e3b560fb34",
+            "startedAt": "2026-11-04T02:26:28.276218Z",
+            "durationMs": 15648,
+            "matrixId": "38f128c5-6bc1-4744-b26d-073e8e0c2bff",
             "chatModel": "qwen2.5:1.5b"
         },
         {
-            "runId": "0be09ffa-d5f4-4f94-8f4a-3d9ddc83ebef",
+            "runId": "4f090c19-9238-4534-a153-1aebdd01f4b0",
             "suite": "extraction-core",
             "kind": "extraction",
             "axis": "chat",
@@ -271,13 +271,13 @@
             "total": 6,
             "ok": true,
             "metrics": {
-                "p50Ms": 3163,
-                "p95Ms": 7180,
+                "p50Ms": 3901,
+                "p95Ms": 6644,
                 "promptTokens": 1229,
                 "completionTokens": 563,
                 "costUsd": 0.0,
                 "costKnown": true,
-                "durationMs": 23002,
+                "durationMs": 24745,
                 "supportChecked": null,
                 "supported": null
             },
@@ -285,7 +285,7 @@
                 {
                     "id": "git-policy-preference",
                     "ok": false,
-                    "durationMs": 2257,
+                    "durationMs": 4053,
                     "promptTokens": 230,
                     "completionTokens": 57,
                     "tokensEstimated": false,
@@ -305,7 +305,7 @@
                 {
                     "id": "environment-fact",
                     "ok": true,
-                    "durationMs": 4238,
+                    "durationMs": 3901,
                     "promptTokens": 219,
                     "completionTokens": 97,
                     "tokensEstimated": false,
@@ -325,7 +325,7 @@
                 {
                     "id": "decision-kapstream",
                     "ok": true,
-                    "durationMs": 3673,
+                    "durationMs": 4344,
                     "promptTokens": 206,
                     "completionTokens": 99,
                     "tokensEstimated": false,
@@ -345,7 +345,7 @@
                 {
                     "id": "language-preference",
                     "ok": true,
-                    "durationMs": 2488,
+                    "durationMs": 2627,
                     "promptTokens": 187,
                     "completionTokens": 61,
                     "tokensEstimated": false,
@@ -365,7 +365,7 @@
                 {
                     "id": "small-talk-nothing-durable",
                     "ok": false,
-                    "durationMs": 3163,
+                    "durationMs": 3171,
                     "promptTokens": 173,
                     "completionTokens": 80,
                     "tokensEstimated": false,
@@ -385,7 +385,7 @@
                 {
                     "id": "eval-clock-decision",
                     "ok": true,
-                    "durationMs": 7180,
+                    "durationMs": 6644,
                     "promptTokens": 214,
                     "completionTokens": 169,
                     "tokensEstimated": false,
@@ -403,13 +403,13 @@
                     "failure": null
                 }
             ],
-            "startedAt": "2026-11-04T02:17:07.053760Z",
-            "durationMs": 23002,
-            "matrixId": "31a183e4-2929-4446-a641-c3e3b560fb34",
+            "startedAt": "2026-11-04T02:26:44.001446Z",
+            "durationMs": 24745,
+            "matrixId": "38f128c5-6bc1-4744-b26d-073e8e0c2bff",
             "chatModel": "qwen2.5:3b"
         },
         {
-            "runId": "55754fb8-d1c2-4683-8857-0e13c8f01ad1",
+            "runId": "b86dbdf7-2b57-44a0-ad87-de9472919727",
             "suite": "grounded-citation",
             "kind": "grounded",
             "axis": "chat",
@@ -421,13 +421,13 @@
             "total": 5,
             "ok": true,
             "metrics": {
-                "p50Ms": 1991,
-                "p95Ms": 3012,
+                "p50Ms": 1996,
+                "p95Ms": 3257,
                 "promptTokens": 4698,
-                "completionTokens": 147,
+                "completionTokens": 145,
                 "costUsd": 0.0,
                 "costKnown": true,
-                "durationMs": 11435,
+                "durationMs": 12310,
                 "supportChecked": 5,
                 "supported": 5
             },
@@ -435,7 +435,7 @@
                 {
                     "id": "migrator-lock-id",
                     "ok": true,
-                    "durationMs": 2173,
+                    "durationMs": 3257,
                     "promptTokens": 944,
                     "completionTokens": 25,
                     "tokensEstimated": false,
@@ -445,7 +445,7 @@
                     "topUri": null,
                     "supported": true,
                     "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1604455471575740400/migrator-lock.md"
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus6515770127937401124/migrator-lock.md"
                     ],
                     "answer": "pg_advisory_lock(727001)",
                     "facts": 0,
@@ -457,147 +457,7 @@
                 {
                     "id": "embedding-dimensions",
                     "ok": true,
-                    "durationMs": 1905,
-                    "promptTokens": 949,
-                    "completionTokens": 18,
-                    "tokensEstimated": false,
-                    "question": "how many dimensions does nomic-embed-text produce?",
-                    "expectedUri": "/embedding-dimensions.md",
-                    "rank": null,
-                    "topUri": null,
-                    "supported": true,
-                    "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1604455471575740400/embedding-dimensions.md"
-                    ],
-                    "answer": "768-dimensional vectors",
-                    "facts": 0,
-                    "decisions": 0,
-                    "preferences": 0,
-                    "summary": null,
-                    "failure": null
-                },
-                {
-                    "id": "circuit-breaker-threshold",
-                    "ok": true,
-                    "durationMs": 1760,
-                    "promptTokens": 932,
-                    "completionTokens": 14,
-                    "tokensEstimated": false,
-                    "question": "after how many consecutive failures does the embedding circuit breaker open?",
-                    "expectedUri": "/circuit-breaker.md",
-                    "rank": null,
-                    "topUri": null,
-                    "supported": true,
-                    "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1604455471575740400/circuit-breaker.md"
-                    ],
-                    "answer": "five",
-                    "facts": 0,
-                    "decisions": 0,
-                    "preferences": 0,
-                    "summary": null,
-                    "failure": null
-                },
-                {
-                    "id": "tailer-truncation",
-                    "ok": true,
-                    "durationMs": 1991,
-                    "promptTokens": 919,
-                    "completionTokens": 25,
-                    "tokensEstimated": false,
-                    "question": "what does the tailer do when the bus file is shorter than the saved offset?",
-                    "expectedUri": "/tailer-truncation.md",
-                    "rank": null,
-                    "topUri": null,
-                    "supported": true,
-                    "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1604455471575740400/tailer-truncation.md"
-                    ],
-                    "answer": "The tailer restarts from byte zero after counting a shrink.",
-                    "facts": 0,
-                    "decisions": 0,
-                    "preferences": 0,
-                    "summary": null,
-                    "failure": null
-                },
-                {
-                    "id": "hybrid-fusion",
-                    "ok": true,
-                    "durationMs": 3012,
-                    "promptTokens": 954,
-                    "completionTokens": 65,
-                    "tokensEstimated": false,
-                    "question": "how are the vector and full-text rank lists combined?",
-                    "expectedUri": "/hybrid-retrieval.md",
-                    "rank": null,
-                    "topUri": null,
-                    "supported": true,
-                    "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1604455471575740400/hybrid-retrieval.md"
-                    ],
-                    "answer": "The two rank lists are fused with Reciprocal Rank Fusion, scoring each chunk as the sum of 1 / (60 + rank) across the legs it appears in, so an exact token match can rescue a chunk the embedding underweights and vice versa.",
-                    "facts": 0,
-                    "decisions": 0,
-                    "preferences": 0,
-                    "summary": null,
-                    "failure": null
-                }
-            ],
-            "startedAt": "2026-11-04T02:17:30.123924Z",
-            "durationMs": 11435,
-            "matrixId": "31a183e4-2929-4446-a641-c3e3b560fb34",
-            "chatModel": "qwen2.5:1.5b"
-        },
-        {
-            "runId": "2987083b-2ed6-406c-8076-d7008c8503e5",
-            "suite": "grounded-citation",
-            "kind": "grounded",
-            "axis": "chat",
-            "model": "qwen2.5:3b",
-            "provider": "ollama",
-            "embedModel": "nomic-embed-text",
-            "gate": 0.8,
-            "passed": 5,
-            "total": 5,
-            "ok": true,
-            "metrics": {
-                "p50Ms": 4116,
-                "p95Ms": 5843,
-                "promptTokens": 4698,
-                "completionTokens": 147,
-                "costUsd": 0.0,
-                "costKnown": true,
-                "durationMs": 22320,
-                "supportChecked": 5,
-                "supported": 5
-            },
-            "cases": [
-                {
-                    "id": "migrator-lock-id",
-                    "ok": true,
-                    "durationMs": 4116,
-                    "promptTokens": 944,
-                    "completionTokens": 19,
-                    "tokensEstimated": false,
-                    "question": "which advisory lock id does the migration runner take?",
-                    "expectedUri": "/migrator-lock.md",
-                    "rank": null,
-                    "topUri": null,
-                    "supported": true,
-                    "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1880842824121996996/migrator-lock.md"
-                    ],
-                    "answer": "727001",
-                    "facts": 0,
-                    "decisions": 0,
-                    "preferences": 0,
-                    "summary": null,
-                    "failure": null
-                },
-                {
-                    "id": "embedding-dimensions",
-                    "ok": true,
-                    "durationMs": 3679,
+                    "durationMs": 1888,
                     "promptTokens": 949,
                     "completionTokens": 16,
                     "tokensEstimated": false,
@@ -607,7 +467,7 @@
                     "topUri": null,
                     "supported": true,
                     "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1880842824121996996/embedding-dimensions.md"
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus6515770127937401124/embedding-dimensions.md"
                     ],
                     "answer": "768",
                     "facts": 0,
@@ -619,7 +479,7 @@
                 {
                     "id": "circuit-breaker-threshold",
                     "ok": true,
-                    "durationMs": 3538,
+                    "durationMs": 1769,
                     "promptTokens": 932,
                     "completionTokens": 14,
                     "tokensEstimated": false,
@@ -629,7 +489,7 @@
                     "topUri": null,
                     "supported": true,
                     "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1880842824121996996/circuit-breaker.md"
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus6515770127937401124/circuit-breaker.md"
                     ],
                     "answer": "five",
                     "facts": 0,
@@ -641,9 +501,9 @@
                 {
                     "id": "tailer-truncation",
                     "ok": true,
-                    "durationMs": 4628,
+                    "durationMs": 1996,
                     "promptTokens": 919,
-                    "completionTokens": 35,
+                    "completionTokens": 25,
                     "tokensEstimated": false,
                     "question": "what does the tailer do when the bus file is shorter than the saved offset?",
                     "expectedUri": "/tailer-truncation.md",
@@ -651,9 +511,9 @@
                     "topUri": null,
                     "supported": true,
                     "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1880842824121996996/tailer-truncation.md"
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus6515770127937401124/tailer-truncation.md"
                     ],
-                    "answer": "The tailer restarts from byte zero after counting a shrink when the bus file is shorter than the saved offset.",
+                    "answer": "The tailer restarts from byte zero after counting a shrink.",
                     "facts": 0,
                     "decisions": 0,
                     "preferences": 0,
@@ -663,9 +523,9 @@
                 {
                     "id": "hybrid-fusion",
                     "ok": true,
-                    "durationMs": 5843,
+                    "durationMs": 2874,
                     "promptTokens": 954,
-                    "completionTokens": 63,
+                    "completionTokens": 65,
                     "tokensEstimated": false,
                     "question": "how are the vector and full-text rank lists combined?",
                     "expectedUri": "/hybrid-retrieval.md",
@@ -673,9 +533,9 @@
                     "topUri": null,
                     "supported": true,
                     "citedUris": [
-                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus1880842824121996996/hybrid-retrieval.md"
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus6515770127937401124/hybrid-retrieval.md"
                     ],
-                    "answer": "The vector and full-text rank lists are combined using Reciprocal Rank Fusion, where each chunk's score is the sum of `1 / (60 + rank)` across the legs it appears in, allowing for the fusion of the two rank lists.",
+                    "answer": "The two rank lists are fused with Reciprocal Rank Fusion, scoring each chunk as the sum of 1 / (60 + rank) across the legs it appears in, so an exact token match can rescue a chunk the embedding underweights and vice versa.",
                     "facts": 0,
                     "decisions": 0,
                     "preferences": 0,
@@ -683,9 +543,149 @@
                     "failure": null
                 }
             ],
-            "startedAt": "2026-11-04T02:17:41.648098Z",
-            "durationMs": 22320,
-            "matrixId": "31a183e4-2929-4446-a641-c3e3b560fb34",
+            "startedAt": "2026-11-04T02:27:08.805779Z",
+            "durationMs": 12310,
+            "matrixId": "38f128c5-6bc1-4744-b26d-073e8e0c2bff",
+            "chatModel": "qwen2.5:1.5b"
+        },
+        {
+            "runId": "e1dae66e-7160-45ef-9775-daa586185a40",
+            "suite": "grounded-citation",
+            "kind": "grounded",
+            "axis": "chat",
+            "model": "qwen2.5:3b",
+            "provider": "ollama",
+            "embedModel": "nomic-embed-text",
+            "gate": 0.8,
+            "passed": 5,
+            "total": 5,
+            "ok": true,
+            "metrics": {
+                "p50Ms": 3885,
+                "p95Ms": 6287,
+                "promptTokens": 4698,
+                "completionTokens": 147,
+                "costUsd": 0.0,
+                "costKnown": true,
+                "durationMs": 23399,
+                "supportChecked": 5,
+                "supported": 5
+            },
+            "cases": [
+                {
+                    "id": "migrator-lock-id",
+                    "ok": true,
+                    "durationMs": 5493,
+                    "promptTokens": 944,
+                    "completionTokens": 19,
+                    "tokensEstimated": false,
+                    "question": "which advisory lock id does the migration runner take?",
+                    "expectedUri": "/migrator-lock.md",
+                    "rank": null,
+                    "topUri": null,
+                    "supported": true,
+                    "citedUris": [
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus8385834210177751905/migrator-lock.md"
+                    ],
+                    "answer": "727001",
+                    "facts": 0,
+                    "decisions": 0,
+                    "preferences": 0,
+                    "summary": null,
+                    "failure": null
+                },
+                {
+                    "id": "embedding-dimensions",
+                    "ok": true,
+                    "durationMs": 3768,
+                    "promptTokens": 949,
+                    "completionTokens": 18,
+                    "tokensEstimated": false,
+                    "question": "how many dimensions does nomic-embed-text produce?",
+                    "expectedUri": "/embedding-dimensions.md",
+                    "rank": null,
+                    "topUri": null,
+                    "supported": true,
+                    "citedUris": [
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus8385834210177751905/embedding-dimensions.md"
+                    ],
+                    "answer": "768-dimensional vectors",
+                    "facts": 0,
+                    "decisions": 0,
+                    "preferences": 0,
+                    "summary": null,
+                    "failure": null
+                },
+                {
+                    "id": "circuit-breaker-threshold",
+                    "ok": true,
+                    "durationMs": 3494,
+                    "promptTokens": 932,
+                    "completionTokens": 14,
+                    "tokensEstimated": false,
+                    "question": "after how many consecutive failures does the embedding circuit breaker open?",
+                    "expectedUri": "/circuit-breaker.md",
+                    "rank": null,
+                    "topUri": null,
+                    "supported": true,
+                    "citedUris": [
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus8385834210177751905/circuit-breaker.md"
+                    ],
+                    "answer": "five",
+                    "facts": 0,
+                    "decisions": 0,
+                    "preferences": 0,
+                    "summary": null,
+                    "failure": null
+                },
+                {
+                    "id": "tailer-truncation",
+                    "ok": true,
+                    "durationMs": 3885,
+                    "promptTokens": 919,
+                    "completionTokens": 25,
+                    "tokensEstimated": false,
+                    "question": "what does the tailer do when the bus file is shorter than the saved offset?",
+                    "expectedUri": "/tailer-truncation.md",
+                    "rank": null,
+                    "topUri": null,
+                    "supported": true,
+                    "citedUris": [
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus8385834210177751905/tailer-truncation.md"
+                    ],
+                    "answer": "The tailer restarts from byte zero after counting a shrink.",
+                    "facts": 0,
+                    "decisions": 0,
+                    "preferences": 0,
+                    "summary": null,
+                    "failure": null
+                },
+                {
+                    "id": "hybrid-fusion",
+                    "ok": true,
+                    "durationMs": 6287,
+                    "promptTokens": 954,
+                    "completionTokens": 71,
+                    "tokensEstimated": false,
+                    "question": "how are the vector and full-text rank lists combined?",
+                    "expectedUri": "/hybrid-retrieval.md",
+                    "rank": null,
+                    "topUri": null,
+                    "supported": true,
+                    "citedUris": [
+                        "/private/var/folders/mt/6n_kh76x031gg9r6hx0y_nmr0000gn/T/agent-brain-eval-corpus8385834210177751905/hybrid-retrieval.md"
+                    ],
+                    "answer": "The vector and full-text rank lists are combined using Reciprocal Rank Fusion, where each chunk is scored as the sum of `1 / (60 + rank)` across the legs it appears in, allowing for an exact token match to rescue a chunk the embedding underweights and vice versa.",
+                    "facts": 0,
+                    "decisions": 0,
+                    "preferences": 0,
+                    "summary": null,
+                    "failure": null
+                }
+            ],
+            "startedAt": "2026-11-04T02:27:21.188828Z",
+            "durationMs": 23399,
+            "matrixId": "38f128c5-6bc1-4744-b26d-073e8e0c2bff",
             "chatModel": "qwen2.5:3b"
         }
     ]
