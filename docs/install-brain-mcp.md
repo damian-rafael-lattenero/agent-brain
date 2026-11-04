@@ -187,6 +187,21 @@ zcode plugins uninstall brain-mcp@dev-agent-brain
 zcode plugins marketplace remove dev-agent-brain
 ```
 
+## Not the plugin: the HTTP endpoint
+
+This document installs the *stdio plugin*. If the client is another machine, or
+another MCP client that does not spawn processes, the same four tools are served
+over streamable HTTP on loopback behind a bearer token:
+
+```bash
+AB_MCP_TOKEN_FILE=~/.zcode/agent-brain/mcp.token \
+  brain-mcp serve --transport http --port 8767
+```
+
+Client configuration, the token rules, the remote-machine tunnel and the tool
+contracts are in [docs/mcp.md](mcp.md). The two transports share one
+implementation, so the four tools documented here behave the same on both.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -195,7 +210,7 @@ zcode plugins marketplace remove dev-agent-brain
 | The marketplace is not accepted | The path points at `build/plugin/brain-mcp` or at the repo root | Add the directory that directly contains `marketplace.json`: `brain-mcp/build/plugin` |
 | `brain-mcp` is listed but the tools are missing | The session started before install/enable | Start a new ZCode session |
 | The launcher exits with a Java error | No JDK 21+ on `PATH` and no `JAVA_HOME` | Install/point to a JDK 21+ (Corretto 25 is what the repo builds with) |
-| `brain-mcp: unknown arguments: [...]` | The manifest passes something other than `--ab-base DIR` / `--ab-config FILE` | Fix `mcpServers.brain.args` |
+| `brain-mcp: unknown arguments: [...]` | The manifest passes something other than the documented flags ([docs/mcp.md](mcp.md) §3b) | Fix `mcpServers.brain.args` |
 | MCP errors about malformed stdout | Something wrote a banner to stdout before the transport | Not expected: the server redirects stdout to stderr during startup and logs on stderr; check the plugin's stderr in ZCode |
 | `rag_query` returns no hits | Nothing indexed yet, or the query embedding provider is down | `make index-repos` / `make index`; check `agent-brain health` |
 
