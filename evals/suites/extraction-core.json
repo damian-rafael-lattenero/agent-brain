@@ -1,0 +1,116 @@
+{
+  "name": "extraction-core",
+  "kind": "extraction",
+  "gate": 0.6,
+  "description": "The memory turn: does the chat model return a schema-valid extraction (post-validator: caps, types, dedupe) with the expected durable content? Runs the production system prompt, schema and parse bins; one model call per case, no retries, so latency and tokens are the raw call's.",
+  "cases": [
+    {
+      "type": "extraction",
+      "id": "git-policy-preference",
+      "title": "git policy",
+      "prompt": "Fijate que desde hoy cada commit va siempre con su push. Y pusheá siempre con --no-verify, porque los hooks de pre-push corren suites completas y se comen a los agentes.",
+      "reply": "Listo: dejé la regla escrita en AGENTS.md, commiteé y pusheé con --no-verify.",
+      "tools": [
+        "Write",
+        "Bash"
+      ],
+      "expect": {
+        "preferencesAny": [
+          "push",
+          "no-verify",
+          "verify"
+        ],
+        "summaryRequired": true
+      }
+    },
+    {
+      "type": "extraction",
+      "id": "environment-fact",
+      "title": "brain stack",
+      "prompt": "Ojo que el Postgres del brain corre en el puerto 5433 y la base se llama agent_brain; Redpanda está en el 19092.",
+      "reply": "Anotado: pg 5433/agent_brain y Redpanda 19092.",
+      "tools": [],
+      "expect": {
+        "factsAny": [
+          "5433",
+          "19092",
+          "agent_brain"
+        ],
+        "summaryRequired": true
+      }
+    },
+    {
+      "type": "extraction",
+      "id": "decision-kapstream",
+      "title": "tailer rewrite",
+      "prompt": "Decidí que el tailer del bus use KapStream en vez de Flow: las fuentes tienen que ser dueñas de sus offsets.",
+      "reply": "Hecho: el drain ahora es KapStream.pollUntilQuiet y el offset vive en la fuente.",
+      "tools": [
+        "Edit"
+      ],
+      "expect": {
+        "decisionsAny": [
+          "kapstream",
+          "offset"
+        ],
+        "factsAny": [
+          "kapstream",
+          "offset"
+        ],
+        "summaryRequired": true
+      }
+    },
+    {
+      "type": "extraction",
+      "id": "language-preference",
+      "title": "docs language",
+      "prompt": "Para los docs nuevos prefiero inglés; los commits en inglés también, con conventional commits.",
+      "reply": "Perfecto: docs y mensajes de commit en inglés, formato conventional.",
+      "tools": [],
+      "expect": {
+        "preferencesAny": [
+          "english",
+          "inglés",
+          "conventional"
+        ],
+        "summaryRequired": true
+      }
+    },
+    {
+      "type": "extraction",
+      "id": "small-talk-nothing-durable",
+      "title": "hello",
+      "prompt": "hola, todo bien?",
+      "reply": "Todo bien. ¿En qué querés que trabaje hoy?",
+      "tools": [],
+      "expect": {
+        "empty": true,
+        "summaryRequired": true
+      }
+    },
+    {
+      "type": "extraction",
+      "id": "eval-clock-decision",
+      "title": "eval purity",
+      "prompt": "El EvalRunner tiene que usar clock inyectado y nada de while(true); las aserciones son funciones puras sobre los resultados.",
+      "reply": "Listo: TimeSource y wallClock inyectados, sin while(true), y las aserciones viven en un objeto puro.",
+      "tools": [
+        "Edit",
+        "Bash"
+      ],
+      "expect": {
+        "decisionsAny": [
+          "clock",
+          "timeSource",
+          "pure"
+        ],
+        "preferencesAny": [
+          "clock",
+          "pure",
+          "inyectado"
+        ],
+        "summaryRequired": true
+      }
+    }
+  ]
+}

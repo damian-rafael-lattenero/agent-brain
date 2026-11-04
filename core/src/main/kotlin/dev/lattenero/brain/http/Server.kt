@@ -7,6 +7,7 @@ import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.ProviderHealth
+import dev.lattenero.brain.eval.EvalLedger
 import dev.lattenero.brain.memory.MemoryRequestException
 import dev.lattenero.brain.memory.MemorySaveRequest
 import dev.lattenero.brain.memory.MemorySearchRequest
@@ -128,6 +129,7 @@ fun Application.brainModule(
     indexer: Indexer? = null,
     memory: MemoryService? = null,
     busProcess: ProcessHandle<*>? = null,
+    evalLedger: EvalLedger? = null,
 ) {
     install(ContentNegotiation) { json(responseJson) }
     routing {
@@ -220,6 +222,16 @@ fun Application.brainModule(
                 }
             }
         }
+        // The eval ledger as a read route: a caller chooses a model per turn by
+        // reading the last matrix (`?matrix=true`) instead of re-running evals.
+        if (evalLedger != null) {
+            get("/eval/latest") {
+                val suite = call.request.queryParameters["suite"]
+                val matrix = call.request.queryParameters["matrix"]?.toBooleanStrictOrNull() ?: false
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: EvalLedger.DEFAULT_LIMIT
+                call.respond(evalLedger.latest(suite = suite, matrix = matrix, limit = limit))
+            }
+        }
     }
 }
 
@@ -240,9 +252,10 @@ object BrainServer {
         memory: MemoryService?,
         wait: Boolean,
         busProcess: ProcessHandle<*>? = null,
+        evalLedger: EvalLedger? = null,
     ): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, host = config.httpHost, port = config.httpPort) {
-            brainModule(config, readiness, bus, rag, indexer, memory, busProcess)
+            brainModule(config, readiness, bus, rag, indexer, memory, busProcess, evalLedger)
         }
         log.info("agent-brain $VERSION listening on ${config.httpHost}:${config.httpPort}")
         return server.start(wait = wait)
