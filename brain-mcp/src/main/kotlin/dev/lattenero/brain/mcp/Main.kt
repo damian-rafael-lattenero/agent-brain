@@ -30,6 +30,7 @@ import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.asSource
 import kotlinx.io.asSink
@@ -275,6 +276,16 @@ private fun http(config: Config, host: String, port: Int) {
     log.info("brain-mcp exiting")
 }
 
+/**
+ * The read-only promise of the whole surface in the form a CLIENT can act on.
+ * Every description says "Read-only", but `readOnlyHint` is what a harness
+ * gates on: without it a strict client cannot tell `rag_query` from a write,
+ * so it prompts (or refuses in a read-only mode) and the promise is prose. A
+ * future write tool would have to opt out of this constant visibly.
+ */
+internal val READ_ONLY_TOOL: ToolAnnotations =
+    ToolAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false)
+
 /** The MCP server with the four tools; every handler answers with the envelope, never throws. */
 internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces, served: Ref<Int>): Server = Server(
     serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
@@ -287,6 +298,7 @@ internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces
             name = spec.name,
             description = spec.description,
             inputSchema = Json.decodeFromJsonElement(io.modelcontextprotocol.kotlin.sdk.types.ToolSchema.serializer(), spec.inputSchema),
+            toolAnnotations = READ_ONLY_TOOL,
         ) { request ->
             served.update { it + 1 }.evalGraph()
             envelope(traces, spec, request) { args ->
