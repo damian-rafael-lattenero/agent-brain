@@ -62,6 +62,14 @@ val serviceEnv = mapOf(
     "GLM_API_KEY" to System.getenv("GLM_API_KEY"),
 ).filterValues { it != null }.mapValues { it.value!! }
 
+// The eval suites and the declared price table are versioned at the repo root
+// (`evals/suites/*.json`, `evals/prices.json`) and shipped inside the jar, so
+// a suite is a reviewable file and the CLI still finds it without a path.
+tasks.processResources {
+    from(project.rootDir.resolve("evals/suites")) { into("eval/suites") }
+    from(project.rootDir.resolve("evals/prices.json")) { into("eval") }
+}
+
 fun Test.commonTestSetup() {
     testLogging {
         events("passed", "failed", "skipped")

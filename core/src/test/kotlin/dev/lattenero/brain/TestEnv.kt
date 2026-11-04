@@ -63,6 +63,24 @@ object TestEnv {
         false
     }
 
+    /** The model names the local ollama actually has, tags included (`qwen2.5:3b`). */
+    fun ollamaModels(baseUrl: String = base.ollamaBaseUrl): Set<String> = try {
+        val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build()
+        val request = HttpRequest.newBuilder(URI.create("$baseUrl/api/tags")).timeout(Duration.ofSeconds(3)).GET().build()
+        val body = client.send(request, HttpResponse.BodyHandlers.ofString()).body()
+        val tags = kotlinx.serialization.json.Json.parseToJsonElement(body).let { it as kotlinx.serialization.json.JsonObject }
+        val models = tags["models"] as? kotlinx.serialization.json.JsonArray ?: kotlinx.serialization.json.JsonArray(emptyList())
+        models.mapNotNull { (it as? kotlinx.serialization.json.JsonObject)?.get("name")?.let { name -> (name as kotlinx.serialization.json.JsonPrimitive).content } }.toSet()
+    } catch (e: Exception) {
+        emptySet()
+    }
+
+    /** A matrix model that is not pulled locally is a visible skip (CI pulls only the defaults). */
+    fun needOllamaModel(model: String) = assumeTrue(
+        model in ollamaModels() || "$model:latest" in ollamaModels(),
+        "ollama model $model is not pulled, skipping (ollama pull $model)",
+    )
+
     fun adminConnection(): Connection =
         DriverManager.getConnection(withParams(base.pgUrl, "connectTimeout=3&loginTimeout=3"), base.pgUser, base.pgPassword)
 

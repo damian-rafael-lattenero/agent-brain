@@ -1,0 +1,58 @@
+{
+  "name": "grounded-citation",
+  "kind": "grounded",
+  "gate": 0.8,
+  "description": "Answer quality with a correct citation, measured where it can be measured today: hybrid retrieval returns the context, the chat model composes the answer as JSON {answer, citations:[chunk numbers]} (the step the bot's caller does), and a case passes only when the JSON parses, at least one cited chunk belongs to the expected document AND the answer states the expected fact. The server stays retrieval-only by design; the harness owns the composition.",
+  "cases": [
+    {
+      "type": "grounded",
+      "id": "migrator-lock-id",
+      "question": "which advisory lock id does the migration runner take?",
+      "uri": "/migrator-lock.md",
+      "needles": [
+        "727001"
+      ]
+    },
+    {
+      "type": "grounded",
+      "id": "embedding-dimensions",
+      "question": "how many dimensions does nomic-embed-text produce?",
+      "uri": "/embedding-dimensions.md",
+      "needles": [
+        "768"
+      ]
+    },
+    {
+      "type": "grounded",
+      "id": "circuit-breaker-threshold",
+      "question": "after how many consecutive failures does the embedding circuit breaker open?",
+      "uri": "/circuit-breaker.md",
+      "needles": [
+        "five",
+        "5"
+      ]
+    },
+    {
+      "type": "grounded",
+      "id": "tailer-truncation",
+      "question": "what does the tailer do when the bus file is shorter than the saved offset?",
+      "uri": "/tailer-truncation.md",
+      "needles": [
+        "byte zero",
+        "byte 0",
+        "zero"
+      ]
+    },
+    {
+      "type": "grounded",
+      "id": "hybrid-fusion",
+      "question": "how are the vector and full-text rank lists combined?",
+      "uri": "/hybrid-retrieval.md",
+      "needles": [
+        "reciprocal rank fusion",
+        "rank fusion",
+        "rrf"
+      ]
+    }
+  ]
+}
