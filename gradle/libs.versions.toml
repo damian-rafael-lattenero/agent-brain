@@ -9,10 +9,10 @@ pgvector = "0.1.6"
 kafka = "4.4.0"
 logback = "1.6.6"
 mcp-kotlin-sdk = "0.16.0"
-# TEMPORARY (Phase G dogfooding): 5.0.0 resolves from mavenLocal (see
-# settings.gradle.kts) until the Central release lands; bump back to Central
-# only, never publish kap from here.
-kap = "5.0.0"
+# Central only, never publish kap from here. 5.1.0 (R5) is the release that
+# retired this repo's interims: SyncCell, Schedule.debounce and
+# KapStream.pollUntilQuiet.
+kap = "5.1.0"
 ksp = "2.3.12"
 arrow = "2.1.2"
 detekt = "2.0.0-alpha.6"
