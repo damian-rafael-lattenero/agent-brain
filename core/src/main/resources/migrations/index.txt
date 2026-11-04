@@ -1,3 +1,4 @@
 0001_init.sql
 0002_chunk_heading.sql
 0003_memory_pipeline.sql
+0004_eval_product.sql

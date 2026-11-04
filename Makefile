@@ -1,6 +1,13 @@
-.PHONY: bootstrap up down nuke migrate serve index index-repos index-repos-dry query bridge plugin eval test bb detekt e2e-real e2e-real-login check ci clean
+.PHONY: bootstrap up down nuke migrate serve index index-repos index-repos-dry query bridge plugin eval eval-suite eval-matrix eval-matrix-retrieval eval-latest test bb detekt e2e-real e2e-real-login check ci clean
 
 BIN := core/build/install/agent-brain/bin/agent-brain
+
+# The chat models the matrix compares by default (the extraction/answer axis).
+MODELS ?= qwen2.5:1.5b,qwen2.5:3b
+# The suites the matrix runs by default: the memory turn and the composed answer.
+SUITES ?= extraction-core,grounded-citation
+# Embedding models for the retrieval axis; the @dim is the vector width.
+RECALL_MODELS ?= nomic-embed-text@768,all-minilm@384
 
 bootstrap:          ## verify JDK/docker/ollama and build the distribution
 	./bootstrap.nu
@@ -48,9 +55,25 @@ plugin:             ## build the ZCode plugin (brain-mcp) into brain-mcp/build/p
 	./gradlew --quiet :brain-mcp:plugin
 	@echo "plugin ready: $(CURDIR)/brain-mcp/build/plugin (add it as a local marketplace in ZCode, then install brain-mcp)"
 
-eval:               ## recall gate: fresh database, fixture corpus, 20 questions, eval_runs row + evals/artifacts/latest.md
+eval:               ## the cheap CI gate: recall-core (20 questions, gate 0.9) → eval_runs + evals/artifacts/latest.{md,json}
 	./gradlew --quiet :core:installDist
 	$(BIN) eval
+
+eval-suite:         ## any suite: make eval-suite SUITE=extraction-core
+	./gradlew --quiet :core:installDist
+	$(BIN) eval --suite $(or $(SUITE),extraction-core)
+
+eval-matrix:        ## the model comparison, ONE command: make eval-matrix [MODELS=..] [SUITES=..]
+	./gradlew --quiet :core:installDist
+	$(BIN) eval --suite $(SUITES) --matrix $(MODELS)
+
+eval-matrix-retrieval: ## the same on the retrieval axis: make eval-matrix-retrieval [MODELS=nomic-embed-text@768,all-minilm@384]
+	./gradlew --quiet :core:installDist
+	$(BIN) eval --suite recall-core --matrix $(RECALL_MODELS)
+
+eval-latest:        ## the last persisted run(s): make eval-latest [SUITE=recall-core] [MATRIX=1]
+	./gradlew --quiet :core:installDist
+	$(BIN) eval latest $(if $(SUITE),--suite $(SUITE)) $(if $(MATRIX),--matrix) --md
 
 test:               ## tiers 1-3: unit, integration, e2e (skips a tier when its service is down)
 	./gradlew test
