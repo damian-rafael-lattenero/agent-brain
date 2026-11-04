@@ -30,6 +30,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.assertj.core.api.Assertions.assertThat
@@ -157,6 +158,60 @@ class McpHttpTest {
         assertThat(body).doesNotContain(tokenValue).doesNotContain("127.0.0.1:$brainPort")
     }
 
+    // ── the rebinding guard on the unauthenticated route ────────────────────
+
+    @Test
+    fun `health answers only a loopback Host and Origin`() {
+        // The shapes a real browser and a rebound page send, over a raw socket.
+        listOf("127.0.0.1:$port", "localhost:$port", "[::1]:$port", "LOCALHOST:$port").forEach { host ->
+            assertThat(rawStatus("/health", host, null)).describedAs("Host: $host").startsWith("HTTP/1.1 200")
+        }
+        assertThat(rawStatus("/health", "127.0.0.1:$port", "http://localhost:$port")).startsWith("HTTP/1.1 200")
+        assertThat(rawStatus("/health", "127.0.0.1:$port", "http://127.0.0.1:$port")).startsWith("HTTP/1.1 200")
+
+        listOf("evil.example", "127.0.0.1.evil.example", "evil.example:$port", "localhost.evil.example").forEach { host ->
+            assertThat(rawStatus("/health", host, null)).describedAs("Host: $host").startsWith("HTTP/1.1 403")
+        }
+        listOf("https://evil.example", "http://evil.example:$port", "null", "not a url").forEach { origin ->
+            assertThat(rawStatus("/health", "127.0.0.1:$port", origin)).describedAs("Origin: $origin").startsWith("HTTP/1.1 403")
+        }
+        // HTTP/1.0 has no Host header at all: fail closed, like the SDK does on /mcp.
+        assertThat(rawStatus("/health", null, null)).startsWith("HTTP/1.1 403")
+    }
+
+    @Test
+    fun `a rejected Host is never echoed back and the MCP path keeps the SDK guard`() {
+        val (status, body) = rawResponse("/health", "evil.example", null)
+        assertThat(status).isEqualTo("HTTP/1.1 403 Forbidden")
+        assertThat(body).doesNotContain("evil.example").isEqualTo(McpHttp.FORBIDDEN_BODY)
+
+        // /mcp is the SDK's guard, and the token still answers first (401, no oracle).
+        assertThat(rawStatus(McpHttp.PATH, "evil.example", null)).startsWith("HTTP/1.1 401")
+        assertThat(rawStatus(McpHttp.PATH, "127.0.0.1:$port", null)).startsWith("HTTP/1.1 401")
+    }
+
+    @Test
+    fun `the Host and Origin parsers strip ports and refuse anything else`() {
+        // The header forms a client can send. A bare `::1` is not one of them (IPv6 is bracketed).
+        listOf("localhost", "127.0.0.1", "[::1]").forEach {
+            assertThat(McpHttp.hostAllowed("$it:$port")).describedAs(it).isTrue()
+        }
+        assertThat(McpHttp.hostAllowed("::1")).isTrue()
+        assertThat(McpHttp.hostAllowed("localhost")).isTrue()
+        assertThat(McpHttp.hostAllowed(" 127.0.0.1:8767 ")).isTrue()
+        assertThat(McpHttp.hostAllowed("")).isFalse()
+        assertThat(McpHttp.hostAllowed(null)).isFalse()
+        assertThat(McpHttp.hostAllowed("[]:8767")).isFalse()
+        assertThat(McpHttp.hostAllowed("127.0.0.1:8767@evil.example")).isFalse()
+
+        assertThat(McpHttp.originAllowed(null)).isTrue() // a non-browser client sends no Origin
+        assertThat(McpHttp.originAllowed("")).isTrue()
+        assertThat(McpHttp.originAllowed("http://localhost:8767")).isTrue()
+        assertThat(McpHttp.originAllowed("http://[::1]:8767")).isTrue()
+        assertThat(McpHttp.originAllowed("null")).isFalse()
+        assertThat(McpHttp.originAllowed("https://evil.example")).isFalse()
+    }
+
     // ── the contract, identical to stdio ────────────────────────────────────
 
     @Test
@@ -181,6 +236,23 @@ class McpHttpTest {
             val schema = tool.jsonObject["inputSchema"]!!.jsonObject
             assertThat(schema["type"]!!.jsonPrimitive.content).isEqualTo("object")
             assertThat(schema.toString()).doesNotContain("oneOf")
+        }
+    }
+
+    @Test
+    fun `every tool declares readOnlyHint so a client can enforce the read-only promise`() = runBlocking<Unit> {
+        val session = initializedSession()
+        val response = mcpPost("""{"jsonrpc":"2.0","id":7,"method":"tools/list"}""", tokenValue, session)
+        val tools = json.parseToJsonElement(response.bodyAsText())
+            .jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
+        assertThat(tools).hasSize(BrainTools.all.size)
+        tools.forEach { tool ->
+            val name = tool.jsonObject["name"]!!.jsonPrimitive.content
+            val annotations = tool.jsonObject["annotations"]?.jsonObject
+            assertThat(annotations).describedAs("$name must carry annotations, not just prose").isNotNull
+            assertThat(annotations!!["readOnlyHint"]!!.jsonPrimitive.boolean).describedAs(name).isTrue()
+            assertThat(annotations["destructiveHint"]!!.jsonPrimitive.boolean).describedAs(name).isFalse()
+            assertThat(annotations["openWorldHint"]!!.jsonPrimitive.boolean).describedAs(name).isFalse()
         }
     }
 
@@ -237,6 +309,31 @@ class McpHttpTest {
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private fun url(path: String) = "http://127.0.0.1:$port$path"
+
+    /**
+     * One request over a raw socket: the Host and Origin headers are then
+     * exactly the bytes a rebound page sends, with no client engine deciding
+     * which of the two ends up on the wire.
+     */
+    private fun rawResponse(path: String, host: String?, origin: String?): Pair<String, String> {
+        val request = buildString {
+            append("GET $path HTTP/1.1\r\n")
+            host?.let { append("Host: $it\r\n") }
+            origin?.let { append("Origin: $it\r\n") }
+            append("Connection: close\r\n\r\n")
+        }
+        java.net.Socket("127.0.0.1", port).use { socket ->
+            socket.soTimeout = 5_000
+            socket.getOutputStream().apply {
+                write(request.toByteArray(Charsets.UTF_8))
+                flush()
+            }
+            val answer = String(socket.getInputStream().readBytes(), Charsets.UTF_8)
+            return answer.lineSequence().first() to answer.substringAfter("\r\n\r\n", "")
+        }
+    }
+
+    private fun rawStatus(path: String, host: String?, origin: String?): String = rawResponse(path, host, origin).first
 
     private fun io.ktor.client.request.HttpRequestBuilder.acceptMcp() {
         header(HttpHeaders.Accept, "application/json, text/event-stream")

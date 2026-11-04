@@ -27,6 +27,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
+import java.net.URI
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -69,6 +70,16 @@ object McpHttp {
     /** The one body a rejected request gets: no oracle for missing vs wrong vs other scheme. */
     const val UNAUTHORIZED_BODY = """{"error":"unauthorized","message":"missing or invalid bearer token"}"""
 
+    /**
+     * The one body a rejected Host/Origin gets. It deliberately does NOT echo the
+     * offending header: the SDK's own 403 quotes it back (`"Invalid Host: X"`), and
+     * a reflected value is text the caller chose written into our answer.
+     */
+    const val FORBIDDEN_BODY = """{"error":"forbidden","message":"Host and Origin must be loopback"}"""
+
+    /** The loopback names a browser can legitimately use against this endpoint. */
+    val ALLOWED_HOSTS: Set<String> = setOf("localhost", "127.0.0.1", "[::1]", "::1")
+
     private const val GRACE_MS = 1_000L
     private const val STOP_TIMEOUT_MS = 5_000L
 
@@ -84,6 +95,24 @@ object McpHttp {
                 "For another machine use an SSH tunnel — " +
                 "ssh -L $DEFAULT_PORT:$DEFAULT_HOST:$DEFAULT_PORT <host> — see docs/mcp.md"
         }
+    }
+
+    /**
+     * True only for a loopback `Host` header. A missing or empty one is false:
+     * HTTP/1.0 and a malformed request line must not skip the check (the SDK's
+     * guard on `/mcp` is fail-closed the same way).
+     */
+    fun hostAllowed(hostHeader: String?): Boolean = hostOf(hostHeader)?.let { it in ALLOWED_HOSTS } == true
+
+    /**
+     * True for an absent `Origin` (a non-browser client) or one whose host is
+     * loopback. `Origin: null`, an unparseable value and any foreign name are
+     * false — the DNS-rebinding case is exactly a page whose own origin is the
+     * rebound name.
+     */
+    fun originAllowed(origin: String?): Boolean {
+        val raw = origin?.trim().orEmpty()
+        return raw.isEmpty() || originHost(raw)?.let { it in ALLOWED_HOSTS } == true
     }
 
     /**
@@ -134,6 +163,7 @@ object McpHttp {
         served: Ref<Int>,
     ) {
         installTokenGuard(token)
+        installRebindingGuard()
         routing {
             // Unauthenticated on purpose: it answers "is the process up?" without a
             // token, and it is free of configuration (no base URL, no token, no paths).
@@ -188,3 +218,50 @@ object McpHttp {
         server.stop(GRACE_MS, STOP_TIMEOUT_MS)
     }
 }
+
+/**
+ * The Host/Origin allowlist for everything that is NOT `/mcp`: the SDK installs
+ * its DNS-rebinding guard on its own route only, so `/health` — unauthenticated
+ * by design — used to answer `Host: evil.example` with 200. Under rebinding that
+ * is a readable cross-origin response (version, tool count and the live tool-call
+ * counter), which is the one thing the guard exists to prevent. Same rule, same
+ * 403, minus the SDK's reflection of the offending value.
+ *
+ * `/mcp` is skipped: its guard is the SDK's, and duplicating it there would mean
+ * two allowlists that can drift.
+ */
+private fun Application.installRebindingGuard() {
+    intercept(ApplicationCallPipeline.Plugins) {
+        val path = call.request.path()
+        val allowed = path == McpHttp.PATH ||
+            (
+                McpHttp.hostAllowed(call.request.header(HttpHeaders.Host)) &&
+                    McpHttp.originAllowed(call.request.header(HttpHeaders.Origin))
+                )
+        if (!allowed) {
+            log.warn("rejected a request to {} from a non-loopback Host or Origin", path)
+            call.respondText(McpHttp.FORBIDDEN_BODY, ContentType.Application.Json, HttpStatusCode.Forbidden)
+            finish()
+        }
+    }
+}
+
+/**
+ * `Host` without its port, lowercased: "127.0.0.1:8767" → "127.0.0.1",
+ * "[::1]:8767" → "[::1]". A non-numeric port makes the header malformed and is
+ * rejected ("127.0.0.1:80@evil.example" must not read as "127.0.0.1").
+ */
+private fun hostOf(hostHeader: String?): String? {
+    val raw = hostHeader?.trim().orEmpty()
+    if (raw.isEmpty()) return null
+    val host = when {
+        raw.startsWith("[") -> raw.substringBefore(']') + "]"
+        raw.count { it == ':' } == 1 -> raw.substringBefore(':')
+        else -> raw
+    }
+    val port = raw.removePrefix(host).removePrefix(":")
+    return host.lowercase().takeIf { port.isEmpty() || port.all { c -> c.isDigit() } }
+}
+
+/** The host of an `Origin` value, or null when it does not parse (includes `null`). */
+private fun originHost(origin: String): String? = runCatching { URI(origin).host }.getOrNull()?.lowercase()
