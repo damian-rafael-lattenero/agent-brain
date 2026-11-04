@@ -1,6 +1,11 @@
 package dev.lattenero.brain.embeddings
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -44,5 +49,16 @@ class FakeProviderTest {
         assertThat(norm).isCloseTo(1.0, org.assertj.core.data.Offset.offset(1e-5))
         provider.embed(listOf("y", "z"))
         assertThat(provider.calls).isEqualTo(2)
+    }
+
+    @Test
+    fun `concurrent calls lose no update`() = runBlocking<Unit> {
+        // The pipeline embeds batches in parallel: the counter is a SyncCell, so
+        // N concurrent calls leave exactly N (a plain `+= 1` would undercount).
+        val provider = FakeProvider(dim = 8)
+        withContext(Dispatchers.Default) {
+            (1..500).map { async { provider.embed(listOf("same text")) } }.awaitAll()
+        }
+        assertThat(provider.calls).isEqualTo(500)
     }
 }

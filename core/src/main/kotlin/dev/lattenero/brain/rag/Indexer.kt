@@ -120,7 +120,10 @@ class Indexer(
             skipped = skipped,
             durationMs = mark.elapsedNow().inWholeMilliseconds,
             embedModel = embed.model,
-            phases = tracer.phases.mapValues { (_, p) -> PhaseStat(p.count.get(), p.failures.get(), p.totalMillis.get()) },
+            phases = tracer.phases.mapValues { (_, p) ->
+                val counters = p.snapshot()
+                PhaseStat(counters.count, counters.failures, counters.totalMillis)
+            },
         )
     }
 

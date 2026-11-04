@@ -1,17 +1,20 @@
 package dev.lattenero.brain.bus
 
-import kap.evalGraph
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
 /**
- * Pins the quiet-window drain's value fold (Phase D): the repeated body
- * returns its [DrainProgress] state and the loop terminates on the returned
- * quiet run — the exact (total, quiet) semantics the closure vars used to
- * carry, and the poll stops the moment the window fills. This is the
- * hand-rolled stateful schedule plan.md's D2 calls interim until a kap
- * `Schedule` addition (debounce / only-once-per-key) takes over.
+ * Pins the quiet-window drain's CONTRACT at the call site (`ingest --once`,
+ * the ITs): poll counts in, the sum of the reports with work out, and the poll
+ * stops the moment the window fills.
+ *
+ * The loop itself is kap 5.1's [kap.KapStream.pollUntilQuiet] stopped by
+ * [kap.Schedule.debounce]; its laws (work-only emission, quiet-driven
+ * termination, cadence) are pinned by kap's own suite, not restated here. The
+ * old value-fold test went with the retired `DrainProgress` interim — the
+ * `tally` fold no longer exists anywhere in this repo. The goldens below did
+ * NOT change under the migration: same totals, same poll counts.
  */
 class QuietWindowDrainTest {
 
@@ -25,15 +28,6 @@ class QuietWindowDrainTest {
             calls += 1
             return if (script.hasNext()) script.next() else 0
         }
-    }
-
-    @Test
-    fun `the fold carries the pinned total-and-quiet semantics`() {
-        // The old vars over polls [3, 0, 0]: total 3, quiet 2 — the value fold is the same.
-        val afterEmpties = DrainProgress().tally(3).tally(0).tally(0)
-        assertThat(afterEmpties).isEqualTo(DrainProgress(total = 3, quiet = 2))
-        // A non-empty poll adds to the total and resets the quiet run.
-        assertThat(afterEmpties.tally(2)).isEqualTo(DrainProgress(total = 5, quiet = 0))
     }
 
     @Test
@@ -58,5 +52,15 @@ class QuietWindowDrainTest {
         val total = drainUntilQuiet(quietPolls = 0) { polls.poll() }
         assertThat(total).isEqualTo(2)
         assertThat(polls.calls).isEqualTo(1)
+    }
+
+    @Test
+    fun `quiet polls contribute nothing to the total`() = runBlocking<Unit> {
+        // The report's total is THAT poll's count: only non-quiet reports are
+        // emitted, so the sum never double-counts and empty polls add zero.
+        val polls = ScriptedPolls(listOf(0, 0, 3, 0, 0, 0))
+        val total = drainUntilQuiet(quietPolls = 3) { polls.poll() }
+        assertThat(total).isEqualTo(3)
+        assertThat(polls.calls).isEqualTo(6)
     }
 }

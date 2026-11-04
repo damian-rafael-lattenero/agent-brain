@@ -4,7 +4,9 @@ import dev.lattenero.brain.embeddings.EmbeddingProvider
 import kap.CircuitBreaker
 import kap.Kap
 import kap.KapTracer
+import kap.Ref
 import kap.Schedule
+import kap.SyncCell
 import kap.TraceEvent
 import kap.map
 import kap.retry
@@ -14,7 +16,6 @@ import kap.traverse
 import kap.withCircuitBreaker
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -22,16 +23,41 @@ import kotlin.time.Duration.Companion.seconds
 private val log = LoggerFactory.getLogger("agent-brain.embed")
 
 /**
+ * One phase's counters as one immutable value (the [CountingTracer.Phase] read
+ * surface).
+ */
+data class PhaseCounters(val count: Long = 0, val failures: Long = 0, val totalMillis: Long = 0) {
+    /** Folds one finished event in: every finished call counts, a failure is also a failure, time always accrues. */
+    fun record(succeeded: Boolean, duration: Duration): PhaseCounters = copy(
+        count = count + 1,
+        failures = if (succeeded) failures else failures + 1,
+        totalMillis = totalMillis + duration.inWholeMilliseconds,
+    )
+}
+
+/**
  * Per-phase counters fed by KAP's `traced` combinator; the index report prints
- * them. These stay [AtomicLong], deliberately: [KapTracer.onEvent] is a
- * non-suspend SPI callback, and a kap `Ref` update is suspend by design —
- * converting would need a kap API change (a suspend tracer), not a local edit.
+ * them.
+ *
+ * [KapTracer.onEvent] is a non-suspend SPI callback, so the counters cannot be
+ * a kap `Ref` (whose operations suspend). kap 5.1's [SyncCell] is exactly the
+ * non-suspending counterpart — [Ref.sync] gives a lock-free atomic register
+ * with the same laws — so each phase holds ONE cell over [PhaseCounters]: an
+ * event is a single atomic read-modify-write (count, failures and millis move
+ * together) and [Phase.snapshot] observes a value the cell actually held. The
+ * map of phases is a [ConcurrentHashMap] because `computeIfAbsent` is the
+ * non-suspending way to create a phase on first sight of its name.
  */
 class CountingTracer : KapTracer {
     class Phase {
-        val count = AtomicLong()
-        val failures = AtomicLong()
-        val totalMillis = AtomicLong()
+        private val state: SyncCell<PhaseCounters> = Ref.sync(PhaseCounters())
+
+        /** The counters as one consistent value. */
+        fun snapshot(): PhaseCounters = state.get()
+
+        fun record(succeeded: Boolean, duration: Duration) {
+            state.update { it.record(succeeded, duration) }
+        }
     }
 
     val phases = ConcurrentHashMap<String, Phase>()
@@ -40,15 +66,8 @@ class CountingTracer : KapTracer {
         val phase = phases.computeIfAbsent(event.name) { Phase() }
         when (event) {
             is TraceEvent.Started -> Unit
-            is TraceEvent.Succeeded -> {
-                phase.count.incrementAndGet()
-                phase.totalMillis.addAndGet(event.duration.inWholeMilliseconds)
-            }
-            is TraceEvent.Failed -> {
-                phase.count.incrementAndGet()
-                phase.failures.incrementAndGet()
-                phase.totalMillis.addAndGet(event.duration.inWholeMilliseconds)
-            }
+            is TraceEvent.Succeeded -> phase.record(succeeded = true, duration = event.duration)
+            is TraceEvent.Failed -> phase.record(succeeded = false, duration = event.duration)
         }
     }
 }
