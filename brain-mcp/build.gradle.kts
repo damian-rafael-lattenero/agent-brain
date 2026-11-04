@@ -26,14 +26,17 @@ dependencies {
     // The tool handlers talk to the brain over the SAME ktor client setup as
     // the core module (plan C4); the client types must resolve here.
     implementation(libs.bundles.ktor.client)
+    // The HTTP transport: the MCP SDK's streamable-HTTP routes are ktor server
+    // extensions, so the engine lives here too. It serves ONLY /mcp and
+    // /health, on loopback (see McpHttp).
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
     ksp(libs.kap.ksp)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.assertj.core)
-    testImplementation(libs.ktor.server.cio)
-    testImplementation(libs.ktor.server.core)
 }
 
 application {

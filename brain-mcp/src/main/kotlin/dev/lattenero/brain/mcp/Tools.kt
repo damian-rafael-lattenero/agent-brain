@@ -97,15 +97,52 @@ class Traces private constructor(private val start: Long, private val seq: Ref<L
     }
 }
 
-/** argv-only configuration, like the haskell-rules server: no flags, no env parsing beyond AB_*. */
+/**
+ * argv-only configuration, like the haskell-rules server: flags and an optional
+ * `serve` verb, no config parsing here beyond AB_*.
+ *
+ * The DEFAULT does not change (compat is a requirement): no arguments means the
+ * stdio plugin. The service transport is opt-in:
+ *
+ *     brain-mcp serve --transport http --port 8767
+ *
+ * (the verb mirrors `agent-brain serve`; `--transport http` alone is the same).
+ */
 object Args {
-    data class Parsed(val abBase: String?, val abConfig: String?)
+    const val TRANSPORT_STDIO = "stdio"
+    const val TRANSPORT_HTTP = "http"
+    const val USAGE = "usage: brain-mcp [serve] [--transport stdio|http] [--port N (http, default 8767)] " +
+        "[--host H (http, loopback only)] [--ab-base DIR] [--ab-config FILE]"
+
+    data class Parsed(
+        val abBase: String?,
+        val abConfig: String?,
+        val transport: String = TRANSPORT_STDIO,
+        val host: String = McpHttp.DEFAULT_HOST,
+        val port: Int = McpHttp.DEFAULT_PORT,
+    )
+
+    private val FLAGS = listOf("--ab-base", "--ab-config", "--transport", "--port", "--host")
 
     fun parse(argv: List<String>): Parsed {
-        val known = setOf("--ab-base", "--ab-config")
-        val extra = argv.filterIndexed { i, a -> a !in known && (i == 0 || argv[i - 1] !in known) }
-        require(extra.isEmpty()) { "unknown arguments: $extra (usage: brain-mcp [--ab-base DIR] [--ab-config FILE])" }
+        val words = argv.filter { it != "serve" }
+        val extra = words.filterIndexed { i, a -> a !in FLAGS && (i == 0 || words[i - 1] !in FLAGS) }
+        require(extra.isEmpty()) { "unknown arguments: $extra ($USAGE)" }
+        require(words.lastOrNull() !in FLAGS) { "${words.lastOrNull()} needs a value ($USAGE)" }
         fun value(flag: String) = argv.dropWhile { it != flag }.drop(1).firstOrNull()?.also { require(!it.startsWith("--")) { "$flag needs a value" } }
-        return Parsed(value("--ab-base"), value("--ab-config"))
+        val transport = value("--transport") ?: TRANSPORT_STDIO
+        require(transport == TRANSPORT_STDIO || transport == TRANSPORT_HTTP) {
+            "--transport must be $TRANSPORT_STDIO or $TRANSPORT_HTTP, got '$transport'"
+        }
+        val port = value("--port")?.let { raw ->
+            requireNotNull(raw.toIntOrNull()?.takeIf { it in 1..65535 }) { "--port must be 1..65535, got '$raw'" }
+        } ?: McpHttp.DEFAULT_PORT
+        return Parsed(
+            abBase = value("--ab-base"),
+            abConfig = value("--ab-config"),
+            transport = transport,
+            host = value("--host") ?: McpHttp.DEFAULT_HOST,
+            port = port,
+        )
     }
 }
