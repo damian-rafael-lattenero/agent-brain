@@ -11,6 +11,7 @@ import kap.KapTypeSafe
 import kap.evalGraph
 import kap.timeoutAsFailure
 import dev.lattenero.brain.config.Config
+import dev.lattenero.brain.http.HttpClients
 import dev.lattenero.brain.memory.MemorySearchRequest
 import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.rag.QueryRequest
@@ -127,7 +128,7 @@ object BrainTools {
  * ADR-007). ktor CIO suspends; the old blocking `HttpClient.send` needed
  * Dispatchers.IO, this client does not.
  */
-private class HttpBrainClient(baseUrl: String, private val client: HttpClient, private val timeout: Duration) {
+internal class HttpBrainClient(baseUrl: String, private val client: HttpClient, private val timeout: Duration) {
     private val root = baseUrl.trimEnd('/')
 
     suspend fun post(path: String, body: String): Pair<Int, String> =
@@ -179,8 +180,16 @@ fun main(argv: Array<String>) {
         System.err.println("brain-mcp: cannot configure the brain: ${e.message}")
         exitProcess(1)
     }
+    when (parsed.transport) {
+        Args.TRANSPORT_STDIO -> stdio(config)
+        Args.TRANSPORT_HTTP -> http(config, parsed.host, parsed.port)
+    }
+}
+
+/** The plugin's transport: unchanged, and the default when no `--transport` is given. */
+private fun stdio(config: Config) {
     try {
-        runBlocking { Brain.resource(config).use { brain -> serve(brain) } }
+        runBlocking { Brain.resource(config).use { brain -> serveStdio(brain) } }
     } catch (e: Exception) {
         System.err.println("brain-mcp: cannot start: ${e.message}")
         exitProcess(1)
@@ -189,7 +198,7 @@ fun main(argv: Array<String>) {
 }
 
 /** Startup, then park until the session closes or the JVM is asked to stop; both leave through the Brain Resource. */
-private suspend fun serve(brain: Brain) {
+private suspend fun serveStdio(brain: Brain) {
     val (server, served) = stdoutGuard().use { _ ->
         val http = HttpBrainClient(
             baseUrl = "http://${brain.config.httpHost}:${brain.config.httpPort}",
@@ -198,10 +207,7 @@ private suspend fun serve(brain: Brain) {
         )
         // Registry and liveness probe come up together; a dead brain is advisory here (the
         // envelopes report it per call) but it is logged once at startup.
-        val wiring = kap(::ToolWiring)
-            .with { registry from BrainTools.all }
-            .with { brainReady from brainReady(http) }
-            .evalGraph()
+        val wiring = wire(http)
         if (!wiring.brainReady) log.warn("the brain's HTTP API is not reachable yet; tool calls will answer brain_unavailable until it is")
         // The per-process state (trace ids, tool-call count) is kap Ref state
         // (Phase G): created by executing the graph, advanced through update.
@@ -231,8 +237,46 @@ private suspend fun serve(brain: Brain) {
     log.info("brain-mcp session ended after {} tool call(s)", served.get().evalGraph())
 }
 
+/**
+ * The service transport: the same four tools over streamable HTTP on loopback,
+ * for any client that is not this machine's ZCode plugin. No Brain is built —
+ * the facade talks to `agent-brain serve` over its loopback HTTP API, so there
+ * is no second pool, no second provider and no second tailer (see docs/mcp.md).
+ */
+private fun http(config: Config, host: String, port: Int) {
+    val token = try {
+        McpToken.load()
+    } catch (e: McpTokenException) {
+        System.err.println("brain-mcp: ${e.message}")
+        exitProcess(2)
+    }
+    try {
+        McpHttp.requireLoopback(host)
+    } catch (e: IllegalArgumentException) {
+        System.err.println("brain-mcp: ${e.message}")
+        exitProcess(2)
+    }
+    val client = HttpClients.create(config.httpTimeoutS)
+    val server = try {
+        runBlocking { McpHttp.start(config, host, port, token, client) }
+    } catch (e: Exception) {
+        client.close()
+        System.err.println("brain-mcp: cannot start the HTTP transport on $host:$port: ${e.message}")
+        exitProcess(1)
+    }
+    try {
+        // Park until SIGTERM/SIGINT; the shutdown hook resumes this await and then
+        // holds the JVM open while the server stops and the client closes.
+        runBlocking { shutdownSignal(Thread.currentThread()).evalGraph() }
+    } finally {
+        McpHttp.stop(server)
+        client.close()
+    }
+    log.info("brain-mcp exiting")
+}
+
 /** The MCP server with the four tools; every handler answers with the envelope, never throws. */
-private fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces, served: Ref<Int>): Server = Server(
+internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces, served: Ref<Int>): Server = Server(
     serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
     options = ServerOptions(capabilities = ServerCapabilities(tools = ServerCapabilities.Tools())),
     instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent) and bus health (bus_status). " +
@@ -287,7 +331,7 @@ private fun shutdownSignal(mainThread: Thread): Kap<Unit> =
 /** How long the shutdown hook waits for main to finish the Resource release before the JVM halts. */
 private const val SHUTDOWN_JOIN_MS = 5_000L
 
-private suspend fun brainReady(http: HttpBrainClient): Boolean = try {
+internal suspend fun brainReady(http: HttpBrainClient): Boolean = try {
     http.get("/ready").first == 200
 } catch (e: java.io.IOException) {
     false
