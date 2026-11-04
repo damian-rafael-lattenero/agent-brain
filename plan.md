@@ -181,10 +181,10 @@ injected parameter.
 | Gap | Consumer here (evidence) | Kap milestone |
 |---|---|---|
 | `Supervisor` (OneForOne/AllForOne) | batch-wide supervision for the memory worker (C2: interim documented, open breaker defers like any provider failure); process group liveness in `serve` | SPEC-5.0 5.0 |
-| `KapStream` (sources own offsets; fold stages) | drains (D1-D3); tailer as stream | SPEC-5.0 5.0 |
-| `Ref` thin wrapper | remaining monotone counters (A3 leftovers) | SPEC-5.0 5.0 |
+| `KapStream` (sources own offsets; fold stages) | drains (D1-D3); tailer as stream | SPEC-5.0 5.0; `pollUntilQuiet` in 5.1.0 |
+| `Ref` thin wrapper | remaining monotone counters (A3 leftovers) | SPEC-5.0 5.0; non-suspending `SyncCell` / `Ref.sync` in 5.1.0 |
 | `Resource`-based server lifecycle (SIGTERM → graceful stop) | `http/Server.kt:216-222` blocks forever; `serve`'s `finally` never runs | R5 candidate — new kap-kap-ktor addition |
-| Debounce / only-once-per-key `Schedule` | quiet-window termination (D2) | R5 candidate |
+| Debounce / only-once-per-key `Schedule` | quiet-window termination (D2) | **shipped 5.1.0** (`Schedule.debounce`); D2's interim retired here |
 | **File-effect laws** (atomic write tmp+fsync+rename, flock-with-deadline, mtime-as-clock) | new SPEC-5.0 item from the 2026-10-29 audit (not yet written there) | propose to SPEC-5.0 |
 
 Rule: the version catalog bump lands in the same change that consumes the new
