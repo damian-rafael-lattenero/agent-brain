@@ -1,0 +1,61 @@
+name: eval matrix (manual, explicit)
+
+# The model comparison is a decision tool, not a gate: it pulls a second model
+# and runs the suites once per model (~70 s locally for 22 chat calls). Running
+# it on every push would double CI time and model pulls for no regression
+# signal — `make eval` (ci.yml, one model, ~1.5 s) is the gate. This workflow is
+# triggered by hand, on the axis and models you are deciding about, and uploads
+# the comparison artifact with its recommendation per turn.
+
+on:
+  workflow_dispatch:
+    inputs:
+      axis:
+        description: "chat (extraction + grounded answer) or embed (recall)"
+        required: false
+        default: chat
+        type: choice
+        options: [chat, embed]
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      pg:
+        image: pgvector/pgvector:pg18
+        env: { POSTGRES_USER: brain, POSTGRES_PASSWORD: brain, POSTGRES_DB: agent_brain }
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U brain -d agent_brain" --health-interval 2s --health-timeout 2s --health-retries 30
+    env:
+      AB_PG_URL: jdbc:postgresql://127.0.0.1:5433/agent_brain
+      AB_PG_USER: brain
+      AB_PG_PASSWORD: brain
+      AB_OLLAMA_BASE_URL: http://127.0.0.1:11434
+      AB_REQUIRE_SERVICES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: corretto, java-version: "25" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Ollama (both chat models and both embedding models)
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/ollama.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/tags && break; sleep 1; done
+          ollama pull qwen2.5:1.5b
+          ollama pull qwen2.5:3b
+          ollama pull nomic-embed-text
+          ollama pull all-minilm
+      - name: The comparison (one command per axis)
+        run: |
+          ./gradlew --no-daemon :core:installDist
+          if [ "${{ inputs.axis }}" = "embed" ]; then
+            make eval-matrix-retrieval
+          else
+            make eval-matrix
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: eval-matrix-artifact, path: evals/artifacts/ }
