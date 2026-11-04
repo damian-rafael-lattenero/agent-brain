@@ -6,7 +6,9 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kap.Kap
+import kap.KapStream
 import kap.Process
+import kap.Progress
 import kap.Ref
 import kap.RestartPolicy
 import kap.Schedule
@@ -193,39 +195,36 @@ class KafkaStats private constructor(private val state: Ref<KafkaCounters>) {
 }
 
 /**
- * One quiet-window drain step's accumulated state as an immutable value
- * (Phase D: the repeated body returns its state instead of mutating a
- * closure). [total] is the running total of the counts the polls returned;
- * [quiet] is the run of consecutive empty polls — the loop's termination
- * state.
- */
-data class DrainProgress(val total: Int = 0, val quiet: Int = 0) {
-    /** Folds one poll's count in: a non-empty poll adds to the total and resets the quiet run; an empty one extends. */
-    fun tally(count: Int): DrainProgress =
-        if (count == 0) copy(quiet = quiet + 1) else copy(total = total + count, quiet = 0)
-}
-
-/**
- * The quiet-window drain as a value fold: poll until [quietPolls] consecutive
- * polls come back empty, return the total the polls handed over. The repeated
- * body RETURNS its state — [Ref.update] folds the poll's count into a
- * [DrainProgress] and yields the new state, so `repeatUntil` decides on the
- * returned value and the caller folds the result out of the last one. The
- * drain-local [Ref] is only the carrier between iterations (kap `repeat`
- * re-executes the same body); no closure is mutated.
+ * The quiet-window drain over the polls: poll until [quietPolls] consecutive
+ * polls come back empty, return the total the polls handed over.
  *
- * This is the hand-rolled STATEFUL schedule plan.md's D2 calls interim: the
- * lawful home is a kap `Schedule` addition (debounce / only-once-per-key, an
- * R5 candidate). When kap ships it, the fold becomes a plain
- * `Kap { poll() }.repeat(schedule)` and this helper dies with it.
+ * Since kap 5.1 this is the unlock the retired interim asked for — the
+ * hand-rolled `DrainProgress` fold plus `repeatUntil` is gone, and the loop is
+ * a [KapStream.pollUntilQuiet] whose stop condition is
+ * [Schedule.debounce] over the report's own `quiet` flag. The laws come from
+ * the kap combinators, not from this adapter:
+ *
+ * - **Cadence** is the schedule's, and the policy asks for none: the current
+ *   drain re-polls immediately (each poll blocks up to `DRAIN_POLL_MS` inside
+ *   the consumer), so the schedule is the bare window, whose `Continue` delay
+ *   is zero.
+ * - **The window** counts consecutive quiet reports, wherever the run starts:
+ *   `Schedule.debounce(quietPolls) { it.quiet }` decides `Done` exactly on the
+ *   [quietPolls]-th consecutive empty poll and a report with work resets it.
+ * - **The total** is the sum of the emitted reports, and only reports with
+ *   work are emitted ([Progress.total] is that poll's count, never a running
+ *   figure) — so the quiet polls contribute nothing by construction.
+ *
+ * [Schedule.debounce] is stateful (it remembers the run), so the schedule is
+ * built fresh per call: two concurrent drains must never share one.
  */
-internal suspend fun drainUntilQuiet(quietPolls: Int, poll: suspend () -> Int): Int {
-    val state = Ref.of(DrainProgress()).evalGraph()
-    return Kap { poll().let { count -> state.update { it.tally(count) }.evalGraph() } }
-        .repeatUntil { (_, quiet) -> quiet >= quietPolls }
+internal suspend fun drainUntilQuiet(quietPolls: Int, poll: suspend () -> Int): Int =
+    KapStream.pollUntilQuiet(
+        progress = { poll().let { count -> Progress(total = count, quiet = count == 0) } },
+        schedule = Schedule.debounce<Progress>(quietPolls) { it.quiet },
+    ).collectAsKap()
         .evalGraph()
-        .total
-}
+        .sumOf { it.total }
 
 /**
  * The Kafka transport feeds the SAME handler the file tailer feeds
@@ -251,9 +250,9 @@ class KafkaBusConsumer private constructor(
 
     /**
      * Polls until [quietPolls] consecutive polls return nothing (tests,
-     * `ingest --once`): the quiet-window drain, a value fold over one fresh
-     * consumer (see [drainUntilQuiet]) — the body returns its
-     * [DrainProgress] and the loop terminates on the returned quiet run.
+     * `ingest --once`): the quiet-window drain over one fresh consumer (see
+     * [drainUntilQuiet]) — a kap [KapStream.pollUntilQuiet] stopped by
+     * [Schedule.debounce], whose emitted reports carry the work.
      */
     suspend fun drain(quietPolls: Int = DRAIN_QUIET_POLLS): Int = withConsumer { consumer ->
         drainUntilQuiet(quietPolls) { pollOnce(consumer, Duration.ofMillis(DRAIN_POLL_MS)) }
