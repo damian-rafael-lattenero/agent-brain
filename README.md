@@ -116,6 +116,20 @@ same envelope, so a model can branch on
  "meta":{"trace_id":"trace-1793228960047-3","tool_version":1}}
 ```
 
+The same four tools are also served over the MCP **streamable HTTP** transport, on loopback and behind a
+mandatory bearer token, for clients that are not this machine's ZCode:
+
+```bash
+AB_MCP_TOKEN_FILE=~/.zcode/agent-brain/mcp.token brain-mcp serve --transport http --port 8767
+```
+
+No arguments still means stdio (the plugin's contract is unchanged). The transport decision, the token
+rules, the client configuration, the tool contracts with real request/response pairs, the security
+properties and the U8 evidence run live in [docs/mcp.md](docs/mcp.md) — including why the endpoint is a
+separate process on its own port (a tunnel to the brain's :8765 would expose its unauthenticated
+mutating routes) and why it is a facade over the brain's HTTP API instead of a second in-process brain
+(`bus_status` must report the one real tailer).
+
 Error kinds: `invalid_input`, `brain_unavailable`, `internal_error`. stdout is the protocol channel and
 stderr is logs; a library banner on stdout (kotlin-logging's) once corrupted the channel, so stdout is
 redirected to stderr until the transport is up.
@@ -343,7 +357,8 @@ against a running `serve`.
 ## Layout
 
 ```
-brain-mcp/               the ZCode plugin: MCP Kotlin SDK stdio server, ToolSpec registry, envelope, plugin manifest
+brain-mcp/               the MCP surface: the same four tools over stdio (the ZCode plugin) and over
+                         token-gated streamable HTTP; ToolSpec registry, envelope, plugin manifest
 core/                    Kotlin module: config, db (pool + migrator), embeddings, chat, bus (tailer + ingest),
                          rag (corpus, repos, chunker, store, KAP embed pipeline, indexer, service),
                          memory (extractor, store, worker, service), http, Main
@@ -355,4 +370,6 @@ Makefile, bootstrap.nu   operator entry points
 .github/workflows/ci.yml tiers 1-4 + detekt on every push, Ollama installed for real
 docs/adr/                decisions
 docs/install-brain-mcp.md  plugin install: exact marketplace/plugin JSON, UI and CLI steps, verification
+docs/mcp.md              the MCP surface: both transports, the token, external client config, the four
+                         tool contracts with examples, the security properties, and the second-MCP verdict
 ```
