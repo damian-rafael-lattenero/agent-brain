@@ -223,14 +223,14 @@ class EmbedPipelineTest {
         pipeline.embedAll(listOf("a", "b")).evalGraph()
         val phase = tracer.phases.getValue(EmbedPipeline.PHASE_EMBED)
         // traced wraps the retry, so the retried first call counts as ONE success; durations are wall clock.
-        assertThat(phase.count.get()).isEqualTo(2)
-        assertThat(phase.failures.get()).isZero
-        assertThat(phase.totalMillis.get()).isGreaterThanOrEqualTo(0)
+        assertThat(phase.snapshot().count).isEqualTo(2)
+        assertThat(phase.snapshot().failures).isZero
+        assertThat(phase.snapshot().totalMillis).isGreaterThanOrEqualTo(0)
 
         val dead = ScriptedProvider(failFirst = 99)
         val failing = EmbedPipeline(dead, 1, 1, 1.seconds, tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes), attempts = 1)
         assertThatThrownBy { kotlinx.coroutines.runBlocking { failing.embedAll(listOf("z")).evalGraph() } }
-        assertThat(phase.count.get()).isEqualTo(3)
-        assertThat(phase.failures.get()).isEqualTo(1)
+        assertThat(phase.snapshot().count).isEqualTo(3)
+        assertThat(phase.snapshot().failures).isEqualTo(1)
     }
 }
