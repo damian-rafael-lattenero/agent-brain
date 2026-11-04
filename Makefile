@@ -5,12 +5,12 @@ BIN := core/build/install/agent-brain/bin/agent-brain
 bootstrap:          ## verify JDK/docker/ollama and build the distribution
 	./bootstrap.nu
 
-up:                 ## start pgvector (compose) and apply migrations
+up:                 ## start the stack (pgvector + redpanda + prometheus + grafana) and apply migrations
 	docker compose up -d --wait
 	./gradlew --quiet :core:installDist
 	$(BIN) migrate
 
-down:               ## stop the containers, keep the data
+down:               ## stop the containers (dashboards included), keep the data
 	docker compose down
 
 nuke:               ## stop the containers AND drop the data (a new embedding model needs this)

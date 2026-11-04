@@ -1,0 +1,29 @@
+# E4: the scrape config, versioned. Two targets, both on the HOST's
+# loopback:
+#
+#   - bot          127.0.0.1:9102  the Kotlin daemon's metrics endpoint
+#                                  (E2; the socket binds loopback ONLY by
+#                                  design — see docs/observability.md)
+#   - agent-brain  127.0.0.1:8765  the brain's /metrics (U5d)
+#
+# host.docker.internal is the runtime's route to the host: on colima it
+# resolves to the VM's host address and its gvproxy forwards to the host's
+# 127.0.0.1 (verified live; the verdict and the alternatives live in
+# docs/observability.md). Nothing is bound to 0.0.0.0 on the host.
+global:
+  scrape_interval: 15s
+  scrape_timeout: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: bot
+    static_configs:
+      - targets: ["host.docker.internal:9102"]
+        labels:
+          instance: bot-daemon
+
+  - job_name: agent-brain
+    static_configs:
+      - targets: ["host.docker.internal:8765"]
+        labels:
+          instance: agent-brain
