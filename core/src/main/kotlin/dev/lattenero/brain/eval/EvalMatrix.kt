@@ -116,6 +116,9 @@ class EvalMatrixRunner(
                         timeSource = timeSource,
                         wallClock = wallClock,
                     ),
+                    // The embedding dimension of an eval database follows the
+                    // model under test; the ledger stays in the deployment's.
+                    ledger = config,
                 ).run()
             }
         }
@@ -246,13 +249,18 @@ object EvalMatrixMarkdown {
     }
 
     fun comparisonTable(report: EvalMatrixReport): String = buildString {
-        appendLine("| suite | model | pass/total | gate | p50 ms | p95 ms | tokens in | tokens out | cost USD |")
-        appendLine("|---|---|---|---|---|---|---|---|---|")
+        val header = listOf(
+            "suite", "model", "pass/total", "gate", "p50 ms", "p95 ms",
+            "tokens in", "tokens out", "cost USD", "support@1",
+        )
+        appendLine("| ${header.joinToString(" | ")} |")
+        appendLine("|${header.joinToString("|") { "---" }}|")
         for (row in report.rows) {
             val cost = if (row.costKnown) formatUsd(row.costUsd) else "unknown"
+            val support = row.supported?.let { "$it/${row.supportChecked}" } ?: "-"
             appendLine(
                 "| ${row.suite} | ${row.model} | ${row.passed}/${row.total} | ${row.gate} | " +
-                    "${row.p50Ms} | ${row.p95Ms} | ${row.promptTokens} | ${row.completionTokens} | $cost |",
+                    "${row.p50Ms} | ${row.p95Ms} | ${row.promptTokens} | ${row.completionTokens} | $cost | $support |",
             )
         }
     }

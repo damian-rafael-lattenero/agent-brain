@@ -170,11 +170,52 @@ Exit: `var` inside repeated bodies = 0; drain behavior pinned by tests unchanged
   `(raw) -> Parsed | Invalid(reason)` with property tests over the caps
   (`MemoryExtractor.parse` is already pure — keep pushing the boundary).
 - **E6** — `Config.load` fold laws: env > file > defaults; unknown keys fail.
-- **E7** — `EvalRunner` purity: inject the clock (`System.currentTimeMillis`
-  at `eval/EvalRunner.kt:59,99` → `TimeSource`), bracket the temp corpus writes.
+- **E7** — `EvalRunner` purity: inject the clock (→ `TimeSource` + a wall-clock
+  lambda) and bracket the temp corpus writes. **Done**: the clock, the price
+  table and the run identity are `EvalOptions`, the corpus and the throwaway
+  database are `Resource`s, and the assertions are pure (`EvalAssertions`).
 
 Exit: property tests green in CI; every effect (clock, random, IO) is an
 injected parameter.
+
+
+## U7 (plan-brujula) — evals as a product, not only the gate
+
+The recall gate was the whole eval story; now it is one of three shipped
+suites. What landed and why:
+
+- **Suites are versioned files** (`evals/suites`, copied into the jar). A new
+  question, expected fact or gate is a reviewable diff: `recall-core` (the
+  cheap gate), `extraction-core` (does the chat model return a schema-valid
+  extraction without inventing memories?) and `grounded-citation` (does the
+  composed answer cite the expected document and state the fact?). The case
+  kind picks the axis — embed for recall, chat for the two answer-oriented
+  suites — and that is what a matrix iterates over.
+- **A run is a product row**: pass/fail per case plus latency p50/p95, real
+  token counts (chat) or a declared estimate (embeddings), and a cost from
+  `evals/prices.json` (`tokens × price`; local = 0 declared, an undeclared
+  paid provider = `unknown`, never invented). `0004_eval_product.sql` adds the
+  columns and `matrix_id`; the whole report rides along in `detail`.
+- **The matrix is one command and reports instead of gating.** `eval --matrix
+  a,b --suite s1,s2` runs the same suites per model into ONE artifact: the
+  comparison table plus a recommendation per kind of turn, computed from the
+  numbers (`EvalRecommendations`: gate, then declared cost, then p50).
+  `--strict` turns a below-gate model into a failure when that is wanted.
+- **Gate policy**: `make eval` stays the cheap CI gate (one model, ~1.5 s, 20
+  questions, gate 0.9). The matrix costs ~70 s and a second model pull, so it
+  is explicit — `make eval-matrix`, `make eval-matrix-retrieval`, and a manual
+  workflow (`.github/workflows/eval-matrix.yml`). Regression signal is cheap;
+  model decisions are human-triggered.
+- **No orphan file**: `eval latest` and `GET /eval/latest?matrix=true` read
+  `eval_runs`, so the answer "which model for which turn" is queryable by the
+  bot without re-running anything.
+- **Own use** (the point of the exercise, measured 2026-11-04): extraction →
+  `qwen2.5:3b` (4/6 vs 3/6), answer composition → `qwen2.5:1.5b` (both 5/5 at
+  half the p50), retrieval → `nomic-embed-text` (both embedding models
+  saturate the 13-document fixture; a 384-dim model would force a re-index for
+  no measured gain). The limitation is honest: the fixture corpus is too small
+  to discriminate embedding models, so the retrieval recommendation is a
+  "do not switch yet", not a measured win.
 
 ## Phase G — kap unlocks (implemented IN kap, with laws, then consumed here)
 

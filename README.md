@@ -16,7 +16,7 @@ host (the bus publisher inside the bot, the MTProto test driver).
 | P3 | Memory: worker over `turn.completed`, schema-constrained extraction with a small local model, quarantine with raw text, hybrid recall with half-life decay, `/memory/*` HTTP + CLI, `/memory` and the `memory_inject` knob in the bot (bot ADR-020) | done (tier 5 driver pending the author's one-time Telegram login) |
 | P4 | Kafka transport: Redpanda in compose, `bridge --once` (file → topic, key = session id, idempotent producer), consumer feeding the SAME handler with commit-after-ingest, the contract test (same fixtures through file and through Kafka = identical database), redelivery + poison-record tolerance, black-box through a Kafka-consuming `serve` | done |
 | P5 | `brain-mcp`: a ZCode plugin on the official MCP Kotlin SDK (stdio) exposing `rag_query`, `memory_search`, `memory_recent`, `bus_status` with the status envelope (`status, result|error{kind}, warnings, nextStep, meta{trace_id, tool_version}`), flat schemas, argv-only; e2e over the real protocol against the installed binary | done (install into your ZCode: `make plugin`, then add `brain-mcp/build/plugin` as a local marketplace) |
-| P6 | Evals: `agent-brain eval` (fresh database, shipped fixture corpus, 20 recall questions against the real model, gate 0.9), every run persisted in `eval_runs` (model, provider, passed/total, per-question detail), markdown artifact, CI step + nightly workflow with the artifact uploaded; promptfoo config for the external tool | done |
+| P6 | Evals as a product: three versioned suites (`evals/suites`: recall, memory extraction, grounded answer with a citation), pass/fail per case with latency p50/p95, real token counts and a declared price table, `eval --matrix a,b` comparing >=2 models into one artifact with a recommendation per turn, `eval latest` + `GET /eval/latest` reading the ledger, `make eval` as the cheap CI gate, promptfoo config for the external tool | done |
 | P7 | Panel (post-MVP) | planned |
 
 ## Architecture
@@ -61,7 +61,9 @@ make index            # index ~/.zcode/agent-brain/corpus.txt (copy corpus.examp
 make index-repos-dry  # what the repos under ~/Projects would add, without Postgres
 make index-repos      # index those repos incrementally (docs + code)
 make query Q="how does the tailer handle truncation"
-make eval             # the recall gate: 20 questions, real model, eval_runs row, evals/artifacts/latest.md
+make eval             # the cheap gate: recall-core (20 questions, gate 0.9) → eval_runs + latest.{md,json}
+make eval-matrix      # compare >=2 models on the same suites: one table + a recommendation per turn
+make eval-latest      # what the ledger says (also GET /eval/latest?matrix=true)
 ```
 
 The bus file is `~/.zcode/agent-brain/bus-events.jsonl` (bot side: set `"event_bus": true`
@@ -72,7 +74,9 @@ agent-brain serve | migrate [--status] | ingest [--once] | bridge [--once] | bus
             | query TEXT [--k N]
             | memory search TEXT [--k N] | memory recent [--k N] [--kind K] | memory save KIND TEXT
             | memory quarantine | memory status | memory run [--once]
-            | eval [--gate 0.9] | health [--url U] | embed TEXT... | config
+            | eval [--suite NAME|PATH[,...]] [--gate G] [--matrix MODEL[@DIM],...] [--out DIR] [--strict]
+            | eval latest [--suite S] [--matrix] [--limit N] [--md]
+            | health [--url U] | embed TEXT... | config
 ```
 
 `serve` runs the HTTP service and, with `bus_transport: file`, the bus tailer.
@@ -254,21 +258,73 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 
 ## Evals
 
-`agent-brain eval` is the regression gate for retrieval quality: it creates a throwaway database,
-indexes the fixture corpus shipped in the jar (`eval/corpus`, 10 planted facts + 3 distractors), asks the
-20 shipped questions (`eval/questions.json`: 10 literal, 10 paraphrased) through the real hybrid
-retrieval, and passes when at least 90% find their document in the top 5. Every run writes a row to
-`eval_runs` in the main database (suite, model, provider, passed, total, per-question detail) and a
-markdown table to `evals/artifacts/latest.md`, so the model/quality trend is a query away:
+`agent-brain eval` is a product, not only the recall gate. A **suite is a versioned file**
+(`evals/suites/*.json`, copied into the jar at build time) with cases, an expected result and a gate:
 
-```sql
-SELECT model, provider, passed, total, ts FROM eval_runs ORDER BY ts DESC;
+| suite | kind | axis | what a case asserts |
+|---|---|---|---|
+| `recall-core` | recall | embed | the expected document is in the top 5 hybrid hits (the shipped CI gate, gate 0.9, 20 questions) |
+| `extraction-core` | extraction | chat | the chat model's schema-validated extraction carries the expected durable items and does not invent them on a trivial turn (gate 0.6, 6 turns) |
+| `grounded-citation` | grounded | chat | the composed answer parses as `{answer, citations}`, cites the expected document and states the expected fact (gate 0.8, 5 questions) |
+
+Every case is graded by a **pure assertion** over what the model returned
+(`EvalAssertions`) and carries its **latency**, **tokens** and **declared cost**.
+Cost is `tokens × evals/prices.json`: local inference is a declared `0.000000`, and a paid
+provider with no declared price reports `unknown` instead of a made-up number. Chat tokens are the
+provider's real `prompt_eval_count`/`eval_count`; embedding tokens are estimated (4 chars/token)
+and the flag travels with the number.
+
+```bash
+make eval                        # the cheap gate: recall-core, one model, ~1.5 s
+make eval-matrix                 # extraction + grounded answer on qwen2.5:1.5b vs qwen2.5:3b
+make eval-matrix-retrieval       # recall-core on nomic-embed-text@768 vs all-minilm@384
+make eval-latest SUITE=recall-core   # what eval_runs already knows (or GET /eval/latest?matrix=true)
 ```
 
-CI runs the gate on every push; `.github/workflows/evals.yml` runs it nightly and uploads the artifact.
-`evals/promptfoo/` carries the same questions as a promptfoo config for anyone who prefers that tool
-against a running `serve`. Cost is honest: the local model costs nothing; a GLM row would record its
-model name and leave cost at zero until usage accounting for embeddings exists.
+`make eval-matrix` is **one command** and produces one artifact, `evals/artifacts/latest-matrix.{md,json}`:
+the comparison table plus a recommendation per kind of turn, computed from the numbers. The measured
+run of 2026-11-04 (local models, 0 cost by declaration):
+
+| suite | model | pass/total | gate | p50 ms | p95 ms | tokens in | tokens out | cost USD | support@1 |
+|---|---|---|---|---|---|---|---|---|---|
+| extraction-core | qwen2.5:1.5b | 3/6 | 0.6 | 2025 | 3738 | 1229 | 598 | 0.000000 | - |
+| extraction-core | qwen2.5:3b | 4/6 | 0.6 | 3163 | 7180 | 1229 | 563 | 0.000000 | - |
+| grounded-citation | qwen2.5:1.5b | 5/5 | 0.8 | 1991 | 3012 | 4698 | 147 | 0.000000 | - |
+| grounded-citation | qwen2.5:3b | 5/5 | 0.8 | 4116 | 5843 | 4698 | 147 | 0.000000 | - |
+| recall-core | nomic-embed-text | 20/20 | 0.9 | 21 | 25 | 263 | 0 | 0.000000 | 18/19 |
+| recall-core | all-minilm | 20/20 | 0.9 | 10 | 14 | 263 | 0 | 0.000000 | 18/19 |
+
+**Recommendation per turn** (the artifact's own conclusion, from those numbers):
+
+- **Memory extraction** → `qwen2.5:3b`: 4/6 vs 3/6, at 1.6x the p50 latency. An extraction miss is a
+  memory the bot never gets back, so quality wins over a slower call on the worker (off the reply path).
+- **Answer composition** → `qwen2.5:1.5b`: both models answer 5/5 with a correct citation, and the
+  smaller one does it at half the p50 latency, on the turn where latency is user-visible.
+- **Retrieval** → `nomic-embed-text`: both embedding models saturate this 13-document fixture (20/20) and
+  the full-text leg of RRF hides the difference; `all-minilm` is 2x faster but is 384-dimensional, so
+  switching would force a re-index and a schema change for no measured gain. Re-run
+  `make eval-matrix-retrieval` when the fixture grows past the point where it discriminates.
+
+The **matrix is explicit, not on every push**: it pulls a second model and runs 22 model calls
+(~70 s locally, more on a CI runner), while the gate is one model and ~1.5 s. `make eval` runs on every
+push and nightly (`.github/workflows/evals.yml`); the matrix is run on demand by a human deciding a model
+(`.github/workflows/eval-matrix.yml` is a manual workflow that uploads the artifact). The matrix also
+**reports instead of gating** — a model below the gate is a finding in the table, not a red build;
+`eval --matrix ... --strict` makes it fail when that is what you want.
+
+`eval_runs` (main database, migration `0004_eval_product.sql`) holds one row per (suite, model):
+`kind`, `axis`, `gate`, `ok`, `passed`/`total`, `p50_ms`/`p95_ms`, `tokens_prompt`/`tokens_completion`,
+`cost_usd` plus `cost_known`, `duration_ms`, `started_at`, and the whole report as `detail`; the rows of
+one matrix share `matrix_id`. So the trend and the decision are a query away, and the bot does not need an
+artifact file:
+
+```sql
+SELECT suite, model, passed, total, p50_ms, tokens_prompt, tokens_completion, cost_usd, ts
+FROM eval_runs ORDER BY ts DESC;
+```
+
+`evals/promptfoo/` carries the recall questions as a promptfoo config for anyone who prefers that tool
+against a running `serve`.
 
 ## ADRs
 

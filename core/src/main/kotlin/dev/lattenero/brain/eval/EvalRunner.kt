@@ -100,6 +100,8 @@ class EvalRunner(
     private val config: Config,
     private val suite: EvalSuite,
     private val options: EvalOptions = EvalOptions(gate = suite.gate),
+    /** Where the run is recorded: the deployment's database, even when [config] points at a throwaway one. */
+    private val ledger: Config = config,
 ) {
 
     /** The admin connection through the same kap bracket as everything else (plan B2): close in NonCancellable. */
@@ -145,8 +147,8 @@ class EvalRunner(
                 Brain.resource(config).use { brain -> extractionReport(brain, startedAt, mark) }
             }
         }
-        Database(config).use { db ->
-            runBlocking { EvalLedger(db, config.embedDim).record(report) }
+        Database(ledger).use { db ->
+            runBlocking { EvalLedger(db, ledger.embedDim).record(report) }
         }
         return report
     }
