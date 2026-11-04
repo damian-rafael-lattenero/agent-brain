@@ -222,6 +222,13 @@ Notes for specific clients:
     --header "Authorization: Bearer $AB_MCP_TOKEN" --method tools/list
   ```
 
+Two configured guards worth knowing about, because they answer 403 (not 401)
+before our token is even looked at: the SDK's DNS-rebinding protection only
+accepts `Host: localhost`, `127.0.0.1` or `[::1]`, and validates `Origin` against
+the same set. That is why the tunnel below is the supported path: a reverse
+proxy that preserves its own hostname (`Host: brain.example.com`) is rejected —
+deliberately, since it is the rebinding scenario.
+
 A client that DOESN'T send the header gets `401` with
 `WWW-Authenticate: Bearer realm="brain-mcp"`. Some clients (the inspector among
 them) read that as "OAuth discovery" and try `/.well-known/...`, which this
