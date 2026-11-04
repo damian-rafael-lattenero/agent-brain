@@ -97,6 +97,20 @@ class P0StackHealthcheckBB {
         assertThat(report.checks.embed.ok).withFailMessage(report.checks.embed.detail).isTrue
         assertThat(serverLog.readText()).contains("migrations applied: 0001_init.sql")
 
+        // E4/U5d: the exposition is part of the black box too — the same
+        // process, the same fresh database, no in-process shortcut.
+        val metrics = get("/metrics")
+        assertThat(metrics.statusCode()).isEqualTo(200)
+        assertThat(metrics.headers().firstValue("content-type").orElse("")).startsWith("text/plain; version=0.0.4")
+        val exposition = metrics.body()
+        assertThat(exposition).contains("brain_bus_events_seen_total{transport=\"file\"} 0")
+        assertThat(exposition).contains("brain_bus_file_present{transport=\"file\"} 0")
+        assertThat(exposition).contains("brain_bus_lag_bytes{transport=\"file\"} 0")
+        assertThat(exposition).contains("brain_bus_restarts_total{transport=\"file\"} 0")
+        assertThat(exposition).contains("brain_rag_documents 0")
+        assertThat(exposition).contains("brain_memory_memories 0")
+        assertThat(exposition).contains("brain_memory_breaker_state{state=\"Closed\"} 1")
+
         val (healthExit, healthOut) = runCli("health", "--url", "http://127.0.0.1:$port/ready")
         assertThat(healthExit).isZero
         assertThat(healthOut.trimStart()).startsWith("{")

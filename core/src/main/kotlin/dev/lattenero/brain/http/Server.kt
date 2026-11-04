@@ -29,7 +29,9 @@ import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.request.receive
+import io.ktor.http.ContentType
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.post
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
@@ -136,6 +138,13 @@ fun Application.brainModule(
             val report = readiness.check()
             val status = if (report.ok) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable
             call.respond(status, report)
+        }
+        // E4: the same snapshots /bus/status, /rag/stats and /memory/status
+        // answer, projected to the Prometheus text format. Pure projection —
+        // no counter of its own, no cached value; a scrape re-reads the truth.
+        get("/metrics") {
+            val snapshot = metricsSnapshot(bus, rag, memory, busProcess)
+            call.respondText(renderMetrics(snapshot), ContentType.parse(METRICS_CONTENT_TYPE))
         }
         if (bus != null) {
             get("/bus/status") { call.respond(bus.status(busProcess)) }

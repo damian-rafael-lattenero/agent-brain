@@ -1,0 +1,13 @@
+# The one datasource, fixed by uid so the versioned dashboard resolves it
+# without a lookup step (a provisioned dashboard referencing a missing uid
+# renders empty panels).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

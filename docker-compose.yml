@@ -38,5 +38,61 @@ services:
       timeout: 5s
       retries: 40
 
+  # E4: Prometheus scrapes the daemon's /metrics (9102, LOOPBACK-BOUND on
+  # the host) and the brain's /metrics (8765) through the runtime's
+  # host.docker.internal — verified live on colima (see docs/observability.md,
+  # "the network verdict"). The config is versioned in ops/prometheus.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: agent-brain-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  # Grafana is provisioned as code: the datasource and the dashboard are
+  # files in ops/grafana, so a fresh volume still shows the same panels.
+  # Anonymous Viewer + no login form: a local, read-only window (the ports
+  # are loopback-published and the admin password is never written here).
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: agent-brain-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/agent-brain.json
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  promdata:
+  grafanadata:
