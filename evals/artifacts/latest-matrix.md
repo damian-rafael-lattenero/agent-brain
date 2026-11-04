@@ -1,43 +1,42 @@
-# eval matrix: recall-core (embed axis)
+# eval matrix: extraction-core + grounded-citation (chat axis)
 
-- matrix: 25dbb989-9343-42d5-9738-e81ecaf37b5a
-- started: 2026-11-04T02:18:56.681258Z · 2166 ms
-- models: nomic-embed-text@768, all-minilm@384
-- suites: recall-core
+- matrix: 38f128c5-6bc1-4744-b26d-073e8e0c2bff
+- started: 2026-11-04T02:26:28.273445Z · 76409 ms
+- models: qwen2.5:1.5b, qwen2.5:3b
+- suites: extraction-core, grounded-citation
 
-| suite | model | pass/total | gate | p50 ms | p95 ms | tokens in | tokens out | cost USD | support@1 |
+| suite | model | pass/total | gate | p50 ms | p95 ms | tokens in | tokens out | cost USD | support |
 |---|---|---|---|---|---|---|---|---|---|
-| recall-core | nomic-embed-text | 20/20 | 0.9 | 20 | 28 | 263 | 0 | 0.000000 | 18/19 |
-| recall-core | all-minilm | 20/20 | 0.9 | 12 | 16 | 263 | 0 | 0.000000 | 18/19 |
+| extraction-core | qwen2.5:1.5b | 3/6 | 0.6 | 2167 | 5124 | 1229 | 607 | 0.000000 | - |
+| extraction-core | qwen2.5:3b | 4/6 | 0.6 | 3901 | 6644 | 1229 | 563 | 0.000000 | - |
+| grounded-citation | qwen2.5:1.5b | 5/5 | 0.8 | 1996 | 3257 | 4698 | 145 | 0.000000 | 5/5 |
+| grounded-citation | qwen2.5:3b | 5/5 | 0.8 | 3885 | 6287 | 4698 | 147 | 0.000000 | 5/5 |
 
 ## Recommendation by turn
 
-- **retrieval (embedding a query)** → `all-minilm` — all-minilm: 20/20 at gate 0.9 (p50 12 ms, 263 in / 0 out tokens, cost 0.000000 USD); beats nomic-embed-text: 20/20, p50 20 ms, cost 0.000000 USD. Retrieval runs on every query: quality first, then latency and declared cost.
+- **memory extraction (one chat call per turn)** → `qwen2.5:3b` — qwen2.5:3b: 4/6 at gate 0.6 (p50 3901 ms, 1229 in / 563 out tokens, cost 0.000000 USD); beats qwen2.5:1.5b: 3/6, p50 2167 ms, cost 0.000000 USD. Every miss is a memory the bot never gets back, so quality wins over a slower call.
+- **answer composition (one chat call per answered turn)** → `qwen2.5:1.5b` — qwen2.5:1.5b: 5/5 at gate 0.8 (p50 1996 ms, 4698 in / 145 out tokens, cost 0.000000 USD); beats qwen2.5:3b: 5/5, p50 3885 ms, cost 0.000000 USD. An answer the question can be checked against first; among models that clear the gate, the cheapest one.
 
 ## Per case
 
-### recall-core
+### extraction-core
 
-| case | nomic-embed-text | all-minilm |
+| case | qwen2.5:1.5b | qwen2.5:3b |
 |---|---|---|
-| migrator-lock-literal | ok | ok |
-| embedding-dimensions-literal | ok | ok |
-| bus-contract-literal | ok | ok |
-| hybrid-retrieval-literal | ok | ok |
-| message-storm-literal | ok | ok |
-| jdk-policy-literal | ok | ok |
-| tailer-truncation-literal | ok | ok |
-| kap-timeout-retry-literal | ok | ok |
-| circuit-breaker-literal | ok | ok |
-| telegram-black-box-literal | ok | ok |
-| tailer-dedupe-paraphrase | ok | ok |
-| hybrid-citations-paraphrase | ok | ok |
-| kap-slow-embedding-paraphrase | ok | ok |
-| jdk-casks-paraphrase | ok | ok |
-| bus-rotated-file-paraphrase | ok | ok |
-| message-storm-postmortem-paraphrase | ok | ok |
-| embedding-model-schema-paraphrase | ok | ok |
-| telegram-readback-paraphrase | ok | ok |
-| migrator-race-paraphrase | ok | ok |
-| circuit-breaker-open-paraphrase | ok | ok |
+| git-policy-preference | FAIL (preferences has none of [push, no-verify, verify] (got [The ) | FAIL (preferences has none of [push, no-verify, verify] (got [])) |
+| environment-fact | ok | ok |
+| decision-kapstream | ok | ok |
+| language-preference | ok | ok |
+| small-talk-nothing-durable | FAIL (expected no durable items, got 3 (The user is greeting the c) | FAIL (expected no durable items, got 3 (The user is greeting and a) |
+| eval-clock-decision | FAIL (decisions has none of [clock, timeSource, pure] (got [No whi) | ok |
+
+### grounded-citation
+
+| case | qwen2.5:1.5b | qwen2.5:3b |
+|---|---|---|
+| migrator-lock-id | ok | ok |
+| embedding-dimensions | ok | ok |
+| circuit-breaker-threshold | ok | ok |
+| tailer-truncation | ok | ok |
+| hybrid-fusion | ok | ok |
 

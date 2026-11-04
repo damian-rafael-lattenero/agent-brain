@@ -285,23 +285,26 @@ make eval-latest SUITE=recall-core   # what eval_runs already knows (or GET /eva
 the comparison table plus a recommendation per kind of turn, computed from the numbers. The measured
 run of 2026-11-04 (local models, 0 cost by declaration):
 
-| suite | model | pass/total | gate | p50 ms | p95 ms | tokens in | tokens out | cost USD | support@1 |
+| suite | model | pass/total | gate | p50 ms | p95 ms | tokens in | tokens out | cost USD | support |
 |---|---|---|---|---|---|---|---|---|---|
-| extraction-core | qwen2.5:1.5b | 3/6 | 0.6 | 2025 | 3738 | 1229 | 598 | 0.000000 | - |
-| extraction-core | qwen2.5:3b | 4/6 | 0.6 | 3163 | 7180 | 1229 | 563 | 0.000000 | - |
-| grounded-citation | qwen2.5:1.5b | 5/5 | 0.8 | 1991 | 3012 | 4698 | 147 | 0.000000 | - |
-| grounded-citation | qwen2.5:3b | 5/5 | 0.8 | 4116 | 5843 | 4698 | 147 | 0.000000 | - |
-| recall-core | nomic-embed-text | 20/20 | 0.9 | 21 | 25 | 263 | 0 | 0.000000 | 18/19 |
-| recall-core | all-minilm | 20/20 | 0.9 | 10 | 14 | 263 | 0 | 0.000000 | 18/19 |
+| extraction-core | qwen2.5:1.5b | 3/6 | 0.6 | 2167 | 5124 | 1229 | 607 | 0.000000 | - |
+| extraction-core | qwen2.5:3b | 4/6 | 0.6 | 3901 | 6644 | 1229 | 563 | 0.000000 | - |
+| grounded-citation | qwen2.5:1.5b | 5/5 | 0.8 | 1996 | 3257 | 4698 | 145 | 0.000000 | 5/5 |
+| grounded-citation | qwen2.5:3b | 5/5 | 0.8 | 3885 | 6287 | 4698 | 147 | 0.000000 | 5/5 |
+| recall-core | nomic-embed-text | 20/20 | 0.9 | 18 | 28 | 263 | 0 | 0.000000 | 18/19 |
+| recall-core | all-minilm | 20/20 | 0.9 | 12 | 14 | 263 | 0 | 0.000000 | 18/19 |
+
+(`support` is the extra clause of the case: for recall the top hit contains a needle, for a grounded
+answer the answer states the fact; extraction has no support column because its groups are the assertion.)
 
 **Recommendation per turn** (the artifact's own conclusion, from those numbers):
 
-- **Memory extraction** → `qwen2.5:3b`: 4/6 vs 3/6, at 1.6x the p50 latency. An extraction miss is a
+- **Memory extraction** → `qwen2.5:3b`: 4/6 vs 3/6, at ~1.8x the p50 latency. An extraction miss is a
   memory the bot never gets back, so quality wins over a slower call on the worker (off the reply path).
 - **Answer composition** → `qwen2.5:1.5b`: both models answer 5/5 with a correct citation, and the
   smaller one does it at half the p50 latency, on the turn where latency is user-visible.
 - **Retrieval** → `nomic-embed-text`: both embedding models saturate this 13-document fixture (20/20) and
-  the full-text leg of RRF hides the difference; `all-minilm` is 2x faster but is 384-dimensional, so
+  the full-text leg of RRF hides the difference; `all-minilm` is faster (p50 12 vs 18 ms) but is 384-dimensional, so
   switching would force a re-index and a schema change for no measured gain. Re-run
   `make eval-matrix-retrieval` when the fixture grows past the point where it discriminates.
 

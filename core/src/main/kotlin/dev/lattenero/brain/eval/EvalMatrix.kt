@@ -251,7 +251,7 @@ object EvalMatrixMarkdown {
     fun comparisonTable(report: EvalMatrixReport): String = buildString {
         val header = listOf(
             "suite", "model", "pass/total", "gate", "p50 ms", "p95 ms",
-            "tokens in", "tokens out", "cost USD", "support@1",
+            "tokens in", "tokens out", "cost USD", "support",
         )
         appendLine("| ${header.joinToString(" | ")} |")
         appendLine("|${header.joinToString("|") { "---" }}|")
