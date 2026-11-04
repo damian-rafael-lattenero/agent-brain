@@ -1,5 +1,7 @@
 package dev.lattenero.brain.embeddings
 
+import kap.Ref
+import kap.SyncCell
 import java.security.MessageDigest
 import java.util.Random
 import kotlin.math.sqrt
@@ -19,12 +21,18 @@ class FakeProvider(override val dim: Int, private val mode: Mode = Mode.HASH) : 
     override val name = "fake"
     override val model = "fake-${mode.name.lowercase()}"
 
-    @Volatile
-    var calls: Int = 0
-        private set
+    /**
+     * How many times [embedAll] ran. A kap [Ref.sync] cell: the pipeline calls
+     * [embedAll] from several batches in parallel, so a plain (or `@Volatile`)
+     * `+= 1` loses updates under contention; the cell makes each increment one
+     * atomic step and keeps the read non-suspending for assertions.
+     */
+    private val callCount: SyncCell<Int> = Ref.sync(0)
+
+    val calls: Int get() = callCount.get()
 
     override suspend fun embedAll(texts: List<String>): List<FloatArray> {
-        calls += 1
+        callCount.update { it + 1 }
         return texts.map { if (mode == Mode.HASH) hashVector(it) else bowVector(it) }
     }
 
