@@ -1,0 +1,17 @@
+# The dashboard provider: reads the versioned JSON from the mounted
+# dashboards dir on every boot, never deletes what it did not create, and
+# refuses UI edits (the file is the source of truth — a panel that is not
+# in the repo does not exist).
+apiVersion: 1
+
+providers:
+  - name: agent-brain
+    orgId: 1
+    folder: Agent Brain
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
