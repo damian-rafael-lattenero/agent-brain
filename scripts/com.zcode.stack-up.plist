@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.zcode.stack-up</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/lattenero/.local/bin/nu-nightly</string>
+        <string>/Users/lattenero/Projects/agent-brain/scripts/stack-up.nu</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/lattenero/Projects/agent-brain</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>15</integer>
+    <key>StandardOutPath</key>
+    <string>/Users/lattenero/Library/Logs/stack-up.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lattenero/Library/Logs/stack-up.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>/Users/lattenero</string>
+    </dict>
+</dict>
+</plist>
