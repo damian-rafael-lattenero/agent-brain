@@ -15,6 +15,7 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
+    restart: unless-stopped
 
   redpanda:
     image: redpandadata/redpanda:v26.2.6
@@ -37,6 +38,7 @@ services:
       interval: 3s
       timeout: 5s
       retries: 40
+    restart: unless-stopped
 
   # E4: Prometheus scrapes the daemon's /metrics (9102, LOOPBACK-BOUND on
   # the host) and the brain's /metrics (8765) through the runtime's
