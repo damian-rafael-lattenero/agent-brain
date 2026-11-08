@@ -31,6 +31,7 @@ import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.asSource
 import kotlinx.io.asSink
@@ -362,7 +363,7 @@ private fun loadConfig(): Config {
 }
 
 /** One handler shape: validate → call the brain over HTTP → envelope; classify failures. */
-private suspend fun envelope(
+internal suspend fun envelope(
     traces: Traces,
     spec: ToolSpec,
     request: CallToolRequest,
@@ -382,6 +383,8 @@ private suspend fun envelope(
         } else {
             Envelope.Ok(parsed, warnings = emptyList(), nextStep = spec.nextStep, traceId = trace, toolVersion = spec.version).toJson()
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: IllegalArgumentException) {
         Envelope.Err(Envelope.KIND_INVALID_INPUT, e.message ?: "invalid arguments", spec.nextStep, trace, spec.version).toJson()
     } catch (e: java.net.ConnectException) {
