@@ -28,9 +28,12 @@ noise. The bot must be able to USE memories without a round trip to a human.
   with the raw text and the reason, turn marked. Provider failure → attempt
   counted, turn retried next cycle. Too many attempts → quarantined with the
   reason, turn marked. The breaker opening ends the cycle early.
-- **Recall is hybrid with decay.** Same RRF fusion as the RAG store (cosine +
-  full-text), then `score × salience × 2^(-age_days / half_life_days)`
-  (`memory_half_life_days`, 30). Returned memories bump `last_accessed`.
+- **Recall is hybrid with relevance dominant.** Same RRF fusion as the RAG
+  store (cosine + full-text); the fused relevance ORDERS the hits, and
+  `salience × 2^(-age_days / half_life_days)` (`memory_half_life_days`, 30)
+  only breaks exact relevance ties (2026-11-08: multiplying reinforcement
+  into the ranking let old salience-3.0 veterans beat genuinely relevant
+  fresh matches). Returned memories bump `last_accessed`.
 - **Default model is small and local.** `qwen2.5:1.5b` through Ollama: free,
   CI-pullable, and good enough under a schema; the provider is a knob
   (`chat_provider`, `chat_model`, `glm_chat_model`).
