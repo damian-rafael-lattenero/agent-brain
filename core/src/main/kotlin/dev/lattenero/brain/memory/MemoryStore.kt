@@ -21,6 +21,7 @@ data class Memory(
     val salience: Double,
     val createdAt: String,
     val score: Double? = null,
+    val weight: Double? = null,
 )
 
 @Serializable
@@ -222,7 +223,7 @@ class MemoryStore(private val db: Database) {
     suspend fun byId(id: Long): Memory? = db.withConnection { conn ->
         conn.prepareStatement(
             """
-            SELECT id, kind, content, session_id, turn_id, salience, created_at, NULL::float8 AS score
+            SELECT id, kind, content, session_id, turn_id, salience, created_at, NULL::float8 AS score, NULL::float8 AS weight
             FROM memories WHERE id = ?
             """,
         ).use { ps ->
@@ -257,9 +258,12 @@ class MemoryStore(private val db: Database) {
     }
 
     /**
-     * Hybrid RRF ([dev.lattenero.brain.rag.Rrf]) times salience times half-life decay
-     * ([Salience]) — the SQL below is the executable twin of those pure cores,
-     * pinned equivalent on fixtures (`MemorySearchEquivalenceIT`). Hits bump last_accessed.
+     * Hybrid RRF ([dev.lattenero.brain.rag.Rrf]) with relevance as the
+     * dominant ranking key and salience times half-life decay ([Salience],
+     * [RankKey]) as a tie-break only — the SQL below is the executable twin
+     * of those pure cores, pinned equivalent on fixtures
+     * (`MemorySearchEquivalenceIT`). `score` carries the fused relevance,
+     * `weight` the salience-times-decay tie-break. Hits bump last_accessed.
      */
     suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int, halfLifeDays: Int): List<Memory> = db.withConnection { conn ->
         val hits = conn.prepareStatement(SEARCH).use { ps ->
@@ -281,7 +285,7 @@ class MemoryStore(private val db: Database) {
     }
 
     suspend fun recent(limit: Int, kind: String? = null): List<Memory> = db.withConnection { conn ->
-        val sql = "SELECT id, kind, content, session_id, turn_id, salience, created_at, NULL::float8 AS score FROM memories " +
+        val sql = "SELECT id, kind, content, session_id, turn_id, salience, created_at, NULL::float8 AS score, NULL::float8 AS weight FROM memories " +
             (if (kind != null) "WHERE kind = ? " else "") + "ORDER BY created_at DESC, id DESC LIMIT ?"
         conn.prepareStatement(sql).use { ps ->
             var i = 1
@@ -404,6 +408,7 @@ class MemoryStore(private val db: Database) {
             salience = rs.getDouble("salience"),
             createdAt = (rs.getObject("created_at") as Timestamp).toInstant().toString(),
             score = rs.getObject("score")?.let { (it as Number).toDouble() },
+            weight = rs.getObject("weight")?.let { (it as Number).toDouble() },
         )
     }.toList()
 
@@ -439,9 +444,10 @@ class MemoryStore(private val db: Database) {
               FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) legs GROUP BY id
             )
             SELECT m.id, m.kind, m.content, m.session_id, m.turn_id, m.salience, m.created_at,
-                   f.rrf * m.salience * exp(-ln(2) * extract(epoch FROM (now() - m.created_at)) / (86400.0 * (SELECT half_life FROM params))) AS score
+                   f.rrf AS score,
+                   m.salience * exp(-ln(2) * extract(epoch FROM (now() - m.created_at)) / (86400.0 * (SELECT half_life FROM params))) AS weight
             FROM fused f JOIN memories m ON m.id = f.id
-            ORDER BY score DESC, m.id
+            ORDER BY f.rrf DESC, weight DESC, m.id
             LIMIT ?
         """
     }
