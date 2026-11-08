@@ -117,8 +117,9 @@ class BusPipeline private constructor(
     }
 
     companion object {
-        const val TRANSPORT_FILE = "file"
-        const val TRANSPORT_KAFKA = "kafka"
+        /** The knob's single source of truth is [Config]; these re-export the switch this pipeline reads. */
+        const val TRANSPORT_FILE = Config.BUS_TRANSPORT_FILE
+        const val TRANSPORT_KAFKA = Config.BUS_TRANSPORT_KAFKA
 
         /** Builds the transport's parts (each a [Kap] itself: they hold `Ref` state). */
         fun of(config: Config, db: Database): Kap<BusPipeline> = Kap {

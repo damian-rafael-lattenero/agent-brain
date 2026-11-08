@@ -6,6 +6,9 @@ import io.kotest.property.arbitrary.flatMap
 import io.kotest.property.arbitrary.int
 import io.kotest.property.arbitrary.map
 import io.kotest.property.arbitrary.numericDouble
+import io.kotest.property.arbitrary.Codepoint
+import io.kotest.property.arbitrary.alphanumeric
+import io.kotest.property.arbitrary.of
 import io.kotest.property.arbitrary.string
 import io.kotest.property.checkAll
 import kotlinx.coroutines.runBlocking
@@ -78,7 +81,12 @@ class ConfigLawsTest {
     private fun typedValue(name: String): Arb<Any> = when (Config.DEFAULTS.getValue(name)) {
         is Boolean -> Arb.boolean().map { it as Any }
         is Int -> Arb.int(-1_000, 100_000).map { it as Any }
-        else -> Arb.string(0..24).map { it as Any }
+        else -> if (name == "bus_transport") {
+            // A closed domain: only real transports generate, the fold law stays decidable.
+            Arb.of(Config.BUS_TRANSPORTS.toList()).map { it as Any }
+        } else {
+            Arb.string(0..24).map { it as Any }
+        }
     }
 
     /** One generated (knob, value) pair of the knob's own type. */
@@ -106,7 +114,11 @@ class ConfigLawsTest {
     private fun otherValue(value: Any): Any = when (value) {
         is Int -> value + 1
         is Boolean -> !value
-        else -> "$value-file"
+        else -> if (value in Config.BUS_TRANSPORTS) {
+            Config.BUS_TRANSPORTS.first { it != value }
+        } else {
+            "$value-file"
+        }
     }
 
     private fun knobOf(config: Config, name: String): Any = fields.getValue(name)(config)
@@ -209,6 +221,26 @@ class ConfigLawsTest {
                 assertThatThrownBy { load(emptyMap(), file = """{"embed_dim": $number}""") }
                     .isInstanceOf(ConfigException::class.java)
                     .hasMessageContaining("embed_dim")
+            }
+        }
+    }
+
+    @Test
+    fun `an unknown bus_transport fails loudly naming the key and the valid values`() {
+        runBlocking {
+            checkAll(Arb.string(0..10, Codepoint.alphanumeric())) { tail ->
+                // The kaf_ prefix can never collide with a valid transport ("file", "kafka");
+                // alphanumerics only, so the JSON stays well-formed and the knob-level law is exercised.
+                val typo = "kaf_$tail"
+                assertThatThrownBy { load(emptyMap(), file = """{"bus_transport": "$typo"}""") }
+                    .isInstanceOf(ConfigException::class.java)
+                    .hasMessageContaining("bus_transport")
+                    .hasMessageContaining(Config.BUS_TRANSPORT_FILE)
+                    .hasMessageContaining(Config.BUS_TRANSPORT_KAFKA)
+                    .hasMessageContaining(typo)
+                assertThatThrownBy { load(mapOf("AB_BUS_TRANSPORT" to typo), file = null) }
+                    .isInstanceOf(ConfigException::class.java)
+                    .hasMessageContaining("bus_transport")
             }
         }
     }

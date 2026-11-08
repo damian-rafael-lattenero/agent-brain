@@ -24,7 +24,9 @@ class ConfigException(message: String) : RuntimeException(message)
  * values through `AB_*` environment variables (the only contract black-box
  * tests rely on). Resolution order per knob: `AB_<NAME>` env > config.json >
  * [DEFAULTS]. An unknown key in config.json fails loudly: a typo in a knob
- * name must not degrade into a silently applied default. Secrets
+ * name must not degrade into a silently applied default. Values with a closed
+ * domain fail loudly too — `bus_transport` must name a real transport, a typo
+ * would silently degrade into the file transport. Secrets
  * (GLM_API_KEY) are environment-only on purpose and never land in the file.
  */
 data class Config(
@@ -108,6 +110,11 @@ data class Config(
         const val ENV_PREFIX = "AB_"
         const val MIGRATION_LOCK_ID = 727001L
 
+        /** The transports the bus accepts (the [dev.lattenero.brain.bus.BusPipeline] switch). */
+        const val BUS_TRANSPORT_FILE = "file"
+        const val BUS_TRANSPORT_KAFKA = "kafka"
+        val BUS_TRANSPORTS: Set<String> = setOf(BUS_TRANSPORT_FILE, BUS_TRANSPORT_KAFKA)
+
         val DEFAULTS: Map<String, Any> = linkedMapOf(
             "pg_url" to "jdbc:postgresql://127.0.0.1:5433/agent_brain",
             "pg_user" to "brain",
@@ -182,7 +189,7 @@ data class Config(
                 memoryPollMs = int("memory_poll_ms"),
                 memoryHalfLifeDays = int("memory_half_life_days"),
                 httpTimeoutS = int("http_timeout_s"),
-                busTransport = str("bus_transport"),
+                busTransport = validTransport(str("bus_transport")),
                 busPollMs = int("bus_poll_ms"),
                 indexDocConcurrency = int("index_doc_concurrency"),
                 embedConcurrency = int("embed_concurrency"),
@@ -200,6 +207,14 @@ data class Config(
             env[ENV_PREFIX + name.uppercase()]?.let { return coerceEnv(name, default, it) }
             fileCfg[name]?.let { return coerceJson(name, default, it) }
             return default
+        }
+
+        /** `bus_transport` selects a real transport; anything else fails loudly naming the key and the valid values. */
+        private fun validTransport(value: String): String {
+            if (value !in BUS_TRANSPORTS) {
+                throw ConfigException("bus_transport must be ${BUS_TRANSPORTS.joinToString(" | ")}, got '$value'")
+            }
+            return value
         }
 
         private fun coerceEnv(name: String, default: Any, raw: String): Any = when (default) {
