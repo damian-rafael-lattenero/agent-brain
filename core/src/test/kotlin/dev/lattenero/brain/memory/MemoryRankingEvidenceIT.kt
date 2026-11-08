@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.sql.DriverManager
 import java.sql.Timestamp
 import java.time.Duration
@@ -41,6 +42,13 @@ class MemoryRankingEvidenceIT {
 
     @Test
     fun `the relevant match wins under the new ranking on the live memories`() = runBlocking<Unit> {
+        // OPT-IN ONLY (never in CI, even with AB_REQUIRE_SERVICES=1): this test
+        // reads the OWNER'S real production memories — there is no CI fixture
+        // for them. Run it on the Mac with AB_RANKING_EVIDENCE=1.
+        assumeTrue(
+            System.getenv("AB_RANKING_EVIDENCE") == "1",
+            "live-production evidence is opt-in: AB_RANKING_EVIDENCE=1",
+        )
         TestEnv.gate(TestEnv.postgresAvailable(), "Postgres at ${TestEnv.base.pgUrl}")
         TestEnv.needOllama()
 
