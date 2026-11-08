@@ -12,6 +12,7 @@ import kap.Kap
 import kap.Resource
 import kap.bracket
 import kap.evalGraph
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -125,11 +126,18 @@ class EvalRunner(
             name
         },
         release = { name ->
-            runCatching {
+            try {
                 withAdminConnection { conn ->
                     conn.createStatement().use { it.execute("DROP DATABASE IF EXISTS $name WITH (FORCE)") }
                 }
-            }.onFailure { System.err.println("eval: could not drop $name: ${it.message}") }
+            } catch (e: CancellationException) {
+                // A cancelled run must not swallow the cancellation here: the
+                // drop failure would be silent and the throwaway eval database
+                // would leak (at-least-once for cleanup too).
+                throw e
+            } catch (e: Exception) {
+                System.err.println("eval: could not drop $name: ${e.message}")
+            }
         },
     )
 
