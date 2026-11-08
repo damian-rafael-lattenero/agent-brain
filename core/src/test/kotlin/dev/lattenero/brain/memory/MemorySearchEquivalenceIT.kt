@@ -26,11 +26,13 @@ import java.time.Instant
 
 /**
  * SQL-vs-pure equivalence on fixtures (plan E3, with plan E2's fusion): the
- * score inside `MemoryStore.SEARCH` must equal pure
- * `Rrf.score(ranks) * salience * Salience.decay(age, halfLife)` on real
- * Postgres. The test recomputes the two legs (the shared inputs, exactly the
- * SQL's candidate queries), takes salience and created_at from the rows, and
- * pins the whole formula — fusion, reinforcement weight and half-life decay —
+ * `score` inside `MemoryStore.SEARCH` must equal pure `Rrf.score(ranks)` and
+ * the `weight` must equal pure `salience * Salience.decay(age, halfLife)`
+ * on real Postgres, and the returned order must be pure [RankKey] order —
+ * relevance dominant, reinforcement as tie-break. The test recomputes the two
+ * legs (the shared inputs, exactly the SQL's candidate queries), takes
+ * salience and created_at from the rows, and pins the whole algebra — fusion,
+ * reinforcement weight, half-life decay and the lexicographic ordering —
  * against the pure cores. BOW fixtures with distinct ages and saliences;
  * generated queries over the fixture vocabulary.
  */
@@ -118,7 +120,7 @@ class MemorySearchEquivalenceIT {
     }
 
     @Test
-    fun `every memory hit scores the pure fusion times salience times the pure decay`() {
+    fun `every memory hit carries the pure fusion as score and the pure weight, ranked by relevance first`() {
         runBlocking {
             val tokenArb = Arb.int(0, vocabulary.size - 1).map { vocabulary[it] }
             checkAll(Arb.list(tokenArb, 1..3), Arb.int(1, 5), Arb.int(7, 365)) { tokens, k, halfLifeDays ->
@@ -144,36 +146,47 @@ class MemorySearchEquivalenceIT {
                 val vecRanks = query { conn -> vecLeg(conn, vector, model, candidates) }
                 val ftsRanks = query { conn -> ftsLeg(conn, queryString, model, candidates) }
 
+                fun pure(hit: Memory): RankKey {
+                    val (salience, createdAt) = rows.getValue(hit.id)
+                    val age = Duration.between(createdAt, pgNow).toMillis() / 1000.0
+                    val rrf = Rrf.score(listOfNotNull(vecRanks[hit.id], ftsRanks[hit.id]))
+                    return RankKey(rrf, salience * Salience.decay(age, halfLifeDays * 86400.0), hit.id)
+                }
+
                 val hits = store.search(vector, queryString, model, k, halfLifeDays)
                 assertThat(hits).withFailMessage("query '$queryString'").isNotEmpty
                 assertThat(hits.size).isLessThanOrEqualTo(k)
                 for (hit in hits) {
                     val (salience, createdAt) = rows.getValue(hit.id)
                     val age = Duration.between(createdAt, pgNow).toMillis() / 1000.0
-                    val expected = Rrf.score(listOfNotNull(vecRanks[hit.id], ftsRanks[hit.id])) *
-                        salience * Salience.decay(age, halfLifeDays * 86400.0)
+                    val expectedRrf = Rrf.score(listOfNotNull(vecRanks[hit.id], ftsRanks[hit.id]))
+                    val expectedWeight = salience * Salience.decay(age, halfLifeDays * 86400.0)
                     assertThat(hit.score)
                         .withFailMessage(
-                            "query '$queryString' hit ${hit.id} (sql ${hit.score} vs pure $expected; " +
+                            "query '$queryString' hit ${hit.id} (sql ${hit.score} vs pure rrf $expectedRrf; " +
                                 "vec ${vecRanks[hit.id]}, fts ${ftsRanks[hit.id]}, salience $salience, age $age s)",
                         )
-                        .isCloseTo(expected, within(1e-6))
+                        .isCloseTo(expectedRrf, within(1e-6))
+                    assertThat(hit.weight)
+                        .withFailMessage(
+                            "query '$queryString' hit ${hit.id} (sql ${hit.weight} vs pure weight $expectedWeight; " +
+                                "salience $salience, age $age s, half-life ${halfLifeDays}d)",
+                        )
+                        .isCloseTo(expectedWeight, within(1e-6))
                 }
-                val ordered = hits.zipWithNext().all { (a, b) ->
-                    val scoreA = requireNotNull(a.score)
-                    val scoreB = requireNotNull(b.score)
-                    scoreA > scoreB || (scoreA == scoreB && a.id < b.id)
-                }
-                assertThat(ordered).withFailMessage("query '$queryString': ${hits.map { it.id to it.score }}").isTrue
+                val keys = hits.map(::pure)
+                val ordered = keys.zipWithNext().all { (a, b) -> a <= b }
+                assertThat(ordered).withFailMessage("query '$queryString': ${hits.map { it.id to it.score }} vs keys $keys").isTrue
             }
         }
     }
 
     @Test
-    fun `four half-lives of age leave the unique-token hit at one sixteenth of its fusion weight`() = runBlocking<Unit> {
+    fun `four half-lives of age leave the unique-token hit at one sixteenth weight and pure fusion score`() = runBlocking<Unit> {
         // The unique-token memory: only it matches "727001" in full text, so the full-text leg
         // ranks it first and it is among the hits. It was backdated 120 days, half-life 30 ->
-        // the decay factor is 2^-4 = 0.0625, exact in floating point.
+        // the decay factor is 2^-4 = 0.0625, exact in floating point. The score is now the pure
+        // fusion alone; the reinforcement and the decay land in the tie-break weight.
         val queryString = "727001"
         val vector = provider.embed(listOf(queryString)).single()
         val hits = store.search(vector, queryString, provider.model, k = 5, halfLifeDays = 30)
@@ -186,6 +199,7 @@ class MemorySearchEquivalenceIT {
         assertThat(ftsRanks[target.id]).isEqualTo(1)
         val rrf = Rrf.score(listOfNotNull(vecRanks[target.id], ftsRanks[target.id]))
         // The µs between the backfill UPDATE's now() and the search's now() is the only noise.
-        assertThat(requireNotNull(target.score)).isCloseTo(rrf * 3.0 * 0.0625, within(1e-6))
+        assertThat(requireNotNull(target.score)).isCloseTo(rrf, within(1e-6))
+        assertThat(requireNotNull(target.weight)).isCloseTo(3.0 * 0.0625, within(1e-6))
     }
 }

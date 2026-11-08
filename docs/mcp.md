@@ -317,8 +317,9 @@ Cite from `citations` (uri + heading); `hits` carries the chunk text.
 ```
 
 `query` (required), `k` (1..50, default 5). `result.memories[]` with
-`id, kind, content, sessionId, turnId, salience, createdAt, score`. Recall is
-hybrid with a half-life decay on `salience`/age.
+`id, kind, content, sessionId, turnId, salience, createdAt, score, weight`.
+Recall is hybrid: the fused relevance (`score`) orders the hits, and
+`weight` (`salience` tempered by a half-life decay on age) only breaks ties.
 
 ### 5.3 `memory_recent` — newest first, optional kind filter
 
