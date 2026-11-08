@@ -96,6 +96,12 @@ class FileTailer private constructor(
     private val maxLineBytes: Int,
     val stats: TailStats,
 ) {
+    /**
+     * The live byte cursor. Single-writer: only the coroutine inside [poll]
+     * advances it (sequential by stream/process construction); a second
+     * poll() caller would interleave writes and corrupt the at-least-once
+     * floor the offset file guarantees (ADR-003).
+     */
     @Volatile
     var offset: Long = offsets.load()
         private set

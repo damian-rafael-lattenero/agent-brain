@@ -24,6 +24,7 @@ import kap.ProcessHandle
 import kap.evalGraph
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer
@@ -121,6 +122,31 @@ val responseJson = Json {
 @Serializable
 data class ErrorResponse(val error: String)
 
+/**
+ * Receive and decode the request body, answering a decode failure with a 400
+ * that names the expected shape ([hint]). Cancellation is not a decode
+ * failure: the CE arm rethrows first, so a disconnected client never reads a
+ * misleading 400 and the route's coroutine unwinds cleanly. [receive] and
+ * [badRequest] are the effect edges, so the law is provable without an HTTP
+ * engine.
+ */
+internal suspend fun <T> receiveBodyOrBadRequest(
+    hint: String,
+    receive: suspend () -> T,
+    badRequest: suspend (String) -> Unit,
+): T? = try {
+    receive()
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    badRequest("$hint: ${e.message}")
+    null
+}
+
+/** The same law at the routes, one line per endpoint: decode, or answer the 400. */
+private suspend inline fun <reified T> ApplicationCall.receiveBodyOrBadRequest(hint: String): T? =
+    receiveBodyOrBadRequest(hint, { receive<T>() }, { respond(HttpStatusCode.BadRequest, ErrorResponse(it)) })
+
 fun Application.brainModule(
     config: Config,
     readiness: Readiness,
@@ -153,11 +179,9 @@ fun Application.brainModule(
         }
         if (rag != null) {
             post("/rag/query") {
-                val request = try {
-                    call.receive<QueryRequest>()
-                } catch (e: Exception) {
-                    return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"query\": string, \"k\"?: int}: ${e.message}"))
-                }
+                val request =
+                    call.receiveBodyOrBadRequest<QueryRequest>("body must be {\"query\": string, \"k\"?: int}")
+                        ?: return@post
                 try {
                     call.respond(rag.query(request))
                 } catch (e: RagQueryException) {
@@ -168,11 +192,9 @@ fun Application.brainModule(
         }
         if (memory != null) {
             post("/memory/search") {
-                val request = try {
-                    call.receive<MemorySearchRequest>()
-                } catch (e: Exception) {
-                    return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"query\": string, \"k\"?: int}: ${e.message}"))
-                }
+                val request =
+                    call.receiveBodyOrBadRequest<MemorySearchRequest>("body must be {\"query\": string, \"k\"?: int}")
+                        ?: return@post
                 try {
                     call.respond(memory.search(request))
                 } catch (e: MemoryRequestException) {
@@ -180,11 +202,10 @@ fun Application.brainModule(
                 }
             }
             post("/memory/save") {
-                val request = try {
-                    call.receive<MemorySaveRequest>()
-                } catch (e: Exception) {
-                    return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"kind\": string, \"content\": string}: ${e.message}"))
-                }
+                val request =
+                    call.receiveBodyOrBadRequest<MemorySaveRequest>(
+                        "body must be {\"kind\": string, \"content\": string}",
+                    ) ?: return@post
                 try {
                     call.respond(HttpStatusCode.Created, memory.save(request))
                 } catch (e: MemoryRequestException) {
@@ -208,11 +229,9 @@ fun Application.brainModule(
         }
         if (indexer != null) {
             post("/rag/index") {
-                val request = try {
-                    call.receive<IndexRequest>()
-                } catch (e: Exception) {
-                    return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"globs\": [string]}: ${e.message}"))
-                }
+                val request =
+                    call.receiveBodyOrBadRequest<IndexRequest>("body must be {\"globs\": [string]}")
+                        ?: return@post
                 val globs = request.globs.ifEmpty { readCorpusFile(config) }
                 if (globs.isEmpty()) return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("no globs given and ${config.corpusFile} is empty or missing"))
                 try {
