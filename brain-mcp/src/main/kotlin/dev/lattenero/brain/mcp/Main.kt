@@ -74,7 +74,8 @@ object BrainTools {
 
     val memorySearch = ToolSpec(
         name = "memory_search",
-        description = "Recall durable memories (facts, decisions, preferences) about the user and their projects, ranked by relevance with half-life decay. Read-only.",
+        description = "Recall durable memories (facts, decisions, preferences) about the user and their projects, " +
+            "ranked by retrieval relevance first (salience and half-life decay only break ties). Read-only.",
         properties = buildJsonObject {
             putJsonObject("query") { put("type", "string"); put("description", "what to remember") }
             putJsonObject("k") { put("type", "integer"); put("description", "memories to return (1..50, default 5)") }
