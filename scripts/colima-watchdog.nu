@@ -8,7 +8,7 @@
 
 const COLIMA = "/opt/homebrew/bin/colima"
 
-def main [] {
+def main []: nothing -> nothing {
     let st = (run-external $COLIMA "status" | complete)
     if $st.exit_code == 0 {
         exit 0

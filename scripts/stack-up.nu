@@ -10,12 +10,12 @@
 const PG_HOST = "127.0.0.1"
 const PG_PORT = 5433
 
-def kick [label: string] {
+def kick [label: string]: nothing -> nothing {
     let r = (^/bin/launchctl kickstart $"gui/501/($label)" | complete)
     print $"kick ($label): exit ($r.exit_code)"
 }
 
-def main [] {
+def main []: nothing -> nothing {
     let probe = (^/usr/bin/nc -z $PG_HOST $PG_PORT | complete)
     if $probe.exit_code != 0 {
         print $"stack-up: pg ($PG_HOST):($PG_PORT) no responde; reintento por launchd"
