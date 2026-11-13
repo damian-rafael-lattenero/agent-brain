@@ -1,24 +1,21 @@
 package dev.lattenero.brain.rag
 
 import dev.lattenero.brain.embeddings.EmbeddingProvider
+import dev.lattenero.brain.embeddings.ProviderResilience
+import dev.lattenero.brain.embeddings.withProviderResilience
 import kap.CircuitBreaker
 import kap.Kap
 import kap.KapTracer
 import kap.Ref
-import kap.Schedule
 import kap.SyncCell
 import kap.TraceEvent
 import kap.map
-import kap.retry
-import kap.timeoutAsFailure
 import kap.traced
 import kap.traverse
-import kap.withCircuitBreaker
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 private val log = LoggerFactory.getLogger("agent-brain.embed")
 
@@ -89,11 +86,11 @@ class EmbedPipeline(
     private val timeout: Duration,
     private val tracer: KapTracer,
     val breaker: CircuitBreaker = CircuitBreaker(
-        maxFailures = DEFAULT_BREAKER_FAILURES,
-        retryAfter = DEFAULT_BREAKER_RESET,
-        successThreshold = DEFAULT_BREAKER_SUCCESS_THRESHOLD,
+        maxFailures = ProviderResilience.DEFAULT_BREAKER_FAILURES,
+        retryAfter = ProviderResilience.DEFAULT_BREAKER_RESET,
+        successThreshold = ProviderResilience.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
     ),
-    private val attempts: Int = DEFAULT_ATTEMPTS,
+    private val attempts: Int = ProviderResilience.DEFAULT_ATTEMPTS,
     private val backoffBase: Duration = DEFAULT_BACKOFF_BASE,
 ) {
     init {
@@ -111,29 +108,13 @@ class EmbedPipeline(
 
     fun embedBatch(batch: List<String>): Kap<List<FloatArray>> =
         Kap { provider.embed(batch) }
-            .timeoutAsFailure(timeout)
-            .retry({ Schedule.times<Throwable>(attempts - 1) and Schedule.exponential<Throwable>(backoffBase).jittered() }) { attempt, error, delay ->
+            .withProviderResilience(timeout, attempts, backoffBase, breaker) { attempt, error, delay ->
                 log.warn("embed batch retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)
             }
-            .withCircuitBreaker(breaker)
             .traced(PHASE_EMBED, tracer)
 
     companion object {
         const val PHASE_EMBED = "embed"
-        const val DEFAULT_BREAKER_FAILURES = 5
-        val DEFAULT_BREAKER_RESET = 30.seconds
-
-        /**
-         * The Python F79e lesson (the bot's transport breaker): ONE successful
-         * probe in HalfOpen must NOT close the circuit — a provider that
-         * answers once and breaks again would flap it open/closed forever.
-         * The circuit closes on the SECOND consecutive probe success; a failed
-         * probe reopens it. kap 4.x could not express this (it closed with 1);
-         * the `successThreshold` unlock (kap 5.0) exists for exactly this.
-         */
-        const val DEFAULT_BREAKER_SUCCESS_THRESHOLD = 2
-
-        const val DEFAULT_ATTEMPTS = 3
         val DEFAULT_BACKOFF_BASE = 200.milliseconds
     }
 }

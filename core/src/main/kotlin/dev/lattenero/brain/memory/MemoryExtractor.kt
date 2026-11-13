@@ -4,16 +4,13 @@ import arrow.core.Either
 import arrow.core.raise.either
 import dev.lattenero.brain.chat.ChatProvider
 import dev.lattenero.brain.chat.ChatResult
-import dev.lattenero.brain.rag.EmbedPipeline
+import dev.lattenero.brain.embeddings.ProviderResilience
+import dev.lattenero.brain.embeddings.withProviderResilience
 import kap.CircuitBreaker
 import kap.Kap
 import kap.KapTracer
-import kap.Schedule
 import kap.map
-import kap.retry
-import kap.timeoutAsFailure
 import kap.traced
-import kap.withCircuitBreaker
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -26,7 +23,6 @@ import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 private val log = LoggerFactory.getLogger("agent-brain.memory")
 
@@ -103,31 +99,25 @@ class MemoryExtractor(
     private val timeout: Duration,
     private val tracer: KapTracer,
     val breaker: CircuitBreaker = CircuitBreaker(
-        maxFailures = DEFAULT_BREAKER_FAILURES,
-        retryAfter = DEFAULT_BREAKER_RESET,
-        // The Python F79e lesson (see EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD).
-        successThreshold = EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
+        maxFailures = ProviderResilience.DEFAULT_BREAKER_FAILURES,
+        retryAfter = ProviderResilience.DEFAULT_BREAKER_RESET,
+        successThreshold = ProviderResilience.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
     ),
-    private val attempts: Int = DEFAULT_ATTEMPTS,
+    private val attempts: Int = ProviderResilience.DEFAULT_ATTEMPTS,
     private val backoffBase: Duration = DEFAULT_BACKOFF_BASE,
 ) {
     val model: String get() = chat.model
 
     fun extract(transcript: Transcript): Kap<Extraction> =
         Kap { chat.completeJson(SYSTEM_PROMPT, transcript.render(TRANSCRIPT_CAP), SCHEMA) }
-            .timeoutAsFailure(timeout)
-            .retry({ Schedule.times<Throwable>(attempts - 1) and Schedule.exponential<Throwable>(backoffBase).jittered() }) { attempt, error, delay ->
+            .withProviderResilience(timeout, attempts, backoffBase, breaker) { attempt, error, delay ->
                 log.warn("extraction retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)
             }
-            .withCircuitBreaker(breaker)
             .traced(PHASE_EXTRACT, tracer)
             .map { parse(it) }
 
     companion object {
         const val PHASE_EXTRACT = "extract"
-        const val DEFAULT_BREAKER_FAILURES = 5
-        val DEFAULT_BREAKER_RESET = 30.seconds
-        const val DEFAULT_ATTEMPTS = 3
         val DEFAULT_BACKOFF_BASE = 500.milliseconds
         const val TRANSCRIPT_CAP = 6_000
         const val MAX_ITEMS_PER_KIND = 10

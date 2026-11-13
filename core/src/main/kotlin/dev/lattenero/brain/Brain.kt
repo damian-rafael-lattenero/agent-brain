@@ -12,6 +12,7 @@ import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.EmbeddingProviders
+import dev.lattenero.brain.embeddings.ProviderResilience
 import dev.lattenero.brain.eval.EvalLedger
 import dev.lattenero.brain.http.HttpClients
 import dev.lattenero.brain.http.Readiness
@@ -61,8 +62,8 @@ class Brain private constructor(
             retryAfter = config.embedBreakerResetS.seconds,
             // The Python F79e lesson: the circuit closes on the SECOND
             // consecutive HalfOpen success, not the first (kap 5.0's
-            // successThreshold; see EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD).
-            successThreshold = EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
+            // successThreshold; see ProviderResilience.DEFAULT_BREAKER_SUCCESS_THRESHOLD).
+            successThreshold = ProviderResilience.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
         ),
     )
     val indexer: Indexer = Indexer(
@@ -84,7 +85,7 @@ class Brain private constructor(
             maxFailures = config.embedBreakerFailures,
             retryAfter = config.embedBreakerResetS.seconds,
             // The same F79e lesson as the embed breaker above (the knobs are shared).
-            successThreshold = EmbedPipeline.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
+            successThreshold = ProviderResilience.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
         ),
     )
     val memoryWorker: MemoryWorker = MemoryWorker(memoryStore, extractor, embedPipeline)
