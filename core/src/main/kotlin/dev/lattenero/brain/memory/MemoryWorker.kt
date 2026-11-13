@@ -14,6 +14,7 @@ import kap.process
 import kap.repeat
 import kap.traverseSettled
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration
@@ -271,11 +272,40 @@ class MemoryWorker(
     }
 }
 
+/**
+ * The memory taxonomy as a type (was: Extraction.KIND_* strings plus a
+ * runtime KINDS set the service validated by hand): the wire string rides
+ * [SerialName] and [wire], so a JSON body with an off-taxonomy kind fails
+ * the decode (the 400 seam) and a string edge converts through [parse].
+ * The database keeps storing and returning the wire string, so rows written
+ * before this type (or by any other writer) still read back untouched.
+ */
+@Serializable
+enum class MemoryKind(val wire: String) {
+    @SerialName("fact") FACT("fact"),
+    @SerialName("decision") DECISION("decision"),
+    @SerialName("preference") PREFERENCE("preference"),
+    @SerialName("summary") SUMMARY("summary");
+
+    companion object {
+        /** The taxonomy as a message ("fact, decision, preference, summary"). */
+        val WIRES: String = entries.joinToString(", ") { it.wire }
+
+        /**
+         * The typed conversion at a string edge: an off-taxonomy wire is a
+         * [MemoryRequestException], whose caller's seam (the HTTP 400 route,
+         * the CLI dispatcher) answers the error.
+         */
+        fun parse(wire: String): MemoryKind = entries.firstOrNull { it.wire == wire }
+            ?: throw MemoryRequestException("kind must be one of $WIRES")
+    }
+}
+
 @Serializable
 data class MemorySearchRequest(val query: String, val k: Int = MemoryService.DEFAULT_K)
 
 @Serializable
-data class MemorySaveRequest(val kind: String, val content: String, val sessionId: String? = null)
+data class MemorySaveRequest(val kind: MemoryKind, val content: String, val sessionId: String? = null)
 
 @Serializable
 data class MemorySearchResponse(val query: String, val embedModel: String, val memories: List<Memory>)
@@ -297,19 +327,23 @@ class MemoryService(
     }
 
     suspend fun save(request: MemorySaveRequest): Memory {
-        if (request.kind !in KINDS) throw MemoryRequestException("kind must be one of ${KINDS.joinToString()}")
         val content = request.content.trim()
         if (content.length < MemoryExtractor.MIN_ITEM_CHARS) throw MemoryRequestException("content too short")
         val vector = provider.embed(listOf(content)).single()
-        val id = store.saveManual(request.kind, content.take(MemoryExtractor.MAX_ITEM_CHARS), provider.model, vector, request.sessionId)
+        val id = store.saveManual(
+            request.kind.wire,
+            content.take(MemoryExtractor.MAX_ITEM_CHARS),
+            provider.model,
+            vector,
+            request.sessionId,
+        )
         // The id is the surviving row: a near-duplicate save returns the existing memory, reinforced.
-        return store.byId(id) ?: Memory(id, request.kind, content, request.sessionId, null, 1.0, "")
+        return store.byId(id) ?: Memory(id, request.kind.wire, content, request.sessionId, null, 1.0, "")
     }
 
-    suspend fun recent(limit: Int, kind: String?): List<Memory> {
+    suspend fun recent(limit: Int, kind: MemoryKind?): List<Memory> {
         if (limit !in 1..MAX_K) throw MemoryRequestException("limit must be between 1 and $MAX_K")
-        if (kind != null && kind !in KINDS) throw MemoryRequestException("kind must be one of ${KINDS.joinToString()}")
-        return store.recent(limit, kind)
+        return store.recent(limit, kind?.wire)
     }
 
     suspend fun quarantined(limit: Int): List<QuarantineRow> = store.quarantined(limit.coerceIn(1, MAX_K))
@@ -329,6 +363,5 @@ class MemoryService(
     companion object {
         const val DEFAULT_K = 5
         const val MAX_K = 50
-        val KINDS = setOf(Extraction.KIND_FACT, Extraction.KIND_DECISION, Extraction.KIND_PREFERENCE, Extraction.KIND_SUMMARY)
     }
 }

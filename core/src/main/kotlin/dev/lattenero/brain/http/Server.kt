@@ -8,6 +8,7 @@ import dev.lattenero.brain.db.Migrator
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.ProviderHealth
 import dev.lattenero.brain.eval.EvalLedger
+import dev.lattenero.brain.memory.MemoryKind
 import dev.lattenero.brain.memory.MemoryRequestException
 import dev.lattenero.brain.memory.MemorySaveRequest
 import dev.lattenero.brain.memory.MemorySearchRequest
@@ -243,8 +244,8 @@ fun Application.brainModule(
             }
             get("/memory/recent") {
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: MemoryService.DEFAULT_K
-                val kind = call.request.queryParameters["kind"]
                 call.runOrBadRequest(MemoryRequestException::class.java) {
+                    val kind = call.request.queryParameters["kind"]?.let(MemoryKind::parse)
                     call.respond(memory.recent(limit, kind))
                 }
             }

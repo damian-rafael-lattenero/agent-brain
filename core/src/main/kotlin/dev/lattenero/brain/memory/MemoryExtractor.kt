@@ -57,15 +57,9 @@ data class Extraction(
     val completionTokens: Int?,
 ) {
     val items: List<Pair<String, String>>
-        get() = facts.map { KIND_FACT to it } + decisions.map { KIND_DECISION to it } +
-            preferences.map { KIND_PREFERENCE to it } + listOfNotNull(summary.takeIf { it.isNotBlank() }?.let { KIND_SUMMARY to it })
-
-    companion object {
-        const val KIND_FACT = "fact"
-        const val KIND_DECISION = "decision"
-        const val KIND_PREFERENCE = "preference"
-        const val KIND_SUMMARY = "summary"
-    }
+        get() = facts.map { MemoryKind.FACT.wire to it } + decisions.map { MemoryKind.DECISION.wire to it } +
+            preferences.map { MemoryKind.PREFERENCE.wire to it } +
+            listOfNotNull(summary.takeIf { it.isNotBlank() }?.let { MemoryKind.SUMMARY.wire to it })
 }
 
 /** The model answered, but not with something we accept: goes to quarantine with the raw text. */
