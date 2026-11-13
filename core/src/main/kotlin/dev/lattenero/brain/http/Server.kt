@@ -147,6 +147,41 @@ internal suspend fun <T> receiveBodyOrBadRequest(
 private suspend inline fun <reified T> ApplicationCall.receiveBodyOrBadRequest(hint: String): T? =
     receiveBodyOrBadRequest(hint, { receive<T>() }, { respond(HttpStatusCode.BadRequest, ErrorResponse(it)) })
 
+/**
+ * The same law for the handler body (was: five copies in the routes below):
+ * run [block], answering [failureType] as a 400 carrying the exception's
+ * message (or [hint] when it has none). Cancellation is not a bad request:
+ * the CE arm rethrows first, so a cancelled route unwinds and a disconnected
+ * client never reads a misleading 400, and any other exception is a bug that
+ * propagates to the envelope, not a 400. [badRequest] is the effect edge, so
+ * the law is provable without an HTTP engine.
+ */
+internal suspend fun runOrBadRequest(
+    failureType: Class<out Throwable>,
+    hint: String,
+    badRequest: suspend (String) -> Unit,
+    block: suspend () -> Unit,
+): Unit =
+    try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        if (failureType.isInstance(e)) badRequest(e.message ?: hint) else throw e
+    }
+
+/** The same law at the routes, one line per endpoint: run the handler, or answer the 400. */
+private suspend fun ApplicationCall.runOrBadRequest(
+    failureType: Class<out Throwable>,
+    hint: String = "bad request",
+    block: suspend () -> Unit,
+): Unit = runOrBadRequest(
+    failureType,
+    hint,
+    { respond(HttpStatusCode.BadRequest, ErrorResponse(it)) },
+    block,
+)
+
 fun Application.brainModule(
     config: Config,
     readiness: Readiness,
@@ -182,10 +217,8 @@ fun Application.brainModule(
                 val request =
                     call.receiveBodyOrBadRequest<QueryRequest>("body must be {\"query\": string, \"k\"?: int}")
                         ?: return@post
-                try {
+                call.runOrBadRequest(RagQueryException::class.java, "bad query") {
                     call.respond(rag.query(request))
-                } catch (e: RagQueryException) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(e.message ?: "bad query"))
                 }
             }
             get("/rag/stats") { call.respond(rag.stats()) }
@@ -195,10 +228,8 @@ fun Application.brainModule(
                 val request =
                     call.receiveBodyOrBadRequest<MemorySearchRequest>("body must be {\"query\": string, \"k\"?: int}")
                         ?: return@post
-                try {
+                call.runOrBadRequest(MemoryRequestException::class.java) {
                     call.respond(memory.search(request))
-                } catch (e: MemoryRequestException) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(e.message ?: "bad request"))
                 }
             }
             post("/memory/save") {
@@ -206,19 +237,15 @@ fun Application.brainModule(
                     call.receiveBodyOrBadRequest<MemorySaveRequest>(
                         "body must be {\"kind\": string, \"content\": string}",
                     ) ?: return@post
-                try {
+                call.runOrBadRequest(MemoryRequestException::class.java) {
                     call.respond(HttpStatusCode.Created, memory.save(request))
-                } catch (e: MemoryRequestException) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(e.message ?: "bad request"))
                 }
             }
             get("/memory/recent") {
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: MemoryService.DEFAULT_K
                 val kind = call.request.queryParameters["kind"]
-                try {
+                call.runOrBadRequest(MemoryRequestException::class.java) {
                     call.respond(memory.recent(limit, kind))
-                } catch (e: MemoryRequestException) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(e.message ?: "bad request"))
                 }
             }
             get("/memory/quarantine") {
@@ -234,10 +261,8 @@ fun Application.brainModule(
                         ?: return@post
                 val globs = request.globs.ifEmpty { readCorpusFile(config) }
                 if (globs.isEmpty()) return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("no globs given and ${config.corpusFile} is empty or missing"))
-                try {
+                call.runOrBadRequest(IllegalArgumentException::class.java, "bad globs") {
                     call.respond(indexer.indexGlobs(globs))
-                } catch (e: IllegalArgumentException) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(e.message ?: "bad globs"))
                 }
             }
         }
