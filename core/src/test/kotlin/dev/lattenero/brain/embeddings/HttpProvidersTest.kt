@@ -3,6 +3,7 @@ package dev.lattenero.brain.embeddings
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.ContentType
@@ -70,6 +71,24 @@ class HttpProvidersTest {
         assertThatThrownBy { kotlinx.coroutines.runBlocking { provider.embed(listOf("x")) } }
             .isInstanceOf(ProviderUnavailable::class.java)
             .hasMessageContaining("unreachable")
+    }
+
+    @Test
+    fun `a provider stalling past the timeout is unavailable, not a bug`() = runTest {
+        val client = HttpClient(
+            MockEngine { _ ->
+                kotlinx.coroutines.delay(200)
+                respond("{}", HttpStatusCode.OK)
+            },
+        ) {
+            expectSuccess = false
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            install(HttpTimeout) { requestTimeoutMillis = 20 }
+        }
+        val provider = OllamaProvider(client, "http://o", "m", 2, 8)
+        assertThatThrownBy { kotlinx.coroutines.runBlocking { provider.embed(listOf("x")) } }
+            .isInstanceOf(ProviderUnavailable::class.java)
+            .hasMessageContaining("timed out")
     }
 
     @Test

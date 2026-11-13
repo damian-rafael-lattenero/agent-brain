@@ -2,16 +2,9 @@ package dev.lattenero.brain.embeddings
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.request.bearerAuth
-import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
 import kotlinx.serialization.Serializable
-import java.io.IOException
 
 /**
  * Z.ai embeddings over the OpenAI-shaped POST {base}/embeddings.
@@ -51,32 +44,12 @@ class GlmProvider(
 
     private suspend fun call(batch: List<String>): List<FloatArray> {
         val url = "$baseUrl/embeddings"
-        val response = try {
-            client.post(url) {
-                contentType(ContentType.Application.Json)
-                bearerAuth(apiKey)
-                setBody(Request(model, batch, dim))
-            }
-        } catch (e: HttpRequestTimeoutException) {
-            throw ProviderUnavailable("glm timed out at $baseUrl", e)
-        } catch (e: IOException) {
-            throw ProviderUnavailable("glm unreachable at $baseUrl (${e.message})", e)
-        }
-        when (response.status) {
-            HttpStatusCode.OK -> Unit
-            HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -> throw ProviderException(
-                "glm rejected the key (HTTP ${response.status.value}): ${response.bodyAsText().take(ERROR_TAIL)}",
-            )
-            else -> throw ProviderException(
-                "glm $url -> HTTP ${response.status.value}: ${response.bodyAsText().take(ERROR_TAIL)}",
-            )
+        val response = postForProvider(client, url, "glm", glmErrors(::ProviderException)) {
+            bearerAuth(apiKey)
+            setBody(Request(model, batch, dim))
         }
         val body: Response = response.body()
         // Items may come back out of order; `index` is authoritative.
         return body.data.sortedBy { it.index }.map { it.embedding.toFloatArray() }
-    }
-
-    companion object {
-        const val ERROR_TAIL = 200
     }
 }
