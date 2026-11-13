@@ -1,4 +1,4 @@
-#!/usr/bin/env nu
+#!/opt/homebrew/bin/nu
 # U0 of the FP/concurrency audit plan for agent-brain (2026-11-08) — the same
 # machinery the bot repo ran (scripts/audit-fp.nu there), same categories,
 # same patterns, scope adapted to this repo's main sources (core + brain-mcp).
