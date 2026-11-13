@@ -87,7 +87,7 @@ def checks []: nothing -> list<record> {
     ]
 }
 
-def main [] {
+def main []: nothing -> nothing {
     let results = (checks | each {|c|
         let r = (try { do $c.f } catch {|err| {ok: false, detail: $"excepción: ($err.msg)", hint: "revisar script"}})
         {layer: $c.layer, check: $c.check, estado: (if $r.ok { "✓" } else { "✗" }), detail: $r.detail, pista: $r.hint}

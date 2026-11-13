@@ -19,7 +19,7 @@ def is-exec [path: string]: nothing -> bool {
 def main []: nothing -> nothing {
     let repo = $env.FILE_PWD
     cd $repo
-    mut missing = false
+    mut missing: bool = false
 
     print "▶ JDK 25 \(Amazon Corretto\)"
     let home_java = (do { ^/usr/libexec/java_home -v 25 } | complete)
