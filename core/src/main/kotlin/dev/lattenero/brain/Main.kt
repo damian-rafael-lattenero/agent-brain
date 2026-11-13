@@ -41,7 +41,6 @@ import dev.lattenero.brain.rag.IndexReport
 import dev.lattenero.brain.rag.RepoScanReport
 import dev.lattenero.brain.rag.Repos
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.coroutines.launch
 import dev.lattenero.brain.rag.QueryRequest
 import dev.lattenero.brain.rag.QueryResponse
 import dev.lattenero.brain.rag.RagQueryException
@@ -476,7 +475,7 @@ private suspend fun memoryDedup(brain: Brain, dryRun: Boolean): Int {
 
 private fun query(args: List<String>): Int {
     val k = args.optionValue("--k")?.toIntOrNull() ?: QueryRequest(query = "").k
-    val text = args.filterIndexed { i, a -> a != "--k" && (i == 0 || args[i - 1] != "--k") }.joinToString(" ")
+    val text = args.withoutOption("--k").joinToString(" ")
     if (text.isBlank()) return usage()
     val config = Config.load()
     return withBrain(config) { brain ->
