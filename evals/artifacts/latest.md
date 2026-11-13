@@ -1,9 +1,9 @@
 # eval: recall-core (recall) · nomic-embed-text (ollama)
 
-- run: 5e46950b-f565-4c36-a43c-15367ee91d4e
-- started: 2026-11-08T13:36:39.138202Z · 1761 ms
+- run: c27a46c7-c9db-4f1b-8597-343c0a8431b6
+- started: 2026-11-08T14:08:22.718122Z · 1933 ms
 - **20/20 passed (gate 0.9) → PASS**
-- latency p50 22 ms · p95 32 ms · tokens 263 in / 0 out (embedding tokens estimated) · cost 0.000000 USD
+- latency p50 25 ms · p95 36 ms · tokens 263 in / 0 out (embedding tokens estimated) · cost 0.000000 USD
 - citation support@1: 18/19 top hits contain a needle
 
 | case | question | expected | rank@5 | top hit | support |
