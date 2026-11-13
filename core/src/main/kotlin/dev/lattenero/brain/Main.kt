@@ -13,6 +13,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import dev.lattenero.brain.bus.BusStatus
 import dev.lattenero.brain.bus.BusTransport
+import dev.lattenero.brain.memory.MemoryKind
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.eval.EvalLedger
 import dev.lattenero.brain.eval.EvalLedgerMarkdown
@@ -418,17 +419,17 @@ private fun memory(args: List<String>): Int {
             }
             "recent" -> {
                 val k = rest.optionValue("--k")?.toIntOrNull() ?: MemorySearchRequest(query = "").k
-                val list = brain.memory.recent(k, rest.optionValue("--kind"))
+                val list = brain.memory.recent(k, rest.optionValue("--kind")?.let(MemoryKind::parse))
                 printJson(responseJson.encodeToJsonElement(ListSerializer(Memory.serializer()), list))
                 EXIT_OK
             }
             "save" -> {
-                val kind = rest.firstOrNull()
-                if (kind == null) {
+                val wire = rest.firstOrNull()
+                if (wire == null) {
                     usage()
                 } else {
-                    val text = rest.drop(1).joinToString(" ")
-                    val saved = brain.memory.save(MemorySaveRequest(kind, text))
+                    val kind = MemoryKind.parse(wire)
+                    val saved = brain.memory.save(MemorySaveRequest(kind, rest.drop(1).joinToString(" ")))
                     printJson(responseJson.encodeToJsonElement(Memory.serializer(), saved))
                     EXIT_OK
                 }

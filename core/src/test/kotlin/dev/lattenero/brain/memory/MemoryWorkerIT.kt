@@ -180,9 +180,9 @@ class MemoryWorkerIT {
     fun `manual saves and recent listing work without the worker`() = runBlocking<Unit> {
         fixture("memmanual").use { f ->
             val service = MemoryService(embedder, f.store, MemoryExtractor(goodChat, 10.seconds, f.tracer), 30)
-            val saved = service.save(MemorySaveRequest("preference", "Always answer in Spanish in the Telegram chat."))
+            val saved = service.save(MemorySaveRequest(MemoryKind.PREFERENCE, "Always answer in Spanish in the Telegram chat."))
             assertThat(saved.kind).isEqualTo("preference")
-            assertThat(service.recent(5, "preference").map { it.id }).contains(saved.id)
+            assertThat(service.recent(5, MemoryKind.PREFERENCE).map { it.id }).contains(saved.id)
             assertThat(service.search(MemorySearchRequest("telegram spanish answers")).memories.first().id).isEqualTo(saved.id)
         }
     }
