@@ -14,18 +14,19 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Tailer-or-consumer + ingest + status, wired from the injected config. The
- * transport is a knob (`bus_transport: file | kafka`); the handler behind it
- * is the same object either way (ADR-003). The pipeline and its parts hold kap
- * `Ref` state (the business counters), so construction is a [Kap] — run
- * [of] where the component is born (the composition root's resource chain).
+ * transport is the parsed [BusTransport] sum (the `bus_transport: file |
+ * kafka` knob, read once); the handler behind it is the same object either
+ * way (ADR-003). The pipeline and its parts hold kap `Ref` state (the
+ * business counters), so construction is a [Kap] — run [of] where the
+ * component is born (the composition root's resource chain).
  */
 class BusPipeline private constructor(
     private val config: Config,
     val tailer: FileTailer,
     val ingest: PgBusIngest,
-    val kafka: KafkaBusConsumer?,
+    /** The parsed transport (the [Config] knob read once, as a value). */
+    val transport: BusTransport,
 ) {
-    val isKafka: Boolean get() = config.busTransport == TRANSPORT_KAFKA
 
     /**
      * The ONE long-lived loop for the configured transport, as a named
@@ -34,11 +35,12 @@ class BusPipeline private constructor(
      * completes); the Kafka consumer keeps its own cycle value.
      */
     fun process(): Process<*> =
-        if (isKafka) {
-            KafkaTopics.ensure(config)
-            kafka!!.process()
-        } else {
-            tailer.process(config.busPollMs.milliseconds, handler = { ingest.handle(it) })
+        when (val t = transport) {
+            is BusTransport.Kafka -> {
+                KafkaTopics.ensure(config)
+                t.consumer.process()
+            }
+            BusTransport.File -> tailer.process(config.busPollMs.milliseconds, handler = { ingest.handle(it) })
         }
 
     /** Runs the loop for the caller's lifetime (CLI `ingest`); cancellation stops it. */
@@ -58,17 +60,20 @@ class BusPipeline private constructor(
      * Single-shot: no other handle may run on this ingest while the drain's
      * two reads bracket the loop.
      */
-    suspend fun drain(): Int {
-        if (isKafka) {
-            KafkaTopics.ensure(config)
-            return kafka!!.drain()
+    suspend fun drain(): Int =
+        when (val t = transport) {
+            is BusTransport.Kafka -> {
+                KafkaTopics.ensure(config)
+                t.consumer.drain()
+            }
+            BusTransport.File -> {
+                val before = ingest.stats.snapshot().seen
+                Kap { tailer.poll { ingest.handle(it) } }
+                    .repeatUntil { tailer.offset >= fileBytes() }
+                    .evalGraph()
+                (ingest.stats.snapshot().seen - before).toInt()
+            }
         }
-        val before = ingest.stats.snapshot().seen
-        Kap { tailer.poll { ingest.handle(it) } }
-            .repeatUntil { tailer.offset >= fileBytes() }
-            .evalGraph()
-        return (ingest.stats.snapshot().seen - before).toInt()
-    }
 
     private fun fileBytes(): Long = if (Files.exists(config.busFile)) Files.size(config.busFile) else 0
 
@@ -92,9 +97,9 @@ class BusPipeline private constructor(
         val bytes = probe.fileBytes
         val tail = tailer.stats.snapshot()
         val accepted = ingest.stats.snapshot()
-        val consumed = kafka?.stats?.snapshot()
+        val consumed = (transport as? BusTransport.Kafka)?.consumer?.stats?.snapshot()
         return BusStatus(
-            transport = config.busTransport,
+            transport = transport.wire,
             file = config.busFile.toString(),
             fileExists = Files.exists(config.busFile),
             fileBytes = bytes,
@@ -117,20 +122,14 @@ class BusPipeline private constructor(
     }
 
     companion object {
-        /** The knob's single source of truth is [Config]; these re-export the switch this pipeline reads. */
-        const val TRANSPORT_FILE = Config.BUS_TRANSPORT_FILE
-        const val TRANSPORT_KAFKA = Config.BUS_TRANSPORT_KAFKA
-
         /** Builds the transport's parts (each a [Kap] itself: they hold `Ref` state). */
         fun of(config: Config, db: Database): Kap<BusPipeline> = Kap {
             val tailer = FileTailer.open(config.busFile, config.stateDir).evalGraph()
             val ingest = PgBusIngest.of(db).evalGraph()
-            val kafka = if (config.busTransport == TRANSPORT_KAFKA) {
+            val transport = BusTransport.parse(config.busTransport) {
                 KafkaBusConsumer.of(config, ingest).evalGraph()
-            } else {
-                null
             }
-            BusPipeline(config, tailer, ingest, kafka)
+            BusPipeline(config, tailer, ingest, transport)
         }
     }
 }
