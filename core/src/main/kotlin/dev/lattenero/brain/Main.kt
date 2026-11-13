@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import dev.lattenero.brain.bus.BusStatus
+import dev.lattenero.brain.bus.BusTransport
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.eval.EvalLedger
 import dev.lattenero.brain.eval.EvalLedgerMarkdown
@@ -156,13 +157,12 @@ private fun serve(): Int {
         withContext(Dispatchers.Default) {
             supervisorScope {
                 val busProcess = startProcess(brain.bus.process())
-                if (brain.bus.isKafka) {
-                    log.info(
+                when (brain.bus.transport) {
+                    is BusTransport.Kafka -> log.info(
                         "bus consumer on {} topic {} group {}",
                         config.kafkaBootstrap, config.kafkaTopic, config.kafkaGroup,
                     )
-                } else {
-                    log.info("bus tailer on {} every {} ms", config.busFile, config.busPollMs)
+                    BusTransport.File -> log.info("bus tailer on {} every {} ms", config.busFile, config.busPollMs)
                 }
                 if (config.memoryWorker) {
                     startProcess(brain.memoryWorker.process(config.memoryPollMs.milliseconds))
