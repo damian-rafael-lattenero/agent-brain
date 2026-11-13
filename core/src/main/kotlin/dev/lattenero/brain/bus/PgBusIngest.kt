@@ -53,17 +53,17 @@ class PgBusIngest private constructor(private val db: Database, val stats: Inges
                 for (event in events) {
                     ps.setString(1, event.id)
                     ps.setString(2, event.ts)
-                    ps.setString(3, event.kind)
+                    ps.setString(3, event.kind.wire)
                     ps.setString(4, event.sid)
                     ps.setString(5, event.turn)
-                    ps.setString(6, event.source)
+                    ps.setString(6, event.source.wire)
                     ps.setString(7, event.payload.toString())
                     ps.addBatch()
                 }
                 ps.executeBatch()
             }.count { it > 0 }
         }
-        events.last().let { stats.accept(events.size, inserted, it.ts, it.kind) }
+        events.last().let { stats.accept(events.size, inserted, it.ts, it.kind.wire) }
     }
 
     suspend fun count(): Long = db.withConnection { conn ->

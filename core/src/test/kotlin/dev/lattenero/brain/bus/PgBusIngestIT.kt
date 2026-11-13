@@ -59,7 +59,7 @@ class PgBusIngestIT {
     @Test
     fun `payloads land as jsonb and timestamps as timestamptz`() = runBlocking<Unit> {
         val ingest = PgBusIngest.of(db).evalGraph()
-        val started = fixtureEvents().first { it.kind == "turn.started" }.copy(id = "jsonb-probe")
+        val started = fixtureEvents().first { it.kind == BusKind.TURN_STARTED }.copy(id = "jsonb-probe")
         ingest.handle(listOf(started))
         val (title, prompt, year) = db.withConnection { conn ->
             conn.prepareStatement("SELECT payload->>'title', payload->>'prompt', extract(year from ts)::int FROM bus_events WHERE id = ?").use { ps ->

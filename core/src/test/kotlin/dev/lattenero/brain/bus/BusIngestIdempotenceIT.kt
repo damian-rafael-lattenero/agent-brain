@@ -70,10 +70,10 @@ class BusIngestIdempotenceIT {
     private fun event(n: Int, salt: String): BusEvent = BusEvent(
         id = "ev-$n-$salt",
         ts = Instant.ofEpochSecond(1_700_000_000L + n).toString(),
-        kind = BusEvents.KINDS.elementAt(n % BusEvents.KINDS.size),
+        kind = BusKind.entries.elementAt(n % BusKind.entries.size),
         sid = "ses-${n % 7}",
         turn = "turn-${n % 3}",
-        source = BusEvents.SOURCES.elementAt(n % BusEvents.SOURCES.size),
+        source = BusSource.entries.elementAt(n % BusSource.entries.size),
         payload = JsonObject(mapOf("prompt" to JsonPrimitive("generated prompt $n ($salt)"))),
     )
 
