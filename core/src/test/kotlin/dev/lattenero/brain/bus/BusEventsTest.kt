@@ -15,7 +15,8 @@ class BusEventsTest {
         }
         val ok = events.map { (it as BusEvents.Parsed.Ok).event }
         assertThat(ok.map { it.kind }).containsExactly(
-            "turn.started", "tool.call", "tool.result", "turn.completed", "user.prompt", "turn.failed",
+            BusKind.TURN_STARTED, BusKind.TOOL_CALL, BusKind.TOOL_RESULT,
+            BusKind.TURN_COMPLETED, BusKind.USER_PROMPT, BusKind.TURN_FAILED,
         )
         assertThat(ok.map { it.instant.isAfter(java.time.Instant.EPOCH) }).allMatch { it }
         assertThat(ok[0].payload["prompt"]!!.toString()).contains("ñandú")
