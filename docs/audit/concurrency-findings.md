@@ -51,8 +51,24 @@ stdio MCP protocol · KafkaTopics' blocking `Future.get()` on the startup path
 
 ## Open candidates (not scheduled)
 
-- `BusPipeline` typed transport ADT (kills the `kafka!!` pair AND the
-  unvalidated-config class permanently) — S-M, anti-dogma defers.
+- ~~`BusPipeline` typed transport ADT~~ — DONE 2026-11-13 (`87744ea`): the
+  transport is the `BusTransport` sum (File | Kafka), parsed once at the
+  composition root; `kafka!!`, `isKafka` and the nullable consumer are gone.
+- ~~the stringly-typed event taxonomy~~ — DONE 2026-11-13 (`ef3787a`):
+  `BusKind`/`BusSource` enums, unknown values fail the decode itself.
+- ~~the stringly-typed memory kind~~ — DONE 2026-11-13 (`eed879d`):
+  `MemoryKind` enum, the JSON decode is the parse edge, string edges convert
+  through `MemoryKind.parse`.
+- ~~the 4x HTTP provider error translation, the 2x kap resilience chain, the
+  5x catch->400 route block, the Main.kt inline copy~~ — DONE 2026-11-13
+  (`50d420c`, `3059453`, `4b8c5da`, `85808a1`): one `postForProvider` +
+  per-provider translations, one `withProviderResilience` +
+  `ProviderResilience` defaults, one `runOrBadRequest` seam, `withoutOption`
+  reused.
 - `KapStream` for the drain predicate — Phase G territory, already covered.
 - The detekt rule for "CE arm before catch-all" — awaiting
   `kap-detekt-rules` publication (kap repo, owner's call).
+
+Post-refactor mechanical inventory (same patterns, worktree scan):
+forbidden 12 = 12, handrolled 7 = 7, impure 8 < 10, errors 112 < 128 — no
+category grew; the error/impure suspects shrank with the deleted copies.
