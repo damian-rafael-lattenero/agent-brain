@@ -296,6 +296,7 @@ private class EvalInvocation(
     val prices: PriceTable,
     val config: Config,
     val outDir: java.nio.file.Path,
+    val rerank: Boolean = false,
 )
 
 /**
@@ -329,6 +330,7 @@ private fun parseEvalInvocation(args: List<String>): EvalInvocation {
         prices = PriceTable.load(),
         config = Config.load(),
         outDir = outDir,
+        rerank = "--rerank" in args,
     )
 }
 
@@ -336,7 +338,11 @@ private fun evalSuite(invocation: EvalInvocation): Int {
     val suite = invocation.suites.singleOrNull()
         ?: return fail("eval: several suites need --matrix (or run them one at a time)")
     val gate = invocation.gate ?: suite.gate
-    val report = EvalRunner(invocation.config, suite, EvalOptions(gate = gate, prices = invocation.prices)).run()
+    val report = EvalRunner(
+        invocation.config,
+        suite,
+        EvalOptions(gate = gate, prices = invocation.prices, rerank = invocation.rerank),
+    ).run()
     val name = "eval-${stamp(report.startedAt)}"
     val markdown = EvalRunner.markdown(report)
     val json = responseJson.encodeToString(EvalReport.serializer(), report)

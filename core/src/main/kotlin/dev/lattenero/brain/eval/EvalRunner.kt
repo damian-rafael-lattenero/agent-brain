@@ -73,6 +73,7 @@ data class EvalReport(
     val durationMs: Long,
     val matrixId: String? = null,
     val chatModel: String? = null,
+    val rerank: Boolean = false,
 )
 
 /**
@@ -87,6 +88,7 @@ data class EvalOptions(
     val runId: String = UUID.randomUUID().toString(),
     val timeSource: TimeSource = TimeSource.Monotonic,
     val wallClock: () -> Instant = Instant::now,
+    val rerank: Boolean = false,
 )
 
 /**
@@ -206,7 +208,7 @@ class EvalRunner(
     private suspend fun recallCases(brain: Brain): List<CaseResult> =
         suite.cases.filterIsInstance<RecallCase>().map { case ->
         val mark = options.timeSource.markNow()
-        val hits = brain.rag.query(QueryRequest(case.question, k = RECALL_K)).hits
+        val hits = brain.rag.query(QueryRequest(case.question, k = RECALL_K, rerank = options.rerank)).hits
         val durationMs = mark.elapsedNow().inWholeMilliseconds
         val rank = hits.indexOfFirst { it.uri.endsWith(case.uri) }.let { if (it >= 0) it + 1 else null }
         val top = hits.firstOrNull()
@@ -340,6 +342,7 @@ class EvalRunner(
             startedAt = startedAt.toString(),
             durationMs = durationMs,
             matrixId = options.matrixId,
+            rerank = options.rerank,
         )
     }
 
@@ -404,7 +407,8 @@ class EvalRunner(
 
         /** The single-run artifact: header, gate, aggregates and the per-case table that matches the suite kind. */
         fun markdown(report: EvalReport): String = buildString {
-            appendLine("# eval: ${report.suite} (${report.kind.label}) · ${report.model} (${report.provider})")
+            val stage = if (report.rerank) " · rerank" else ""
+            appendLine("# eval: ${report.suite} (${report.kind.label}) · ${report.model} (${report.provider})$stage")
             appendLine()
             val matrix = report.matrixId?.let { " · matrix $it" }.orEmpty()
             appendLine("- run: ${report.runId}$matrix")

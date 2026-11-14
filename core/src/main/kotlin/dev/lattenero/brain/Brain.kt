@@ -49,7 +49,7 @@ class Brain private constructor(
     val migrator: Migrator = Migrator(db, config.embedDim)
     val readiness: Readiness = Readiness(config, db, migrator, provider)
     val ragStore: RagStore = RagStore(db)
-    val rag: RagService = RagService(provider, ragStore)
+    val rag: RagService = RagService(provider, ragStore, chat)
     val tracer: CountingTracer = CountingTracer()
     val embedPipeline: EmbedPipeline = EmbedPipeline(
         provider = provider,
