@@ -51,6 +51,9 @@ data class MatrixRow(
     val durationMs: Long,
     val supportChecked: Int? = null,
     val supported: Int? = null,
+    val mrr: Double? = null,
+    val recall5: Double? = null,
+    val ndcg5: Double? = null,
 ) {
     val passRate: Double get() = if (total == 0) 0.0 else passed.toDouble() / total
 }
@@ -167,6 +170,9 @@ class EvalMatrixRunner(
         durationMs = report.durationMs,
         supportChecked = report.metrics.supportChecked,
         supported = report.metrics.supported,
+        mrr = report.metrics.retrieval?.mrr,
+        recall5 = report.metrics.retrieval?.recall5,
+        ndcg5 = report.metrics.retrieval?.ndcg5,
     )
 }
 
@@ -250,7 +256,7 @@ object EvalMatrixMarkdown {
 
     fun comparisonTable(report: EvalMatrixReport): String = buildString {
         val header = listOf(
-            "suite", "model", "pass/total", "gate", "p50 ms", "p95 ms",
+            "suite", "model", "pass/total", "gate", "MRR", "recall@5", "nDCG@5", "p50 ms", "p95 ms",
             "tokens in", "tokens out", "cost USD", "support",
         )
         appendLine("| ${header.joinToString(" | ")} |")
@@ -258,8 +264,11 @@ object EvalMatrixMarkdown {
         for (row in report.rows) {
             val cost = if (row.costKnown) formatUsd(row.costUsd) else "unknown"
             val support = row.supported?.let { "$it/${row.supportChecked}" } ?: "-"
+            val retrieval = row.mrr?.let { m ->
+                "${formatScore(m)} | ${formatScore(row.recall5 ?: 0.0)} | ${formatScore(row.ndcg5 ?: 0.0)}"
+            } ?: "- | - | -"
             appendLine(
-                "| ${row.suite} | ${row.model} | ${row.passed}/${row.total} | ${row.gate} | " +
+                "| ${row.suite} | ${row.model} | ${row.passed}/${row.total} | ${row.gate} | $retrieval | " +
                     "${row.p50Ms} | ${row.p95Ms} | ${row.promptTokens} | ${row.completionTokens} | $cost | $support |",
             )
         }
