@@ -125,6 +125,8 @@ data class SuiteMetrics(
     /** Recall only: how many cases had a needle and how many were supported by the top hit. */
     val supportChecked: Int? = null,
     val supported: Int? = null,
+    /** Recall only: the graded retrieval columns (MRR, recall@1/@5, nDCG@5) the gate alone cannot say. */
+    val retrieval: RetrievalSummary? = null,
 )
 
 /** Builds the suite aggregates from finished cases; pure, so a report is a function of its cases. */
@@ -132,7 +134,13 @@ object SuiteMetricsCalculator {
     private const val P50 = 50.0
     private const val P95 = 95.0
 
-    fun of(cases: List<CaseResult>, prices: PriceTable, identity: ModelIdentity, durationMs: Long): SuiteMetrics {
+    fun of(
+        cases: List<CaseResult>,
+        kind: EvalKind,
+        prices: PriceTable,
+        identity: ModelIdentity,
+        durationMs: Long,
+    ): SuiteMetrics {
         val promptTokens = cases.sumOf { it.promptTokens }
         val completionTokens = cases.sumOf { it.completionTokens }
         val cost = prices.cost(identity.provider, identity.model, promptTokens, completionTokens)
@@ -147,6 +155,11 @@ object SuiteMetricsCalculator {
             durationMs = durationMs,
             supportChecked = supportChecked,
             supported = supportChecked?.let { cases.count { case -> case.supported == true } },
+            retrieval = if (kind == EvalKind.RECALL) {
+                RetrievalMetrics.summary(cases.map { it.rank }, EvalRunner.RECALL_K)
+            } else {
+                null
+            },
         )
     }
 }

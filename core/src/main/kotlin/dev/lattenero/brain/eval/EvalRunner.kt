@@ -335,7 +335,7 @@ class EvalRunner(
             passed = passed,
             total = cases.size,
             ok = cases.isNotEmpty() && passed.toDouble() / cases.size >= options.gate,
-            metrics = SuiteMetricsCalculator.of(cases, options.prices, identity, durationMs),
+            metrics = SuiteMetricsCalculator.of(cases, suite.kind, options.prices, identity, durationMs),
             cases = cases,
             startedAt = startedAt.toString(),
             durationMs = durationMs,
@@ -414,6 +414,12 @@ class EvalRunner(
             appendLine("- ${metricsLine(report)}")
             report.metrics.supportChecked?.let {
                 appendLine("- citation support@1: ${report.metrics.supported}/$it top hits contain a needle")
+            }
+            report.metrics.retrieval?.let { r ->
+                appendLine(
+                    "- retrieval: MRR ${formatScore(r.mrr)} · recall@1 ${formatScore(r.recall1)} · " +
+                        "recall@5 ${formatScore(r.recall5)} · nDCG@5 ${formatScore(r.ndcg5)}",
+                )
             }
             appendLine()
             appendLine(casesMarkdown(report))

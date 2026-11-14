@@ -2,6 +2,7 @@ package dev.lattenero.brain.eval
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import kotlin.math.log2
 
 class EvalMetricsTest {
     @Test
@@ -81,7 +82,7 @@ class EvalMetricsTest {
             CaseResult(id = "c", ok = true, durationMs = 20),
         )
         val identity = ModelIdentity("qwen2.5:3b", "ollama", "nomic-embed-text")
-        val metrics = SuiteMetricsCalculator.of(cases, table, identity, durationMs = 123)
+        val metrics = SuiteMetricsCalculator.of(cases, EvalKind.EXTRACTION, table, identity, durationMs = 123)
         assertThat(metrics.p50Ms).isEqualTo(20)
         assertThat(metrics.p95Ms).isEqualTo(30)
         assertThat(metrics.promptTokens).isEqualTo(150)
@@ -91,6 +92,7 @@ class EvalMetricsTest {
         assertThat(metrics.durationMs).isEqualTo(123)
         assertThat(metrics.supported).isNull()
         assertThat(metrics.supportChecked).isNull()
+        assertThat(metrics.retrieval).isNull()
     }
 
     @Test
@@ -100,8 +102,30 @@ class EvalMetricsTest {
             CaseResult(id = "b", ok = true, durationMs = 20, supported = false),
             CaseResult(id = "c", ok = true, durationMs = 30, supported = null),
         )
-        val metrics = SuiteMetricsCalculator.of(cases, PriceTable(), ModelIdentity("m", "ollama", "n"), 0)
+        val metrics = SuiteMetricsCalculator.of(cases, EvalKind.RECALL, PriceTable(), ModelIdentity("m", "ollama", "n"), 0)
         assertThat(metrics.supportChecked).isEqualTo(2)
         assertThat(metrics.supported).isEqualTo(1)
+        assertThat(metrics.retrieval).isNotNull
+    }
+
+    @Test
+    fun `recall suites carry the graded retrieval summary, other kinds never do`() {
+        val ranks = listOf<Int?>(1, 1, 3, null, 2)
+        val cases = ranks.mapIndexed { index, rank ->
+            CaseResult(id = "c$index", ok = rank != null, durationMs = 10, rank = rank)
+        }
+        val identity = ModelIdentity("m", "ollama", "n")
+        val recall = SuiteMetricsCalculator.of(cases, EvalKind.RECALL, PriceTable(), identity, 0).retrieval
+        assertThat(recall).isNotNull
+        assertThat(recall!!.cases).isEqualTo(5)
+        assertThat(recall.mrr).isEqualTo((1.0 + 1.0 + 1.0 / 3.0 + 0.0 + 1.0 / 2.0) / 5.0)
+        assertThat(recall.recall1).isEqualTo(2.0 / 5.0)
+        assertThat(recall.recall5).isEqualTo(4.0 / 5.0)
+        assertThat(recall.ndcg5).isEqualTo(
+            (1.0 + 1.0 + 1.0 / log2(4.0) + 0.0 + 1.0 / log2(3.0)) / 5.0,
+        )
+        // the same ranks under a non-recall kind stay absent — the columns belong to retrieval
+        val extraction = SuiteMetricsCalculator.of(cases, EvalKind.EXTRACTION, PriceTable(), identity, 0).retrieval
+        assertThat(extraction).isNull()
     }
 }
