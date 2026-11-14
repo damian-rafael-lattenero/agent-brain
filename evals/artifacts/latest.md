@@ -1,10 +1,11 @@
 # eval: recall-core (recall) · nomic-embed-text (ollama)
 
-- run: c27a46c7-c9db-4f1b-8597-343c0a8431b6
-- started: 2026-11-08T14:08:22.718122Z · 1933 ms
+- run: 78b1217c-7c47-42c6-815b-f90b86641bbf
+- started: 2026-11-14T14:47:24.226435Z · 2063 ms
 - **20/20 passed (gate 0.9) → PASS**
-- latency p50 25 ms · p95 36 ms · tokens 263 in / 0 out (embedding tokens estimated) · cost 0.000000 USD
+- latency p50 21 ms · p95 28 ms · tokens 263 in / 0 out (embedding tokens estimated) · cost 0.000000 USD
 - citation support@1: 18/19 top hits contain a needle
+- retrieval: MRR 0.913 · recall@1 0.850 · recall@5 1.000 · nDCG@5 0.935
 
 | case | question | expected | rank@5 | top hit | support |
 |---|---|---|---|---|---|
