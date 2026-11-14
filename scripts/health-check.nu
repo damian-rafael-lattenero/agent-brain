@@ -7,7 +7,8 @@
 const BIN = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 
 # cada check devuelve record {layer, check, ok, detail, hint}
-def checks []: nothing -> list<record> {
+# exported so brain-sentinel.nu can reuse the whole engine
+export def checks []: nothing -> list<record> {
     [
         # 1. launchd: la cadena de boot cargada
         {
@@ -82,6 +83,27 @@ def checks []: nothing -> list<record> {
             f: {||
                 let m = (run-external $BIN ...["memory", "search", "kap functional design", "--k", "1"] | complete)
                 {ok: ($m.exit_code == 0), detail: (if $m.exit_code == 0 { "ok" } else { $m.stderr | lines | last 1 }), hint: "verificar pg y ollama"}
+            }
+        }
+        # 8. index freshness — the corpus must not rot silently (born from the
+        # human-num episode: a stale index reads like a bug everywhere else)
+        {
+            layer: "index"
+            check: "documents frescos (max updated_at < 7 días)"
+            f: {||
+                let q = ("SELECT to_char(max(updated_at), 'YYYY-MM-DD') FROM documents;"
+                    | docker exec -i agent-brain-pg psql -U brain -d agent_brain -t | complete)
+                if $q.exit_code != 0 {
+                    {ok: false, detail: "psql no respondió", hint: "capa contenedores/pg"}
+                } else {
+                    let d: string = ($q.stdout | lines | where {|l| ($l | str trim) != ""} | first | str trim)
+                    if ($d | is-empty) {
+                        {ok: false, detail: "sin documentos", hint: "correr agent-brain index (corpus.txt)"}
+                    } else {
+                        let age: duration = ((date now) - ($d | into datetime))
+                        {ok: ($age < 7day), detail: $"última actualización ($d)", hint: "correr agent-brain index (corpus.txt)"}
+                    }
+                }
             }
         }
     ]
