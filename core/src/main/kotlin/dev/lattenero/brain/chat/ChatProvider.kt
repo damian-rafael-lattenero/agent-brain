@@ -33,4 +33,29 @@ object ChatProviders {
         "fake" -> FakeChatProvider()
         else -> throw ConfigException("chat_provider must be ollama, glm or fake, got '${config.chatProvider}'")
     }
+
+    /**
+     * The JUDGE chat (E3's split-provider): verdicts, rerank and dream are
+     * LOW-FREQUENCY, quality-critical calls — they may ride a DIFFERENT,
+     * stronger model than the extractor (which stays local and free for the
+     * high-volume private path). Absent config → null → the caller falls back
+     * to the primary chat (today's behavior, unchanged). The GlmChatProvider
+     * class is the OpenAI-compatible implementation: any base URL + key +
+     * model that speaks /chat/completions with `response_format json_object`
+     * works (OpenCode Zen included).
+     */
+    fun judge(config: Config, client: HttpClient): ChatProvider? {
+        val provider = config.judgeProvider
+        if (provider.isBlank()) return null
+        return when (provider) {
+            "ollama" -> OllamaChatProvider(
+                client,
+                config.judgeBaseUrl.ifBlank { config.ollamaBaseUrl },
+                config.judgeModel,
+            )
+            "glm", "openai" -> GlmChatProvider(client, config.judgeBaseUrl, config.judgeModel, config.judgeApiKey)
+            "fake" -> FakeChatProvider()
+            else -> throw ConfigException("judge_provider must be ollama, glm, openai or fake, got '$provider'")
+        }
+    }
 }
