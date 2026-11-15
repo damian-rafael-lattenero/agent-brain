@@ -59,7 +59,14 @@ class OllamaChatProvider(private val client: HttpClient, baseUrl: String, overri
 }
 
 /** POST {base}/chat/completions with response_format json_object (OpenAI-shaped), temperature 0. */
-class GlmChatProvider(private val client: HttpClient, baseUrl: String, override val model: String, private val apiKey: String) : ChatProvider {
+class GlmChatProvider(
+    private val client: HttpClient,
+    baseUrl: String,
+    override val model: String,
+    private val apiKey: String,
+    /** Optional extra headers some gateways demand — OpenCode Zen requires `x-opencode-session`. */
+    private val extraHeaders: Map<String, String> = emptyMap(),
+) : ChatProvider {
     override val name = "glm"
     private val baseUrl = baseUrl.trimEnd('/')
 
@@ -92,6 +99,7 @@ class GlmChatProvider(private val client: HttpClient, baseUrl: String, override 
         }
         val response = postForProvider(client, url, "glm chat", glmErrors(::ChatException)) {
             headers.append("Authorization", "Bearer $apiKey")
+            extraHeaders.forEach { (name, value) -> headers.append(name, value) }
             setBody(body)
         }
         val parsed: Response = response.body()

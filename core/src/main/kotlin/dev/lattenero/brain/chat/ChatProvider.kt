@@ -5,6 +5,7 @@ import dev.lattenero.brain.config.ConfigException
 import dev.lattenero.brain.embeddings.ProviderException
 import io.ktor.client.HttpClient
 import kotlinx.serialization.json.JsonObject
+import java.util.UUID
 
 /**
  * ONE interface for "give me a JSON object that matches this schema". Both
@@ -27,6 +28,11 @@ data class ChatResult(val text: String, val promptTokens: Int? = null, val compl
 class ChatException(message: String, cause: Throwable? = null) : ProviderException(message, cause)
 
 object ChatProviders {
+
+    /** OpenCode Zen's routing header: a stable per-process prefix + short uuid. */
+    private const val SESSION_PREFIX = "brain-judge-"
+    private const val SESSION_CHARS = 8
+
     fun create(config: Config, client: HttpClient): ChatProvider = when (config.chatProvider) {
         "ollama" -> OllamaChatProvider(client, config.ollamaBaseUrl, config.chatModel)
         "glm" -> GlmChatProvider(client, config.glmBaseUrl, config.glmChatModel, config.glmApiKey)
@@ -53,7 +59,19 @@ object ChatProviders {
                 config.judgeBaseUrl.ifBlank { config.ollamaBaseUrl },
                 config.judgeModel,
             )
-            "glm", "openai" -> GlmChatProvider(client, config.judgeBaseUrl, config.judgeModel, config.judgeApiKey)
+            // OpenCode Zen REJECTS requests without `x-opencode-session` (measured:
+            // 400 MissingSessionID); a stable per-process id satisfies the router.
+            "openai" -> {
+                val session = SESSION_PREFIX + UUID.randomUUID().toString().take(SESSION_CHARS)
+                GlmChatProvider(
+                    client,
+                    config.judgeBaseUrl,
+                    config.judgeModel,
+                    config.judgeApiKey,
+                    extraHeaders = mapOf("x-opencode-session" to session),
+                )
+            }
+            "glm" -> GlmChatProvider(client, config.judgeBaseUrl, config.judgeModel, config.judgeApiKey)
             "fake" -> FakeChatProvider()
             else -> throw ConfigException("judge_provider must be ollama, glm, openai or fake, got '$provider'")
         }
