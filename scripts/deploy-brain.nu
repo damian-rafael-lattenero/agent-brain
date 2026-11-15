@@ -28,7 +28,7 @@ const BASE = "http://127.0.0.1:8765"
 # thread via the mailbox. 90 tries x 500ms covers a cold JVM with margin;
 # the outer recv deadline (90s) is the failure signal if the job never sends.
 def wait-ready [deadline: duration]: nothing -> bool {
-    let waiter = (job spawn {
+    let waiter: int = (job spawn {
         mut up: bool = false
         for _ in 1..90 {
             let ok: bool = (try { http get -m 2sec $"($BASE)/ready" | ignore; true } catch { false })
@@ -46,7 +46,7 @@ def wait-ready [deadline: duration]: nothing -> bool {
 }
 
 def main []: nothing -> nothing {
-    let repo = ($env.FILE_PWD | path dirname)
+    let repo: path = ($env.FILE_PWD | path dirname)
 
     step "building (Gradle daemon)"
     announce "🧠 deploy agent-brain 1/3 — building (installDist + detekt; el build es el tramo largo)"

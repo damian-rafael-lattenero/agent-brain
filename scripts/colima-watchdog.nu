@@ -6,15 +6,15 @@
 # (regla AGENTS.md "Procesos que deben sobrevivir a ZCode" — colima JAMÁS desde
 # la sesión de ZCode, medido 3/11/2026).
 
-const COLIMA = "/opt/homebrew/bin/colima"
+const COLIMA: string = "/opt/homebrew/bin/colima"
 
 def main []: nothing -> nothing {
-    let st = (run-external $COLIMA "status" | complete)
+    let st: record = (run-external $COLIMA "status" | complete)
     if $st.exit_code == 0 {
         exit 0
     }
     print "colima down; arrancando..."
-    let up = (run-external $COLIMA "start" | complete)
+    let up: record = (run-external $COLIMA "start" | complete)
     if $up.exit_code == 0 {
         print "colima ✓"
     } else {
