@@ -1,5 +1,7 @@
 package dev.lattenero.brain.memory
 
+import kotlinx.serialization.Serializable
+
 /**
  * The reconcile pass's PURE core — the band, the decision and the pair
  * ordering, all total functions of values; the passes (worker reconcile,
@@ -56,6 +58,7 @@ object MemoryReconcile {
  * What a decided verdict does to the rows — the complete vocabulary of state
  * changes the reconcile machinery may make (content is NEVER rewritten).
  */
+@Serializable
 sealed interface ReconcileAction {
     /** The old claim is outdated: stamp it invalid, the new claim stands. */
     data object InvalidateOld : ReconcileAction
@@ -68,6 +71,7 @@ sealed interface ReconcileAction {
 }
 
 /** One judged pair, as the report carries it: who was old, who was new, what happened. */
+@Serializable
 data class ReconciledPair(
     val oldId: Long,
     val newId: Long,

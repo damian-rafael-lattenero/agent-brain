@@ -23,7 +23,16 @@ import kotlin.time.Duration.Companion.seconds
 private val log = LoggerFactory.getLogger("agent-brain.memory")
 
 @Serializable
-data class WorkerReport(val scanned: Int, val processed: Int, val memories: Int, val merged: Int = 0, val quarantined: Int, val deferred: Int, val emptyTurns: Int)
+data class WorkerReport(
+    val scanned: Int,
+    val processed: Int,
+    val memories: Int,
+    val merged: Int = 0,
+    val reconciled: Int = 0,
+    val quarantined: Int,
+    val deferred: Int,
+    val emptyTurns: Int,
+)
 
 /**
  * Why one turn's extraction failed — the three bins of the report, as values
@@ -51,9 +60,29 @@ sealed interface TurnOutcome {
      * new; [merged] carries the identities of EXISTING rows that the insert
      * reinforced instead — a near-duplicate (cosine at or above
      * [MemoryDedup.SIMILARITY]) is a bump of the memory already stored, never
-     * a pretended new row.
+     * a pretended new row. [reconciled] counts the verdict-driven state
+     * changes the reconcile pass made on the new rows (invalidations plus
+     * Same-merges) — zero when no reconciler is wired or every verdict
+     * skipped.
      */
-    data class Stored(val inserted: Int, val merged: List<Long> = emptyList()) : TurnOutcome
+    data class Stored(val inserted: Int, val merged: List<Long> = emptyList(), val reconciled: Int = 0) : TurnOutcome
+}
+
+/**
+ * The worker's knobs as ONE value: the batch size, the attempt cap and the
+ * verdict half-life the reconcile band's forgetting exclusion reads (the same
+ * knob [MemoryService] ranks with).
+ */
+data class WorkerParams(
+    val batch: Int = DEFAULT_BATCH,
+    val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS,
+    val halfLifeDays: Int = DEFAULT_HALF_LIFE_DAYS,
+) {
+    companion object {
+        const val DEFAULT_BATCH = 10
+        const val DEFAULT_MAX_ATTEMPTS = 5
+        const val DEFAULT_HALF_LIFE_DAYS = 30
+    }
 }
 
 /**
@@ -101,11 +130,11 @@ class MemoryWorker(
     private val store: MemoryStore,
     private val extractor: MemoryExtractor,
     private val embed: EmbedPipeline,
-    private val batch: Int = DEFAULT_BATCH,
-    private val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS,
+    private val reconciler: MemoryReconciler? = null,
+    private val params: WorkerParams = WorkerParams(),
 ) {
     suspend fun processOnce(): WorkerReport {
-        val pending = store.pendingTurns(batch, maxAttempts)
+        val pending = store.pendingTurns(params.batch, params.maxAttempts)
         val settled: List<Result<Either<ExtractionFailure, TurnOutcome>>> =
             pending.traverseSettled { turn -> Kap { processTurn(turn) } }.evalGraph()
         val start = WorkerReport(
@@ -142,7 +171,7 @@ class MemoryWorker(
         return attempt(transcript, turn).evalGraph().onLeft { quarantineOrDefer(it, transcript, turn) }
     }
 
-    /** The attempt: extract, embed, insert (dedup-aware); failures converted at this boundary, never branch on. */
+    /** The attempt: extract, embed, insert (dedup-aware), reconcile; failures converted at this boundary. */
     private fun attempt(
         transcript: Transcript,
         turn: MemoryStore.PendingTurn,
@@ -152,13 +181,27 @@ class MemoryWorker(
             val items = extraction.items
             val vectors = if (items.isEmpty()) emptyList() else embed.embedAll(items.map { it.second }).evalGraph()
             val rows = items.zip(vectors) { (kind, content), vector -> MemoryStore.MemoryRow(kind, content, vector) }
-            store.insertAllDeduped(transcript, embed.model, rows).also { store.markProcessed(turn.eventId) }
+            val report = store.insertAllDeduped(transcript, embed.model, rows)
+            store.markProcessed(turn.eventId)
+            // The verdict-driven second stage: the turn is already marked, so a
+            // skipped verdict (chat outage — the reconciler never throws) loses
+            // nothing; the next similar landing re-proposes the pair.
+            val reconciled = reconciler
+                ?.reconcileInserted(report.insertedIds, embed.model, params.halfLifeDays)
+                ?.changes
+                ?: 0
+            StoredTurn(report, reconciled)
         }
             .attempt()
             .map { settled ->
                 val outcome: Either<ExtractionFailure, TurnOutcome> = when (settled) {
-                    is Either.Left -> Either.Left(classify(settled.value, turn.attempts, maxAttempts))
-                    is Either.Right -> Either.Right(TurnOutcome.Stored(settled.value.inserted, settled.value.merged))
+                    is Either.Left -> Either.Left(classify(settled.value, turn.attempts, params.maxAttempts))
+                    is Either.Right -> {
+                        val stored = settled.value
+                        Either.Right(
+                            TurnOutcome.Stored(stored.report.inserted, stored.report.merged, stored.reconciled),
+                        )
+                    }
                 }
                 outcome
             }
@@ -222,8 +265,9 @@ class MemoryWorker(
 
     companion object {
         const val PROCESS_NAME = "memory-worker"
-        const val DEFAULT_BATCH = 10
-        const val DEFAULT_MAX_ATTEMPTS = 5
+
+        /** One stored turn as the attempt graph carries it: the insert report plus the reconcile count. */
+        private data class StoredTurn(val report: MemoryStore.InsertReport, val reconciled: Int)
 
         /**
          * The taxonomy, pure and total: any failure of one attempt lands in
@@ -261,13 +305,14 @@ class MemoryWorker(
         is ExtractionFailure.ProviderDown -> copy(deferred = deferred + 1)
     }
 
-    /** The success outcomes, counted: empty turns on their own, stored turns with their rows and merges. */
+    /** The outcomes, counted: empty turns alone; stored turns with rows, merges and verdict changes. */
     private fun WorkerReport.completed(outcome: TurnOutcome): WorkerReport = when (outcome) {
         is TurnOutcome.EmptyTurn -> copy(emptyTurns = emptyTurns + 1)
         is TurnOutcome.Stored -> copy(
             processed = processed + 1,
             memories = memories + outcome.inserted,
             merged = merged + outcome.merged.size,
+            reconciled = reconciled + outcome.reconciled,
         )
     }
 }

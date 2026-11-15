@@ -4,9 +4,12 @@ import dev.lattenero.brain.bus.BusPipeline
 import dev.lattenero.brain.chat.ChatProvider
 import dev.lattenero.brain.chat.ChatProviders
 import dev.lattenero.brain.memory.MemoryExtractor
+import dev.lattenero.brain.memory.MemoryReconciler
 import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.memory.MemoryStore
 import dev.lattenero.brain.memory.MemoryWorker
+import dev.lattenero.brain.memory.VerdictJudge
+import dev.lattenero.brain.memory.WorkerParams
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
@@ -88,7 +91,14 @@ class Brain private constructor(
             successThreshold = ProviderResilience.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
         ),
     )
-    val memoryWorker: MemoryWorker = MemoryWorker(memoryStore, extractor, embedPipeline)
+    /** The verdict machinery: ONE chat call per judged pair, one timeout, no retry (the write path never blocks). */
+    val verdictJudge: VerdictJudge = VerdictJudge(chat, config.chatTimeoutS.seconds)
+    val memoryReconciler: MemoryReconciler = MemoryReconciler(memoryStore, verdictJudge)
+    val memoryWorker: MemoryWorker = MemoryWorker(
+        memoryStore, extractor, embedPipeline,
+        reconciler = memoryReconciler,
+        params = WorkerParams(halfLifeDays = config.memoryHalfLifeDays),
+    )
     val memory: MemoryService = MemoryService(provider, memoryStore, extractor, config.memoryHalfLifeDays)
 
     companion object {

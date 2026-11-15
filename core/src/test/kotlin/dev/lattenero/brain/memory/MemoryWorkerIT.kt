@@ -56,7 +56,7 @@ class MemoryWorkerIT {
 
     private fun worker(f: Fixture, chat: ChatProvider, attempts: Int = 3, maxAttempts: Int = 3): MemoryWorker {
         val extractor = MemoryExtractor(chat, 10.seconds, f.tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes), attempts, backoffBase = 10.seconds.div(1000))
-        return MemoryWorker(f.store, extractor, pipeline(f), batch = 10, maxAttempts = maxAttempts)
+        return MemoryWorker(f.store, extractor, pipeline(f), params = WorkerParams(maxAttempts = maxAttempts))
     }
 
     /** Loads the recorded bot bus (one phone turn with prompt+reply, one Mac turn that failed). */
