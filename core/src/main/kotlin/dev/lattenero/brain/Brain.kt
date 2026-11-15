@@ -97,7 +97,14 @@ class Brain private constructor(
         ),
     )
     val memoryWorker: MemoryWorker = MemoryWorker(memoryStore, extractor, embedPipeline, edges = edgeBuilder)
-    val memory: MemoryService = MemoryService(provider, memoryStore, extractor, config.memoryHalfLifeDays)
+    val memory: MemoryService = MemoryService(
+        provider = provider,
+        store = memoryStore,
+        extractor = extractor,
+        halfLifeDays = config.memoryHalfLifeDays,
+        graph = memoryGraph,
+        edges = edgeBuilder,
+    )
 
     companion object {
         const val COMPONENT_DATABASE = "database"

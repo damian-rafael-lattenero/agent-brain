@@ -41,6 +41,7 @@ data class MemoryStatus(
     val breaker: String,
     val chatModel: String,
     val embedModel: String,
+    val edgesByKind: Map<String, Long> = emptyMap(),
 )
 
 /**
