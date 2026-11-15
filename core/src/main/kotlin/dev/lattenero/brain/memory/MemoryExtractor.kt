@@ -182,23 +182,51 @@ class MemoryExtractor(
                         else raise(ParseOutcome.Invalid("summary is not a string", raw))
                     else -> raise(ParseOutcome.Invalid("summary is not a string", raw))
                 }
-                ParseOutcome.Parsed(
-                    Extraction(
-                        kind(obj, "facts", raw).bind(),
-                        kind(obj, "decisions", raw).bind(),
-                        kind(obj, "preferences", raw).bind(),
-                        summaryText,
-                        raw,
-                        null,
-                        null,
-                    ),
+                val parsed = Extraction(
+                    kind(obj, "facts", raw).bind(),
+                    kind(obj, "decisions", raw).bind(),
+                    kind(obj, "preferences", raw).bind(),
+                    summaryText,
+                    raw,
+                    null,
+                    null,
                 )
+                // Template-echo law (15/11 incident): a degraded model answers with
+                // the prompt's OWN field descriptions as the values — shape-valid,
+                // content-empty. One echo means the whole extraction is degenerate:
+                // quarantine it all, never store the echoes as real memories.
+                val texts = parsed.items.map { it.second } + summaryText
+                val echo = texts.firstOrNull { normalize(it) in TEMPLATE_ECHOES }
+                if (echo != null) {
+                    val reason = "template-echo: the model echoed the prompt's own fields: \"$echo\""
+                    raise(ParseOutcome.Invalid(reason, raw))
+                }
+                ParseOutcome.Parsed(parsed)
             }
             return when (extraction) {
                 is Either.Left -> extraction.value
                 is Either.Right -> extraction.value
             }
         }
+
+        /** Lowercase, punctuation and whitespace folded: the echo comparison surface. */
+        private fun normalize(text: String): String = text.lowercase().filter { it.isLetterOrDigit() }
+
+        /**
+         * The degenerate answers observed live on 15/11 (memory ids 3384/3382 et al.):
+         * the model returned the schema's field descriptions as the values. Stored
+         * as salience-1.0 "memories" they polluted recall until manually noticed.
+         */
+        private val TEMPLATE_ECHOES: Set<String> = setOf(
+            "A one-sentence summary of the turn.",
+            "The user's decisions in this turn.",
+            "The user's decisions.",
+            "Choices the user made in this turn.",
+            "Verifiable statements about the user, their projects, tools or environment " +
+                "that will still be true next week.",
+            "One sentence about the turn.",
+            "How the user likes things done.",
+        ).map(::normalize).toSet()
 
         /** The attempt channel's face of [parseBins]: the Invalid bin becomes [ExtractionInvalid]. */
         fun parse(result: ChatResult): Extraction = when (val outcome = parseBins(result.text)) {

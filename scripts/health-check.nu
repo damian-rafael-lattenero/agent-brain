@@ -60,13 +60,33 @@ export def checks []: nothing -> list<record> {
                 {ok: ($h.status == "ok"), detail: $"status ($h.status)", hint: "launchctl kickstart -k gui/501/com.zcode.agent-brain (log ~/Library/Logs/agent-brain.log)"}
             }
         }
-        # 5. ollama (embeddings)
+        # 5. ollama (embeddings + a CHAT probe — the 15/11 blind spot: the tags
+        # endpoint stayed green for 4 h while every chat call starved behind a
+        # degraded runner; a tiny say-ok with a latency budget speaks the truth)
         {
             layer: "ollama"
-            check: "server embeddings vivo"
+            check: "embeddings + chat vivo"
             f: {||
                 let t: record = (http get http://127.0.0.1:11434/api/tags)
-                {ok: true, detail: $"($t.models | length) modelos", hint: "sh.brew.ollama LaunchAgent"}
+                let chat_body: string = ({model: "qwen2.5:1.5b", stream: false, messages: [{role: "user", content: "say ok"}], options: {temperature: 0, num_predict: 8}} | to json -r)
+                let t0: datetime = (date now)
+                let probe: record = (try {
+                    {answer: (http post -m 15sec --content-type application/json http://127.0.0.1:11434/api/chat $chat_body | get message.content), ok: true}
+                } catch {|err|
+                    {answer: $err.msg, ok: false}
+                })
+                let took: duration = ((date now) - $t0)
+                # 15 s for an 8-token answer on a loaded box is already generous:
+                # healthy = sub-second, the 15/11 degradation measured 25-60 s.
+                let chat_ok: bool = ($probe.ok and ($took < 15sec))
+                let detail: string = (if not $probe.ok {
+                    $"chat DOWN: ($probe.answer | str substring 0..60)"
+                } else if not $chat_ok {
+                    $"chat LENTO: ($took) — runner degradado o cola (15/11: inanición de qwen)"
+                } else {
+                    $"($t.models | length) modelos, chat ($took)"
+                })
+                {ok: $chat_ok, detail: $detail, hint: "brew services restart ollama; si persiste: presión de RAM (daemons idle) — ver ~/Library/Logs/agent-brain.log"}
             }
         }
         # 6. RAG end-to-end (pg + embeddings)

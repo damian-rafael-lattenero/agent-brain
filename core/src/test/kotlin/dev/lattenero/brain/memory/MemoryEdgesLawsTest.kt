@@ -25,20 +25,32 @@ class MemoryEdgesLawsTest {
     private fun ids(): Arb<List<Long>> = Arb.list(Arb.long(1, 100), 0..8)
 
     /** LAW 1 — the related band: edges exist iff RELATED_FLOOR <= cosine < the dedup threshold. */
+    /** LAW 1 — the related band: edges exist iff RELATED_FLOOR <= cosine < the dedup threshold.
+     *  Boundaries are EXACT doubles (nextDown/nextUp): a random epsilon subtracted from the
+     *  floor can round back onto it (the flaky shrink of 15/11 — kotest shrank the offset to
+     *  0.0 and `floor - 0.0 == floor`), so the band's edges are pinned deterministically
+     *  and the property sweeps only the strict interior. */
     @Test
     fun `law 1 - the related band is floor inclusive and the dedup threshold exclusive`() = runBlocking<Unit> {
-        checkAll(Arb.numericDouble(0.01, 1.0), Arb.numericDouble(0.01, 1.0), Arb.long(1, 1000)) { below, above, neighborId ->
+        checkAll(Arb.numericDouble(0.01, 0.1), Arb.long(1, 1000)) { inside, neighborId ->
             val source = 42L
-            // Strictly below the floor: nothing. At the floor: one edge (the band is floor-inclusive).
-            val under = MemoryEdges.related(source, listOf(Neighbor(neighborId, MemoryEdges.RELATED_FLOOR - below)))
-            assertThat(under).isEmpty()
+            // One double-step outside each edge of the band: deterministically NOT an edge.
+            assertThat(
+                MemoryEdges.related(source, listOf(Neighbor(neighborId, Math.nextDown(MemoryEdges.RELATED_FLOOR)))),
+            ).isEmpty()
+            assertThat(
+                MemoryEdges.related(source, listOf(Neighbor(neighborId, Math.nextUp(MemoryDedup.SIMILARITY)))),
+            ).isEmpty()
+            // The edges themselves: floor inclusive, threshold exclusive.
             val atFloor = MemoryEdges.related(source, listOf(Neighbor(neighborId, MemoryEdges.RELATED_FLOOR)))
             assertThat(atFloor).hasSize(1)
             assertThat(atFloor.single().weight).isEqualTo(MemoryEdges.RELATED_FLOOR)
-            assertThat(atFloor.single().weight).isLessThan(MemoryDedup.SIMILARITY)
-            // At or above the dedup threshold the pair is a MERGE (B2's boundary), never an edge.
             assertThat(MemoryEdges.related(source, listOf(Neighbor(neighborId, MemoryDedup.SIMILARITY)))).isEmpty()
-            assertThat(MemoryEdges.related(source, listOf(Neighbor(neighborId, MemoryDedup.SIMILARITY + above)))).isEmpty()
+            // The strict interior: always exactly one edge carrying the cosine itself.
+            val interior = MemoryEdges.RELATED_FLOOR + inside * (MemoryDedup.SIMILARITY - MemoryEdges.RELATED_FLOOR)
+            val edges = MemoryEdges.related(source, listOf(Neighbor(neighborId, interior)))
+            assertThat(edges).hasSize(1)
+            assertThat(edges.single().weight).isEqualTo(interior)
         }
     }
 

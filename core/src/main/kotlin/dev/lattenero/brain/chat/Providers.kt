@@ -19,6 +19,14 @@ class OllamaChatProvider(private val client: HttpClient, baseUrl: String, overri
     override val name = "ollama"
     private val baseUrl = baseUrl.trimEnd('/')
 
+    /** Generation bounds (the 15/11 starvation incident): without `num_predict` a
+     *  degenerate repetition generates to the context limit, hogging the shared
+     *  runner for minutes while clients time out; without `num_ctx` the KV cache
+     *  rides the model default. 512 tokens covers every extraction (10 items x
+     *  300 chars) and verdict with wide margin; 4096 matches the model context. */
+    private val numPredict = 512
+    private val numCtx = 4096
+
     @Serializable
     private data class Message(val role: String, val content: String)
 
@@ -35,7 +43,11 @@ class OllamaChatProvider(private val client: HttpClient, baseUrl: String, overri
                 add(buildJsonObject { put("role", "system"); put("content", system) })
                 add(buildJsonObject { put("role", "user"); put("content", user) })
             }
-            put("options", buildJsonObject { put("temperature", 0) })
+            put("options", buildJsonObject {
+                put("temperature", 0)
+                put("num_predict", numPredict)
+                put("num_ctx", numCtx)
+            })
         }
         val response = postForProvider(client, url, "ollama chat", ollamaErrors(model, ::ChatException)) {
             setBody(body)
