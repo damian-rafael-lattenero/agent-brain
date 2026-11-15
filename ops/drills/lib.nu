@@ -59,8 +59,8 @@ export def reachable [url: string]: nothing -> bool {
 # throws counts as "not yet" — the thing being waited on is often the endpoint
 # that is down.
 export def wait-until [budget_seconds: int, probe: closure]: nothing -> bool {
-    mut waited = 0
-    mut ok = false
+    mut waited: int = 0
+    mut ok: bool = false
     while ($waited < $budget_seconds) and (not $ok) {
         $ok = (try { do $probe | into bool } catch {|_e| false })
         if not $ok {
@@ -90,9 +90,9 @@ export def panel [panel_title: string, promql: string]: nothing -> nothing {
 
 # Cuts a launchd job; KeepAlive is the supervisor that brings it back.
 export def stop-label [label: string, domain: string]: nothing -> nothing {
-    let uid = (^id -u | str trim)
-    let target = $"($domain)/($uid)/($label)"
-    let result = (do { ^launchctl kill SIGKILL $target } | complete)
+    let uid: string = (^id -u | str trim)
+    let target: string = $"($domain)/($uid)/($label)"
+    let result: record = (do { ^launchctl kill SIGKILL $target } | complete)
     if $result.exit_code != 0 {
         error make { msg: $"launchctl kill ($target) failed: ($result.stderr | str trim)" }
     }
