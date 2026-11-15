@@ -1,4 +1,4 @@
--- 0005_memory_invalidation: Zep-style invalidation for superseded claims.
+-- 0006_memory_invalidation: Zep-style invalidation for superseded claims.
 -- A verdict of Supersede stamps the OLD row's invalid_at; the row stays with
 -- its content and salience untouched (invalidation is NOT deletion), and rows
 -- with invalid_at set leave BOTH search legs (MemoryStore.SEARCH) and every

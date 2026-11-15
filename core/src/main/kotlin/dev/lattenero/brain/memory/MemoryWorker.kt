@@ -60,12 +60,18 @@ sealed interface TurnOutcome {
      * new; [merged] carries the identities of EXISTING rows that the insert
      * reinforced instead — a near-duplicate (cosine at or above
      * [MemoryDedup.SIMILARITY]) is a bump of the memory already stored, never
-     * a pretended new row. [reconciled] counts the verdict-driven state
-     * changes the reconcile pass made on the new rows (invalidations plus
-     * Same-merges) — zero when no reconciler is wired or every verdict
-     * skipped.
+     * a pretended new row. [insertedIds] are the new rows' identities (B4's
+     * edge builder walks exactly these, the reconcile pass seeds from them).
+     * [reconciled] counts the verdict-driven state changes the reconcile pass
+     * made on the new rows (invalidations plus Same-merges) — zero when no
+     * reconciler is wired or every verdict skipped.
      */
-    data class Stored(val inserted: Int, val merged: List<Long> = emptyList(), val reconciled: Int = 0) : TurnOutcome
+    data class Stored(
+        val inserted: Int,
+        val merged: List<Long> = emptyList(),
+        val insertedIds: List<Long> = emptyList(),
+        val reconciled: Int = 0,
+    ) : TurnOutcome
 }
 
 /**
@@ -132,6 +138,7 @@ class MemoryWorker(
     private val embed: EmbedPipeline,
     private val reconciler: MemoryReconciler? = null,
     private val params: WorkerParams = WorkerParams(),
+    private val edges: EdgeBuilder? = null,
 ) {
     suspend fun processOnce(): WorkerReport {
         val pending = store.pendingTurns(params.batch, params.maxAttempts)
@@ -168,7 +175,10 @@ class MemoryWorker(
             store.markProcessed(turn.eventId)
             return Either.Right(TurnOutcome.EmptyTurn)
         }
-        return attempt(transcript, turn).evalGraph().onLeft { quarantineOrDefer(it, transcript, turn) }
+        val settled = attempt(transcript, turn).evalGraph()
+        settled.onLeft { quarantineOrDefer(it, transcript, turn) }
+        settled.onRight { buildEdges(transcript, it) }
+        return settled
     }
 
     /** The attempt: extract, embed, insert (dedup-aware), reconcile; failures converted at this boundary. */
@@ -199,12 +209,31 @@ class MemoryWorker(
                     is Either.Right -> {
                         val stored = settled.value
                         Either.Right(
-                            TurnOutcome.Stored(stored.report.inserted, stored.report.merged, stored.reconciled),
+                            TurnOutcome.Stored(
+                                stored.report.inserted,
+                                stored.report.merged,
+                                stored.report.insertedIds,
+                                stored.reconciled,
+                            ),
                         )
                     }
                 }
                 outcome
             }
+
+    /**
+     * B4's honest degrade: the turn's edges are built AFTER the write landed,
+     * and their failure is logged, never raised — the memory write stands
+     * regardless of what the graph pass did.
+     */
+    private suspend fun buildEdges(transcript: Transcript, outcome: TurnOutcome) {
+        val builder = edges ?: return
+        if (outcome !is TurnOutcome.Stored || outcome.insertedIds.isEmpty()) return
+        when (val result = builder.forTurn(transcript.sessionId, transcript.turnId, outcome.insertedIds)) {
+            is EdgeOutcome.Built -> if (result.total > 0) log.debug("memory edges built: {}", result)
+            is EdgeOutcome.Failed -> log.warn("memory edge building degraded: {}", result.reason)
+        }
+    }
 
     /**
      * The edge where the bins turn back into rows — the same rows in the same
@@ -352,8 +381,19 @@ data class MemorySearchRequest(val query: String, val k: Int = MemoryService.DEF
 @Serializable
 data class MemorySaveRequest(val kind: MemoryKind, val content: String, val sessionId: String? = null)
 
+/**
+ * The search response with B4's ADDITIVE graph surface: [related] hangs 1-hop
+ * neighbors off the top hits through memory_edges (deduped, edge-weight first
+ * in the ranking, capped per hit and globally — the pure [traverse]'s law).
+ * Existing fields are untouched.
+ */
 @Serializable
-data class MemorySearchResponse(val query: String, val embedModel: String, val memories: List<Memory>)
+data class MemorySearchResponse(
+    val query: String,
+    val embedModel: String,
+    val memories: List<Memory>,
+    val related: List<RelatedMemory> = emptyList(),
+)
 
 class MemoryRequestException(message: String) : IllegalArgumentException(message)
 
@@ -362,14 +402,38 @@ class MemoryService(
     private val store: MemoryStore,
     private val extractor: MemoryExtractor,
     private val halfLifeDays: Int,
+    private val graph: MemoryGraphStore? = null,
+    private val edges: EdgeBuilder? = null,
 ) {
     suspend fun search(request: MemorySearchRequest): MemorySearchResponse {
         val text = request.query.trim()
         if (text.isEmpty()) throw MemoryRequestException("query must not be empty")
         if (request.k !in 1..MAX_K) throw MemoryRequestException("k must be between 1 and $MAX_K")
         val vector = provider.embed(listOf(text)).single()
-        val ranked: List<Memory> = store.search(vector, text, provider.model, request.k, Lifecycle.Params(halfLifeDays))
-        return MemorySearchResponse(text, provider.model, ranked)
+        val lifecycle = Lifecycle.Params(halfLifeDays)
+        val ranked: List<Memory> = store.search(vector, text, provider.model, request.k, lifecycle)
+        return MemorySearchResponse(text, provider.model, ranked, related(ranked, vector))
+    }
+
+    /**
+     * B4's traversal over the hits: 1-hop neighbors through memory_edges,
+     * fetched alive on both ends, ranked and capped by the pure [traverse].
+     * The graph leg is additive and honest — unwired (or no hits), the field
+     * is empty.
+     */
+    private suspend fun related(hits: List<Memory>, queryEmbedding: FloatArray): List<RelatedMemory> {
+        if (graph == null || hits.isEmpty()) return emptyList()
+        val candidates = graph.relatedCandidates(hits, queryEmbedding, provider.model, Lifecycle.Params(halfLifeDays))
+        return traverse(hits.map { it.id }, candidates)
+    }
+
+    /** The manual save's edge pass — the same honest degrade as the worker's: log, never raise. */
+    private suspend fun buildEdges(id: Long) {
+        val builder = edges ?: return
+        when (val outcome = builder.forMemory(id)) {
+            is EdgeOutcome.Built -> if (outcome.total > 0) log.debug("memory edges built: {}", outcome)
+            is EdgeOutcome.Failed -> log.warn("memory edge building degraded: {}", outcome.reason)
+        }
     }
 
     suspend fun save(request: MemorySaveRequest): Memory {
@@ -383,6 +447,7 @@ class MemoryService(
             vector,
             request.sessionId,
         )
+        buildEdges(id)
         // The id is the surviving row: a near-duplicate save returns the existing memory, reinforced.
         return store.byId(id) ?: Memory(id, request.kind.wire, content, request.sessionId, null, 1.0, "")
     }
@@ -410,6 +475,7 @@ class MemoryService(
             .with { breaker from extractor.breaker.currentState.name }
             .with { chatModel from extractor.model }
             .with { embedModel from provider.model }
+            .with { edgesByKind from graph?.countByKind().orEmpty() }
             .evalGraph()
     }
 

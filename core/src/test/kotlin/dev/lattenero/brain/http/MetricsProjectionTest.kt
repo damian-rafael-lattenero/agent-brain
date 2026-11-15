@@ -62,7 +62,18 @@ class MetricsProjectionTest {
         val text = renderMetrics(
             MetricsSnapshot(
                 rag = RagMetrics(documents = 17460, chunks = 60441),
-                memory = MemoryMetrics(memories = 44, active = 40, cooling = 3, archived = 1, superseded = 4, pendingTurns = 0, processedTurns = 31, quarantined = 2, breakerState = "Closed"),
+                memory = MemoryMetrics(
+                    memories = 44,
+                    active = 40,
+                    cooling = 3,
+                    archived = 1,
+                    superseded = 4,
+                    pendingTurns = 0,
+                    processedTurns = 31,
+                    quarantined = 2,
+                    breakerState = "Closed",
+                    edgesByKind = mapOf("related" to 5L, "cooccur" to 3L, "temporal" to 2L),
+                ),
             ),
         )
         val expected = """
@@ -96,6 +107,11 @@ class MetricsProjectionTest {
             # HELP brain_memory_quarantined Extraction attempts quarantined as unusable (MemoryStatus.quarantined).
             # TYPE brain_memory_quarantined gauge
             brain_memory_quarantined 2
+            # HELP brain_memory_edges_total Memory-to-memory edges by kind (MemoryStatus.edgesByKind).
+            # TYPE brain_memory_edges_total gauge
+            brain_memory_edges_total{kind="related"} 5
+            brain_memory_edges_total{kind="cooccur"} 3
+            brain_memory_edges_total{kind="temporal"} 2
             # HELP brain_memory_breaker_state The embedding breaker's state, one-hot over Closed/Open/HalfOpen (MemoryStatus.breaker).
             # TYPE brain_memory_breaker_state gauge
             brain_memory_breaker_state{state="Closed"} 1
@@ -108,6 +124,14 @@ class MetricsProjectionTest {
     @Test
     fun `nothing wired exposes nothing`() {
         assertThat(renderMetrics(MetricsSnapshot())).isEmpty()
+    }
+
+    @Test
+    fun `edge kinds absent from the snapshot are exposed as measured zeros`() {
+        val text = renderMetrics(MetricsSnapshot(memory = MemoryMetrics(memories = 1, active = 1, cooling = 0, archived = 0, pendingTurns = 0, processedTurns = 0, quarantined = 0, breakerState = "Closed")))
+        assertThat(text).contains("brain_memory_edges_total{kind=\"related\"} 0")
+        assertThat(text).contains("brain_memory_edges_total{kind=\"cooccur\"} 0")
+        assertThat(text).contains("brain_memory_edges_total{kind=\"temporal\"} 0")
     }
 
     @Test
