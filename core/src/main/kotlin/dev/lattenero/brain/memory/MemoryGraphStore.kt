@@ -250,6 +250,17 @@ class MemoryGraphStore(private val db: Database) {
 
         // 1-hop traversal candidates. Binds: 1 query vector, 2 embed model, 3 half_life,
         // 4 forget_floor, 5 hit ids.
+        //
+        // PLAN LAW (measured 2026-11-15, live store: 3,419 memories / 24,971 edges):
+        // a symmetric-edge join written as `ON e.src_id = hid OR e.dst_id = hid` CANNOT
+        // use an index — the planner inverted the join (alive x edges first, unnest of
+        // the hits LAST), built 85.7M intermediate rows and removed 257M by filter:
+        // 86,346 ms for 40 result rows. The same fetch as a UNION ALL of two
+        // index-driven walks (src-direction + dst-direction) plans as two Bitmap
+        // Index Scans: 38 ms — the same 40 rows, 2,263x faster. `src <> dst` is a
+        // DB CHECK, so an (edge, hit) pair matches exactly ONE direction: UNION ALL
+        // cannot duplicate. The hit side needs no alive check — hits arrive from
+        // [MemoryStore.search], which already excludes forgotten and invalidated rows.
         private val TRAVERSAL = """
             WITH params AS (
               SELECT ?::vector AS qv, ?::text AS model, ?::int AS half_life, ?::float8 AS forget_floor
@@ -259,18 +270,21 @@ class MemoryGraphStore(private val db: Database) {
               SELECT id FROM memories m, params p
               WHERE m.invalid_at IS NULL
                 AND ${MemoryStore.LIFE_WEIGHT_SQL} >= p.forget_floor
-            ), hits AS (SELECT unnest(?::bigint[]) AS hid)
-            SELECT e.kind, e.weight AS edge_weight, h.hid AS via_id, m.id, m.kind AS mkind, m.content,
+            ), hits AS (SELECT unnest(?::bigint[]) AS hid), walk AS (
+              SELECT h.hid AS via_id, e.kind, e.weight AS edge_weight, e.dst_id AS other_id
+                FROM hits h JOIN memory_edges e ON e.src_id = h.hid
+              UNION ALL
+              SELECT h.hid, e.kind, e.weight, e.src_id
+                FROM hits h JOIN memory_edges e ON e.dst_id = h.hid
+            )
+            SELECT w.kind, w.edge_weight, w.via_id, m.id, m.kind AS mkind, m.content,
                    m.session_id, m.created_at, m.salience, $RANK_WEIGHT_SQL AS weight,
                    CASE WHEN m.embed_model = (SELECT model FROM params)
                         THEN 1 - (m.embedding <=> (SELECT qv FROM params)) END AS relevance
-            FROM hits h
-            JOIN memory_edges e ON e.src_id = h.hid OR e.dst_id = h.hid
-            JOIN memories m ON m.id = CASE WHEN e.src_id = h.hid THEN e.dst_id ELSE e.src_id END
-            WHERE m.id <> h.hid
+            FROM walk w
+            JOIN memories m ON m.id = w.other_id
+            WHERE m.id <> w.via_id
               AND m.id IN (SELECT id FROM alive)
-              AND e.src_id IN (SELECT id FROM alive)
-              AND e.dst_id IN (SELECT id FROM alive)
         """.trimIndent()
     }
 }
