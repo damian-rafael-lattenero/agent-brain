@@ -36,6 +36,7 @@ data class MemoryStatus(
     val active: Long,
     val cooling: Long,
     val archived: Long,
+    val superseded: Long,
     val byKind: Map<String, Long>,
     val quarantined: Long,
     val breaker: String,
@@ -506,6 +507,9 @@ class MemoryStore(private val db: Database) {
     suspend fun countProcessed(): Long = scalar("SELECT count(*) FROM bus_events WHERE kind = 'turn.completed' AND memory_at IS NOT NULL")
 
     suspend fun countMemories(): Long = scalar("SELECT count(*) FROM memories")
+
+    /** Rows a verdict of Supersede stamped: the status bucket for invalidated claims. */
+    suspend fun countSuperseded(): Long = scalar("SELECT count(*) FROM memories WHERE invalid_at IS NOT NULL")
 
     suspend fun countQuarantined(): Long = scalar("SELECT count(*) FROM memory_quarantine")
 
