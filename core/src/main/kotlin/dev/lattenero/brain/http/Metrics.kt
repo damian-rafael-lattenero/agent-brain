@@ -92,11 +92,12 @@ data class MemoryMetrics(
     val active: Long,
     val cooling: Long,
     val archived: Long,
-    val superseded: Long,
+    val superseded: Long = 0,
     val pendingTurns: Long,
     val processedTurns: Long,
     val quarantined: Long,
     val breakerState: String,
+    val edgesByKind: Map<String, Long> = emptyMap(),
 ) {
     companion object {
         fun of(status: MemoryStatus): MemoryMetrics = MemoryMetrics(
@@ -109,6 +110,7 @@ data class MemoryMetrics(
             processedTurns = status.processedTurns,
             quarantined = status.quarantined,
             breakerState = status.breaker,
+            edgesByKind = status.edgesByKind,
         )
     }
 }

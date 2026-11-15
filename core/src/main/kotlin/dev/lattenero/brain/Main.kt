@@ -32,6 +32,7 @@ import dev.lattenero.brain.http.readCorpusFile
 import dev.lattenero.brain.memory.DedupReport
 import dev.lattenero.brain.memory.DreamPass
 import dev.lattenero.brain.memory.DreamReport
+import dev.lattenero.brain.memory.EdgeBackfillReport
 import dev.lattenero.brain.memory.Memory
 import dev.lattenero.brain.memory.MemoryDedup
 import dev.lattenero.brain.memory.MemoryRequestException
@@ -93,6 +94,7 @@ const val USAGE = """usage: agent-brain <command> [args]
   memory search TEXT [--k N] | recent [--k N] [--kind K] | save KIND TEXT | quarantine | status | run [--once]
   memory dedup [--dry-run]
                      merge existing near-duplicate memories into their oldest row (one-shot, idempotent)
+  backfill-edges     compute memory_edges over existing rows (one-shot, idempotent)
   dream [--limit N] [--dry-run]
                      judge clusters of COOLING near-neighbor memories pairwise and apply the verdicts
                      (supersede invalidates the old claim, same merges, distinct nothing); --dry-run
@@ -126,6 +128,7 @@ fun run(args: Array<String>): Int {
             "index" -> index(rest)
             "index-repos" -> indexRepos(rest)
             "memory" -> memory(rest)
+            "backfill-edges" -> backfillEdges()
             "dream" -> dream(rest)
             "eval" -> eval(rest)
             "health" -> health(url = rest.optionValue("--url"))
@@ -505,6 +508,21 @@ private suspend fun memoryDedup(brain: Brain, dryRun: Boolean): Int {
     if (!dryRun) brain.memoryStore.applyDedup(plan)
     printJson(responseJson.encodeToJsonElement(DedupReport.serializer(), MemoryDedup.report(rows, plan, dryRun)))
     return EXIT_OK
+}
+
+/**
+ * `backfill-edges` (B4): compute memory_edges over the EXISTING rows — the
+ * related band per batch, the turn cliques and the temporal chains as set
+ * statements. Idempotent: a second run lands nothing new.
+ */
+private fun backfillEdges(): Int {
+    val config = Config.load()
+    return withBrain(config) { brain ->
+        brain.migrator.apply()
+        val report = brain.edgeBackfill.backfill(config.memoryHalfLifeDays)
+        printJson(responseJson.encodeToJsonElement(EdgeBackfillReport.serializer(), report))
+        EXIT_OK
+    }
 }
 
 private fun query(args: List<String>): Int {

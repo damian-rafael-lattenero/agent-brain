@@ -1,5 +1,7 @@
 package dev.lattenero.brain.http
 
+import dev.lattenero.brain.memory.EdgeKind
+
 /**
  * The inventory: every family the brain exposes, each one a projection of a
  * snapshot field the JSON routes already answer. The names are the contract
@@ -55,8 +57,18 @@ internal fun memoryFamilies(memory: MemoryMetrics): List<MetricFamily> = listOf(
     family(NAME_PENDING, HELP_PENDING, TYPE_GAUGE, sample(NAME_PENDING, EMPTY_LABELS, memory.pendingTurns)),
     family(NAME_PROCESSED, HELP_PROCESSED, TYPE_GAUGE, sample(NAME_PROCESSED, EMPTY_LABELS, memory.processedTurns)),
     family(NAME_QUARANTINED, HELP_QUARANTINED, TYPE_GAUGE, sample(NAME_QUARANTINED, EMPTY_LABELS, memory.quarantined)),
+    MetricFamily(NAME_EDGES, HELP_EDGES, TYPE_GAUGE, edgeSamples(memory.edgesByKind)),
     MetricFamily(NAME_BREAKER, HELP_BREAKER, TYPE_GAUGE, breakerSamples(memory.breakerState)),
 )
+
+/**
+ * One sample per known edge kind, zero when the store has none of that kind
+ * yet (the kinds are the closed [EdgeKind] taxonomy, so a zero is a measured
+ * fact, not an invented one — the breaker one-hot's reasoning).
+ */
+private fun edgeSamples(edgesByKind: Map<String, Long>): List<String> = EdgeKind.entries.map { kind ->
+    sample(NAME_EDGES, mapOf(LABEL_KIND to kind.wire), edgesByKind[kind.wire] ?: 0L)
+}
 
 /**
  * One-hot over the breaker's three real states, so `{state="Open"}` reads 0
@@ -73,6 +85,7 @@ private val BREAKER_STATES = listOf("Closed", "Open", "HalfOpen")
 
 private const val LABEL_TRANSPORT = "transport"
 private const val LABEL_STATE = "state"
+private const val LABEL_KIND = "kind"
 
 // ── bus ─────────────────────────────────────────────────────────────────
 
@@ -131,3 +144,5 @@ private const val HELP_QUARANTINED = "Extraction attempts quarantined as unusabl
 private const val NAME_BREAKER = "brain_memory_breaker_state"
 private const val HELP_BREAKER =
     "The embedding breaker's state, one-hot over Closed/Open/HalfOpen (MemoryStatus.breaker)."
+private const val NAME_EDGES = "brain_memory_edges_total"
+private const val HELP_EDGES = "Memory-to-memory edges by kind (MemoryStatus.edgesByKind)."

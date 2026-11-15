@@ -42,6 +42,7 @@ data class MemoryStatus(
     val breaker: String,
     val chatModel: String,
     val embedModel: String,
+    val edgesByKind: Map<String, Long> = emptyMap(),
 )
 
 /**
@@ -61,7 +62,13 @@ class MemoryStore(private val db: Database) {
 
     data class MemoryRow(val kind: String, val content: String, val embedding: FloatArray)
 
-    /** What one dedup-aware insert pass did: [inserted] new rows, [merged] identities of reinforced rows. */
+    /**
+     * What one dedup-aware insert pass did: [inserted] new rows (only real
+     * insertions — a replay absorbed silently or a duplicate reinforced is
+     * not one), [merged] identities of the reinforced rows, and the new rows'
+     * identities ([insertedIds] — the reconcile pass seeds from them and B4's
+     * edge builder walks exactly these).
+     */
     data class InsertReport(val inserted: Int, val merged: List<Long>, val insertedIds: List<Long> = emptyList())
 
     /**
@@ -163,7 +170,6 @@ class MemoryStore(private val db: Database) {
         return db.inTransaction { conn ->
             val merged = mutableListOf<Long>()
             val insertedIds = mutableListOf<Long>()
-            var inserted = 0
             for (row in rows) {
                 val replayed = findReplay(conn, transcript.eventId, row.kind, row.content)
                 if (replayed != null) continue
@@ -172,14 +178,10 @@ class MemoryStore(private val db: Database) {
                     reinforce(conn, duplicate, REINFORCE_STEP)
                     merged += duplicate
                 } else {
-                    val id = insertRow(conn, transcript, embedModel, row)
-                    if (id >= 0) {
-                        insertedIds += id
-                        inserted += 1
-                    }
+                    insertedIds += insertRow(conn, transcript, embedModel, row)
                 }
             }
-            InsertReport(inserted, merged, insertedIds)
+            InsertReport(insertedIds.size, merged, insertedIds)
         }
     }
 
@@ -618,7 +620,7 @@ class MemoryStore(private val db: Database) {
         }
     }
 
-    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow): Long {
+    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow): Long =
         conn.prepareStatement(
             """
             INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
@@ -634,14 +636,8 @@ class MemoryStore(private val db: Database) {
             ps.setString(5, embedModel)
             ps.setObject(6, PGvector(row.embedding))
             ps.setString(7, transcript.eventId)
-            ps.executeQuery().use { rs ->
-                if (rs.next()) return rs.getLong(1)
-            }
+            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
         }
-        // ON CONFLICT DO NOTHING swallowed the row (a concurrent writer landed
-        // the same content first): there is no new row, hence no id.
-        return -1L
-    }
 
     private fun readMemories(rs: java.sql.ResultSet): List<Memory> = generateSequence {
         if (!rs.next()) null else Memory(
@@ -692,6 +688,10 @@ class MemoryStore(private val db: Database) {
               SELECT ?::vector AS qv, ?::text AS model, ?::int AS n, websearch_to_tsquery('simple', ?) AS tsq,
                      ?::int AS half_life, ?::float8 AS forget_floor
             ), alive AS (
+              -- The exclusion law's search face: a live row is neither
+              -- invalidated nor forgotten. The graph twin is
+              -- MemoryGraphStore.ALIVE_CTE (and TRAVERSAL's inline copy) —
+              -- both surfaces must agree on who is alive.
               SELECT id FROM memories m, params p
               WHERE m.embed_model = p.model
                 AND m.invalid_at IS NULL

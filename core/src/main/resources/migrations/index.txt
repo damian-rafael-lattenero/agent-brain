@@ -2,4 +2,5 @@
 0002_chunk_heading.sql
 0003_memory_pipeline.sql
 0004_eval_product.sql
-0005_memory_invalidation.sql
+0005_memory_edges.sql
+0006_memory_invalidation.sql
