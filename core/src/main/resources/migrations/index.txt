@@ -3,3 +3,4 @@
 0003_memory_pipeline.sql
 0004_eval_product.sql
 0005_memory_edges.sql
+0006_memory_invalidation.sql

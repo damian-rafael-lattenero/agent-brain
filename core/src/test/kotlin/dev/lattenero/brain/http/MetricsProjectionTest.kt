@@ -67,6 +67,7 @@ class MetricsProjectionTest {
                     active = 40,
                     cooling = 3,
                     archived = 1,
+                    superseded = 4,
                     pendingTurns = 0,
                     processedTurns = 31,
                     quarantined = 2,
@@ -94,6 +95,9 @@ class MetricsProjectionTest {
             # HELP brain_memory_archived Forgotten memories the lifecycle classifies ARCHIVED (MemoryStatus.archived).
             # TYPE brain_memory_archived gauge
             brain_memory_archived 1
+            # HELP brain_memory_superseded Memories a Supersede verdict stamped invalid (MemoryStatus.superseded).
+            # TYPE brain_memory_superseded gauge
+            brain_memory_superseded 4
             # HELP brain_memory_pending_turns Completed turns the extraction has not processed yet (MemoryStatus.pendingTurns).
             # TYPE brain_memory_pending_turns gauge
             brain_memory_pending_turns 0
@@ -270,5 +274,5 @@ class MetricsProjectionTest {
     )
 
     private fun memory(breaker: String) =
-        MemoryMetrics(memories = 44, active = 40, cooling = 3, archived = 1, pendingTurns = 0, processedTurns = 31, quarantined = 2, breakerState = breaker)
+        MemoryMetrics(memories = 44, active = 40, cooling = 3, archived = 1, superseded = 4, pendingTurns = 0, processedTurns = 31, quarantined = 2, breakerState = breaker)
 }

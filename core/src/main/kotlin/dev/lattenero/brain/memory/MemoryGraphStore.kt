@@ -10,10 +10,11 @@ import java.sql.Timestamp
 /**
  * The `memory_edges` table's IO edge (B4): writes edges idempotently (ON
  * CONFLICT DO NOTHING — building twice lands each edge once), and reads the
- * neighbors the builders and the traversal need. Every query excludes
- * forgotten rows with the SAME law expression the search legs use
- * ([MemoryStore.LIFE_WEIGHT_SQL] over [Lifecycle]'s floors): an ARCHIVED row
- * is never an edge source, never an edge target, never a traversal result.
+ * neighbors the builders and the traversal need. Every query excludes rows
+ * search excludes too — forgotten ([MemoryStore.LIFE_WEIGHT_SQL] over
+ * [Lifecycle]'s floors) and invalidated (`invalid_at`, the reconcile
+ * verdict's stamp): an ARCHIVED or superseded row is never an edge source,
+ * never an edge target, never a traversal result.
  *
  * The related band reuses [MemoryDedup.SIMILARITY] as its ceiling — a pair at
  * or above it is the same memory (dedup owns that boundary), never an edge.
@@ -196,15 +197,19 @@ class MemoryGraphStore(private val db: Database) {
                 " / (86400.0 * (SELECT half_life FROM params))))"
 
         /**
-         * B3's forgetting exclusion as a CTE: the SAME law expression
-         * ([MemoryStore.LIFE_WEIGHT_SQL]) the search legs and the status
-         * buckets use, so the graph can never disagree about who is forgotten.
+         * The exclusion law every graph query shares: a row is alive only if
+         * it is neither forgotten (B3's floor over [MemoryStore.LIFE_WEIGHT_SQL])
+         * NOR invalidated (`invalid_at IS NULL` — the reconcile verdict's
+         * stamp). The twin is the `alive` CTE of [MemoryStore.SEARCH]: a row
+         * excluded from search must be excluded from the graph too, so recall
+         * surfaces can never disagree. Duplicated rather than factored: search
+         * additionally binds the embed model, which this CTE does not.
          * Binds: 1 half_life, 2 forget_floor. Shared with [EdgeBackfill]'s
-         * set statements — one forgetting law, every graph query.
+         * set statements — one exclusion law, every graph query.
          */
         internal const val ALIVE_CTE =
             "SELECT id FROM memories m, (SELECT ?::int AS half_life, ?::float8 AS forget_floor) p " +
-                "WHERE ${MemoryStore.LIFE_WEIGHT_SQL} >= p.forget_floor"
+                "WHERE m.invalid_at IS NULL AND ${MemoryStore.LIFE_WEIGHT_SQL} >= p.forget_floor"
 
         // Band candidates for one memory: binds 1 half_life, 2 forget_floor, 3 vector,
         // 4 embed model, 5 source id, 6 vector, 7 floor, 8 vector, 9 ceiling (dedup), 10 limit.
@@ -249,7 +254,11 @@ class MemoryGraphStore(private val db: Database) {
             WITH params AS (
               SELECT ?::vector AS qv, ?::text AS model, ?::int AS half_life, ?::float8 AS forget_floor
             ), alive AS (
-              SELECT id FROM memories m, params p WHERE ${MemoryStore.LIFE_WEIGHT_SQL} >= p.forget_floor
+              -- Twin of the graph ALIVE_CTE / MemoryStore.SEARCH's alive CTE:
+              -- forgotten AND invalidated rows leave traversal too.
+              SELECT id FROM memories m, params p
+              WHERE m.invalid_at IS NULL
+                AND ${MemoryStore.LIFE_WEIGHT_SQL} >= p.forget_floor
             ), hits AS (SELECT unnest(?::bigint[]) AS hid)
             SELECT e.kind, e.weight AS edge_weight, h.hid AS via_id, m.id, m.kind AS mkind, m.content,
                    m.session_id, m.created_at, m.salience, $RANK_WEIGHT_SQL AS weight,
