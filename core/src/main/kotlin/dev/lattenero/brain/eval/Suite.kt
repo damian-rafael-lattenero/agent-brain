@@ -23,19 +23,35 @@ enum class EvalKind {
     /** Does the composed answer cite the expected document and state the expected fact? */
     @SerialName("grounded")
     GROUNDED,
+
+    /** Does the verdict judge call the reconcile unit's pair right — and does the state land? */
+    @SerialName("contradiction")
+    CONTRADICTION,
+
+    /** Does memory search return the expected memory — and does the graph carry its related? */
+    @SerialName("memory")
+    MEMORY,
     ;
 
-    /** Recall ranks embeddings; extraction and grounded measure the chat model. */
+    /** Recall and memory rank embeddings; the rest measure the chat model. */
     val axis: EvalAxis
-        get() = if (this == RECALL) EvalAxis.EMBED else EvalAxis.CHAT
+        get() = if (this == RECALL || this == MEMORY) EvalAxis.EMBED else EvalAxis.CHAT
 
     /** The lowercase name used in reports, artifacts and the CLI. */
     val label: String
         get() = name.lowercase()
 
+    /** Suites that run against a fresh throwaway database (everything but extraction). */
+    val usesFreshDatabase: Boolean
+        get() = this != EXTRACTION
+
+    /** Only the retrieval suites index the fixture corpus; the memory legs seed their own rows. */
+    val indexesCorpus: Boolean
+        get() = this == RECALL || this == GROUNDED
+
     /** Only retrieval suites need the fixture corpus indexed in a fresh database. */
     val needsCorpus: Boolean
-        get() = this != EXTRACTION
+        get() = usesFreshDatabase
 
     /** The turn this suite prices: what the bot spends a model call on. */
     val turn: String
@@ -43,6 +59,8 @@ enum class EvalKind {
             RECALL -> "retrieval (embedding a query)"
             EXTRACTION -> "memory extraction (one chat call per turn)"
             GROUNDED -> "answer composition (one chat call per answered turn)"
+            CONTRADICTION -> "reconcile verdict (one chat call per near-duplicate pair)"
+            MEMORY -> "memory recall (embedding a query + the graph traversal)"
         }
 }
 
@@ -103,6 +121,46 @@ data class ExtractionCase(
 ) : EvalCase
 
 /**
+ * One reconcile pair: the two claims are seeded raw (no dedup) into the fresh
+ * eval database, the judge calls the pair, [dev.lattenero.brain.memory.MemoryReconcile]
+ * decides, the action lands on the store — and the case grades BOTH the verdict
+ * word and the state effect (invalidation, merge or nothing).
+ */
+@Serializable
+@SerialName("contradiction")
+data class ContradictionCase(
+    override val id: String,
+    val oldFact: String,
+    val newFact: String,
+    /** same | supersede | distinct — the verdict a good judge must return. */
+    val expectedVerdict: String,
+) : EvalCase
+
+/**
+ * One memory-recall case: the content is seeded as a real memory, the question
+ * runs through [dev.lattenero.brain.memory.MemoryService.search] (hybrid ranking
+ * + graph traversal), and the case grades the hit's rank plus — when
+ * [relatedNeedle] is set — that the `related` field carries a connected memory.
+ */
+@Serializable
+@SerialName("memory")
+data class MemoryCase(
+    override val id: String,
+    /** The memory text seeded into the store (the case's target row). */
+    val content: String,
+    val question: String,
+    /** A needle the expected hit's content must contain (case-insensitive). */
+    val expect: String,
+    /** When set, some `related` entry's content must contain this needle. */
+    val relatedNeedle: String? = null,
+    val k: Int = DEFAULT_MEMORY_K,
+) : EvalCase {
+    companion object {
+        const val DEFAULT_MEMORY_K = 5
+    }
+}
+
+/**
  * What a good extraction of the transcript looks like. Groups pass when ANY
  * item contains ANY needle (case-insensitive, whitespace-normalized), so a
  * paraphrase is not punished and a hallucination is: the needle is a fact of
@@ -160,10 +218,33 @@ data class EvalSuite(
             EvalKind.RECALL -> case is RecallCase
             EvalKind.GROUNDED -> case is GroundedCase
             EvalKind.EXTRACTION -> case is ExtractionCase
+            EvalKind.CONTRADICTION -> case is ContradictionCase
+            EvalKind.MEMORY -> case is MemoryCase
         }
         if (!matches) {
             throw EvalSuiteException("$name: case ${case.id} does not match the suite kind '${kind.label}'")
         }
+        cases.filterIsInstance<ContradictionCase>().forEach { requireContradiction(it) }
+        cases.filterIsInstance<MemoryCase>().forEach { requireMemory(it) }
+    }
+
+    private fun requireContradiction(case: ContradictionCase) {
+        if (case.expectedVerdict !in VERDICT_WORDS) {
+            throw EvalSuiteException(
+                "$name: contradiction case ${case.id} expects '${case.expectedVerdict}' " +
+                    "but the verdict words are ${VERDICT_WORDS}",
+            )
+        }
+        if (case.oldFact.isBlank() || case.newFact.isBlank()) {
+            throw EvalSuiteException("$name: contradiction case ${case.id} has a blank fact")
+        }
+    }
+
+    private fun requireMemory(case: MemoryCase) {
+        if (case.expect.isBlank()) {
+            throw EvalSuiteException("$name: memory case ${case.id} needs an expect needle")
+        }
+        if (case.k < 1) throw EvalSuiteException("$name: memory case ${case.id} has k < 1")
     }
 
     private fun requireGrounded(case: GroundedCase) {
@@ -176,8 +257,17 @@ data class EvalSuite(
     companion object {
         const val DEFAULT = "recall-core"
 
+        /** The reconcile verdict words a suite may expect (Verdict's wire vocabulary). */
+        val VERDICT_WORDS = listOf("same", "supersede", "distinct")
+
         /** The suites shipped inside the jar; a test keeps this list and the directory in sync. */
-        val SHIPPED = listOf("recall-core", "extraction-core", "grounded-citation")
+        val SHIPPED = listOf(
+            "recall-core",
+            "extraction-core",
+            "grounded-citation",
+            "contradiction-core",
+            "memory-core",
+        )
     }
 }
 

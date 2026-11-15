@@ -1,0 +1,64 @@
+{
+  "name": "contradiction-core",
+  "kind": "contradiction",
+  "gate": 0.8,
+  "description": "The reconcile verdict unit: status-flip pairs (supersede), restatements (same) and unrelated claims (distinct) — graded on the judge's word AND the state effect landing. The supersede band pair is the 15/11 measured defect (cosine 0.8925, dedup does NOT merge it).",
+  "cases": [
+    {
+      "type": "contradiction",
+      "id": "failover-band",
+      "oldFact": "The orders database failover is still pending.",
+      "newFact": "The orders database failover completed successfully.",
+      "expectedVerdict": "supersede"
+    },
+    {
+      "type": "contradiction",
+      "id": "rollout",
+      "oldFact": "The rollout of the new search index is in progress.",
+      "newFact": "The rollout of the new search index is finished.",
+      "expectedVerdict": "supersede"
+    },
+    {
+      "type": "contradiction",
+      "id": "migration-saturday",
+      "oldFact": "The migration will run on Saturday.",
+      "newFact": "The migration ran on Saturday.",
+      "expectedVerdict": "supersede"
+    },
+    {
+      "type": "contradiction",
+      "id": "upgrade-pending",
+      "oldFact": "The upgrade of postgres 15 to 16 is pending.",
+      "newFact": "The upgrade of postgres 15 to 16 is done.",
+      "expectedVerdict": "supersede"
+    },
+    {
+      "type": "contradiction",
+      "id": "same-restatement",
+      "oldFact": "The brain ranks memories with hybrid retrieval.",
+      "newFact": "The brain ranks memories using hybrid retrieval.",
+      "expectedVerdict": "same"
+    },
+    {
+      "type": "contradiction",
+      "id": "same-paraphrase",
+      "oldFact": "Deploy waits for the health check to pass.",
+      "newFact": "Deployment waits until the health check passes.",
+      "expectedVerdict": "same"
+    },
+    {
+      "type": "contradiction",
+      "id": "distinct-topics",
+      "oldFact": "The auth sentinel alerts on Mac password dialogs.",
+      "newFact": "Grandmother's lemon pie recipe needs patience and a hot oven.",
+      "expectedVerdict": "distinct"
+    },
+    {
+      "type": "contradiction",
+      "id": "distinct-tools",
+      "oldFact": "Kafka partitions are reassigned when the consumer group rebalances.",
+      "newFact": "Nushell jobs are threads that die when the interpreter exits.",
+      "expectedVerdict": "distinct"
+    }
+  ]
+}

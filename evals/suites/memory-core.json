@@ -1,0 +1,79 @@
+{
+  "name": "memory-core",
+  "kind": "memory",
+  "gate": 0.9,
+  "description": "Memory recall end to end: seeded memories, hybrid search ranking (the same graded columns as the recall spine) and the graph's related field carrying connected memories (the extraction/worker pair measures ~0.868 with nomic — inside the related band).",
+  "cases": [
+    {
+      "type": "memory",
+      "id": "worker-extracts",
+      "content": "The memory worker extracts facts and summaries from completed turns.",
+      "question": "how does the brain learn from completed turns?",
+      "expect": "extracts facts"
+    },
+    {
+      "type": "memory",
+      "id": "extraction-reads",
+      "content": "Memory extraction reads completed turns and writes facts and summaries.",
+      "question": "what reads completed turns and writes memories?",
+      "expect": "reads completed turns",
+      "relatedNeedle": "extracts facts and summaries"
+    },
+    {
+      "type": "memory",
+      "id": "worker-polls",
+      "content": "The memory worker polls the bus, extracts memories and stores them.",
+      "question": "what polls the bus for new turns?",
+      "expect": "polls the bus"
+    },
+    {
+      "type": "memory",
+      "id": "dedup-merges",
+      "content": "Dedup merges near-identical memories into their oldest stored row.",
+      "question": "what happens to near-identical memories?",
+      "expect": "merges near-identical"
+    },
+    {
+      "type": "memory",
+      "id": "kafka-rebalance",
+      "content": "Kafka partitions are reassigned when the consumer group rebalances.",
+      "question": "when are kafka partitions reassigned?",
+      "expect": "consumer group rebalances"
+    },
+    {
+      "type": "memory",
+      "id": "lemon-pie",
+      "content": "Grandmother's lemon pie recipe needs patience and a hot oven.",
+      "question": "what does the lemon pie recipe need?",
+      "expect": "patience and a hot oven"
+    },
+    {
+      "type": "memory",
+      "id": "lifecycle-forgets",
+      "content": "The memory lifecycle forgets rows below the FORGET_FLOOR by excluding them from search.",
+      "question": "how does the brain forget old memories?",
+      "expect": "forget"
+    },
+    {
+      "type": "memory",
+      "id": "graph-traversal",
+      "content": "The graph traversal walks memory_edges to carry related memories alongside every search.",
+      "question": "how do related memories travel with a search?",
+      "expect": "memory_edges"
+    },
+    {
+      "type": "memory",
+      "id": "verdict-invalidate",
+      "content": "A Supersede verdict stamps invalid_at on the stale claim without deleting it.",
+      "question": "what happens to a superseded claim?",
+      "expect": "invalid_at"
+    },
+    {
+      "type": "memory",
+      "id": "quarantine-echo",
+      "content": "Template echoes from a degraded extractor are quarantined, never stored.",
+      "question": "what happens to template echo answers?",
+      "expect": "quarantined"
+    }
+  ]
+}

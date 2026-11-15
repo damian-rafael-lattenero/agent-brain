@@ -27,6 +27,9 @@ data class Memory(
 @Serializable
 data class QuarantineRow(val id: Long, val eventId: String?, val sessionId: String?, val turnId: String?, val reason: String, val raw: String, val ts: String)
 
+/** One stored memory's keep-it-simple face: kind wire + content, insertion order. */
+data class TurnMemory(val kind: String, val content: String)
+
 @Serializable
 @KapTypeSafe
 data class MemoryStatus(
@@ -130,6 +133,31 @@ class MemoryStore(private val db: Database) {
         }
     }
 
+    /** Processed turns, newest first — the LoRA export's positive-pair source. */
+    suspend fun processedTurns(limit: Int): List<PendingTurn> = db.withConnection { conn ->
+        conn.prepareStatement(
+            "SELECT id, sid, turn, source, COALESCE(memory_attempts, 0) FROM bus_events " +
+                "WHERE kind = 'turn.completed' AND memory_at IS NOT NULL ORDER BY ts DESC LIMIT ?",
+        ).use { ps ->
+            ps.setInt(1, limit)
+            ps.executeQuery().use { rs ->
+                generateSequence { if (rs.next()) PendingTurn(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)) else null }.toList()
+            }
+        }
+    }
+
+    /** The memories one turn produced, in insertion order (the LoRA pair's target). */
+    suspend fun memoriesOfTurn(turnId: String): List<TurnMemory> = db.withConnection { conn ->
+        conn.prepareStatement(
+            "SELECT kind, content FROM memories WHERE turn_id = ? AND invalid_at IS NULL ORDER BY id",
+        ).use { ps ->
+            ps.setString(1, turnId)
+            ps.executeQuery().use { rs ->
+                generateSequence { if (rs.next()) TurnMemory(rs.getString(1), rs.getString(2)) else null }.toList()
+            }
+        }
+    }
+
     /** The raw insert: exactly these rows, ON CONFLICT DO NOTHING, no dedup. */
     suspend fun insertAll(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): Int = db.withConnection { conn ->
         if (rows.isEmpty()) return@withConnection 0
@@ -186,20 +214,30 @@ class MemoryStore(private val db: Database) {
     }
 
     /** Manual saves dedup with the same rule and return the surviving row's id. */
-    suspend fun saveManual(kind: String, content: String, embedModel: String, embedding: FloatArray, sessionId: String?): Long = db.withConnection { conn ->
-        val duplicate = findDuplicate(conn, embedding, embedModel, MemoryDedup.SIMILARITY)
+    suspend fun saveManual(kind: String, content: String, embedModel: String, embedding: FloatArray, sessionId: String?): Long {
+        val duplicate = db.withConnection { conn -> findDuplicate(conn, embedding, embedModel, MemoryDedup.SIMILARITY) }
         if (duplicate != null) {
-            reinforce(conn, duplicate, REINFORCE_STEP)
-            return@withConnection duplicate
+            db.withConnection { conn -> reinforce(conn, duplicate, REINFORCE_STEP) }
+            return duplicate
         }
+        return saveRaw(MemoryRow(kind, content, embedding), embedModel, sessionId)
+    }
+
+    /**
+     * A RAW claim insert: no dedup probe. Near-duplicate pairs are the INPUT
+     * of a verdict (the reconcile legs seed them to be judged) — merging them
+     * at insert time would leave nothing to judge. The eval/IT faces use this;
+     * the write path never does.
+     */
+    suspend fun saveRaw(row: MemoryRow, embedModel: String, sessionId: String?): Long = db.withConnection { conn ->
         conn.prepareStatement(
             "INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id) VALUES (?, NULL, ?, ?, ?, ?, NULL) RETURNING id",
         ).use { ps ->
             ps.setString(1, sessionId)
-            ps.setString(2, kind)
-            ps.setString(3, content)
+            ps.setString(2, row.kind)
+            ps.setString(3, row.content)
             ps.setString(4, embedModel)
-            ps.setObject(5, PGvector(embedding))
+            ps.setObject(5, PGvector(row.embedding))
             ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
         }
     }
@@ -514,6 +552,28 @@ class MemoryStore(private val db: Database) {
     suspend fun countSuperseded(): Long = scalar("SELECT count(*) FROM memories WHERE invalid_at IS NOT NULL")
 
     suspend fun countQuarantined(): Long = scalar("SELECT count(*) FROM memory_quarantine")
+
+    /**
+     * Quarantine reasons, BUCKETED (unit 0's placeholder-rate surface): the raw
+     * reason strings carry detail ("invalid extraction: template-echo: ...",
+     * "gave up after 5 attempts: ...") that no dashboard wants — the buckets are
+     * the vocabulary: template-echo (the degraded-extractor marker), invalid,
+     * gave-up, anything else its first word.
+     */
+    suspend fun quarantineReasons(): Map<String, Long> = db.withConnection { conn ->
+        conn.prepareStatement(
+            "SELECT CASE " +
+                "WHEN reason LIKE 'template-echo%' THEN 'template-echo' " +
+                "WHEN reason LIKE 'gave up%' THEN 'gave-up' " +
+                "WHEN reason LIKE 'invalid extraction%' THEN 'invalid-extraction' " +
+                "ELSE split_part(reason, ':', 1) END AS bucket, count(*) " +
+                "FROM memory_quarantine GROUP BY bucket ORDER BY count(*) DESC, bucket",
+        ).use { ps ->
+            ps.executeQuery().use { rs ->
+                generateSequence { if (!rs.next()) null else rs.getString(1) to rs.getLong(2) }.toMap()
+            }
+        }
+    }
 
     /**
      * The lifecycle buckets (B3): every row classified by [Lifecycle]'s law —
