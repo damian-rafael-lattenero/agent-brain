@@ -33,6 +33,9 @@ data class MemoryStatus(
     val pendingTurns: Long,
     val processedTurns: Long,
     val memories: Long,
+    val active: Long,
+    val cooling: Long,
+    val archived: Long,
     val byKind: Map<String, Long>,
     val quarantined: Long,
     val breaker: String,
@@ -263,21 +266,36 @@ class MemoryStore(private val db: Database) {
      * [RankKey]) as a tie-break only — the SQL below is the executable twin
      * of those pure cores, pinned equivalent on fixtures
      * (`MemorySearchEquivalenceIT`). `score` carries the fused relevance,
-     * `weight` the salience-times-decay tie-break. Hits bump last_accessed.
+     * `weight` the salience-times-decay tie-break. Hits are the B3
+     * access-reinforces signal: last_accessed refreshes AND salience grows by
+     * [SEARCH_REINFORCE_STEP] (a weak step — a dedup merge lands a full 1.0),
+     * so use keeps a memory alive against the forgetting law
+     * ([Lifecycle]). Forgotten rows (life-weight below [Lifecycle.FORGET_FLOOR])
+     * are excluded from BOTH candidate legs — they never fuse.
      */
-    suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int, halfLifeDays: Int): List<Memory> = db.withConnection { conn ->
+    suspend fun search(
+        queryEmbedding: FloatArray,
+        queryText: String,
+        embedModel: String,
+        k: Int,
+        lifecycle: Lifecycle.Params,
+    ): List<Memory> = db.withConnection { conn ->
         val hits = conn.prepareStatement(SEARCH).use { ps ->
             ps.setObject(1, PGvector(queryEmbedding))
             ps.setString(2, embedModel)
             ps.setInt(3, maxOf(k * CANDIDATE_FACTOR, MIN_CANDIDATES))
             ps.setString(4, queryText)
-            ps.setInt(5, halfLifeDays)
-            ps.setInt(6, k)
+            ps.setInt(5, lifecycle.halfLifeDays)
+            ps.setDouble(6, lifecycle.forgetFloor)
+            ps.setInt(7, k)
             ps.executeQuery().use { rs -> readMemories(rs) }
         }
         if (hits.isNotEmpty()) {
-            conn.prepareStatement("UPDATE memories SET last_accessed = now() WHERE id = ANY(?)").use { ps ->
-                ps.setArray(1, conn.createArrayOf("bigint", hits.map { it.id }.toTypedArray()))
+            conn.prepareStatement(
+                "UPDATE memories SET salience = salience + ?, last_accessed = now() WHERE id = ANY(?)",
+            ).use { ps ->
+                ps.setDouble(1, SEARCH_REINFORCE_STEP)
+                ps.setArray(2, conn.createArrayOf("bigint", hits.map { it.id }.toTypedArray()))
                 ps.executeUpdate()
             }
         }
@@ -316,6 +334,38 @@ class MemoryStore(private val db: Database) {
     suspend fun countMemories(): Long = scalar("SELECT count(*) FROM memories")
 
     suspend fun countQuarantined(): Long = scalar("SELECT count(*) FROM memory_quarantine")
+
+    /**
+     * The lifecycle buckets (B3): every row classified by [Lifecycle]'s law —
+     * the SAME expression the search legs exclude with, so the report and the
+     * retriever can never disagree about who is forgotten. The half-life days
+     * come from the caller's knob (the same one the ranking decay uses).
+     */
+    suspend fun lifecycleCounts(halfLifeDays: Int): LifecycleCounts = db.withConnection { conn ->
+        conn.prepareStatement(
+            """
+            WITH params AS (SELECT ?::int AS half_life, ?::float8 AS cooling_floor, ?::float8 AS forget_floor),
+            rows AS (
+              SELECT m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at)))
+                     / (86400.0 * p.half_life)) AS w
+              FROM memories m, params p
+            )
+            SELECT
+              count(*) FILTER (WHERE w >= p.cooling_floor) AS active,
+              count(*) FILTER (WHERE w < p.cooling_floor AND w >= p.forget_floor) AS cooling,
+              count(*) FILTER (WHERE w < p.forget_floor) AS archived
+            FROM rows, params p
+            """,
+        ).use { ps ->
+            ps.setInt(1, halfLifeDays)
+            ps.setDouble(2, Lifecycle.COOLING_FLOOR)
+            ps.setDouble(3, Lifecycle.FORGET_FLOOR)
+            ps.executeQuery().use { rs ->
+                rs.next()
+                LifecycleCounts(rs.getLong(1), rs.getLong(2), rs.getLong(3))
+            }
+        }
+    }
 
     suspend fun countByKind(): Map<String, Long> = db.withConnection { conn ->
         conn.createStatement().use { st ->
@@ -422,21 +472,44 @@ class MemoryStore(private val db: Database) {
 
         /** Each absorbed duplicate reinforces the survivor by this much salience. */
         const val REINFORCE_STEP = 1.0
+
+        /**
+         * Each search hit reinforces itself by this much salience (B3's
+         * access-reinforces): a weak signal — one search hit must not weigh
+         * like a dedup merge — whose accumulated effect the forgetting law
+         * counterbalances.
+         */
+        const val SEARCH_REINFORCE_STEP = 0.1
         private val json = Json { ignoreUnknownKeys = true }
 
-        // Parameters: 1 query vector, 2 embed model, 3 candidates per leg, 4 query text, 5 half-life days, 6 k.
+        // The SQL twin of Lifecycle's usefulness clock: salience decayed over the
+        // LAST ACCESS (created_at at birth). One expression, three consumers: the
+        // legs' forgetting exclusion, the status buckets, the lifecycle count.
+        // `p.half_life` comes from the params CTE the caller joins in.
+        const val LIFE_WEIGHT_SQL =
+            "(m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at)))" +
+                " / (86400.0 * p.half_life)))"
+
+        // Parameters: 1 query vector, 2 embed model, 3 candidates per leg, 4 query text,
+        // 5 half-life days, 6 forget floor, 7 k.
         val SEARCH = """
             WITH params AS (
-              SELECT ?::vector AS qv, ?::text AS model, ?::int AS n, websearch_to_tsquery('simple', ?) AS tsq, ?::int AS half_life
+              SELECT ?::vector AS qv, ?::text AS model, ?::int AS n, websearch_to_tsquery('simple', ?) AS tsq,
+                     ?::int AS half_life, ?::float8 AS forget_floor
+            ), alive AS (
+              SELECT id FROM memories m, params p
+              WHERE m.embed_model = p.model
+                AND $LIFE_WEIGHT_SQL >= p.forget_floor
             ), vec AS (
               SELECT id, row_number() OVER (ORDER BY dist, id) AS r FROM (
                 SELECT m.id, m.embedding <=> p.qv AS dist FROM memories m, params p
-                WHERE m.embed_model = p.model ORDER BY dist, m.id LIMIT (SELECT n FROM params)
+                WHERE m.embed_model = p.model AND m.id IN (SELECT id FROM alive)
+                ORDER BY dist, m.id LIMIT (SELECT n FROM params)
               ) top
             ), fts AS (
               SELECT id, row_number() OVER (ORDER BY rank DESC, id) AS r FROM (
                 SELECT m.id, ts_rank_cd(m.content_tsv, p.tsq) AS rank FROM memories m, params p
-                WHERE m.embed_model = p.model AND m.content_tsv @@ p.tsq
+                WHERE m.embed_model = p.model AND m.content_tsv @@ p.tsq AND m.id IN (SELECT id FROM alive)
                 ORDER BY rank DESC, m.id LIMIT (SELECT n FROM params)
               ) top
             ), fused AS (

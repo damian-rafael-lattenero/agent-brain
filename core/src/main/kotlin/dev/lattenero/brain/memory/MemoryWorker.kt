@@ -323,7 +323,8 @@ class MemoryService(
         if (text.isEmpty()) throw MemoryRequestException("query must not be empty")
         if (request.k !in 1..MAX_K) throw MemoryRequestException("k must be between 1 and $MAX_K")
         val vector = provider.embed(listOf(text)).single()
-        return MemorySearchResponse(text, provider.model, store.search(vector, text, provider.model, request.k, halfLifeDays))
+        val ranked: List<Memory> = store.search(vector, text, provider.model, request.k, Lifecycle.Params(halfLifeDays))
+        return MemorySearchResponse(text, provider.model, ranked)
     }
 
     suspend fun save(request: MemorySaveRequest): Memory {
@@ -348,17 +349,23 @@ class MemoryService(
 
     suspend fun quarantined(limit: Int): List<QuarantineRow> = store.quarantined(limit.coerceIn(1, MAX_K))
 
-    /** Five independent counts in parallel, three plain values: one typed graph. */
-    suspend fun status(): MemoryStatus = kap(::MemoryStatus)
-        .with { pendingTurns from store.countPending() }
-        .with { processedTurns from store.countProcessed() }
-        .with { memories from store.countMemories() }
-        .with { byKind from store.countByKind() }
-        .with { quarantined from store.countQuarantined() }
-        .with { breaker from extractor.breaker.currentState.name }
-        .with { chatModel from extractor.model }
-        .with { embedModel from provider.model }
-        .evalGraph()
+    /** Independent counts in parallel, three plain values: one typed graph. */
+    suspend fun status(): MemoryStatus {
+        val lifecycle: LifecycleCounts = store.lifecycleCounts(halfLifeDays)
+        return kap(::MemoryStatus)
+            .with { pendingTurns from store.countPending() }
+            .with { processedTurns from store.countProcessed() }
+            .with { memories from store.countMemories() }
+            .with { active from lifecycle.active }
+            .with { cooling from lifecycle.cooling }
+            .with { archived from lifecycle.archived }
+            .with { byKind from store.countByKind() }
+            .with { quarantined from store.countQuarantined() }
+            .with { breaker from extractor.breaker.currentState.name }
+            .with { chatModel from extractor.model }
+            .with { embedModel from provider.model }
+            .evalGraph()
+    }
 
     companion object {
         const val DEFAULT_K = 5
