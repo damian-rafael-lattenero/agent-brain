@@ -225,6 +225,10 @@ object EvalRecommendations {
             "An answer the question can be checked against first; among models that clear the gate, the cheapest one."
         EvalKind.RECALL ->
             "Retrieval runs on every query: quality first, then latency and declared cost."
+        EvalKind.CONTRADICTION ->
+            "A wrong verdict keeps a stale lie or splits one truth: quality first, then declared cost."
+        EvalKind.MEMORY ->
+            "Recall with the graph attached runs on every query: quality first, then latency and declared cost."
     }
 }
 
