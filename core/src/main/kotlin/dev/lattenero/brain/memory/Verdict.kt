@@ -12,6 +12,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration
 
@@ -30,6 +31,7 @@ private val log = LoggerFactory.getLogger("agent-brain.memory.verdict")
  *   invalidation is NOT deletion).
  * - [Distinct]: related but both can be true — nothing changes.
  */
+@Serializable
 sealed interface Verdict {
     data object Same : Verdict
     data object Supersede : Verdict

@@ -65,10 +65,10 @@ class MemoryStore(private val db: Database) {
 
     /**
      * One candidate a verdict pass (reconcile, dream) may judge: the row's
-     * identity, its claim and its birth (the older side of the pair is the
-     * one created earlier).
+     * identity, its claim, its birth (the older side of the pair is the one
+     * created earlier) and the cosine that put it in the band.
      */
-    data class NeighborRow(val id: Long, val content: String, val createdAt: java.time.Instant)
+    data class NeighborRow(val id: Long, val content: String, val createdAt: java.time.Instant, val cosine: Double)
 
     /**
      * The similarity window a verdict pass searches: cosine in [low, high)
@@ -284,7 +284,7 @@ class MemoryStore(private val db: Database) {
             """
             WITH params AS (SELECT ?::int AS half_life, ?::float8 AS forget_floor),
                  q AS (SELECT ?::vector AS v)
-            SELECT m.id, m.content, m.created_at
+            SELECT m.id, m.content, m.created_at, 1 - (m.embedding <=> q.v) AS cosine
             FROM memories m, params p, q
             WHERE m.embed_model = ?
               AND m.id <> ?
@@ -311,6 +311,26 @@ class MemoryStore(private val db: Database) {
                         id = rs.getLong(1),
                         content = rs.getString(2),
                         createdAt = (rs.getObject(3) as Timestamp).toInstant(),
+                        cosine = rs.getDouble(4),
+                    )
+                }
+            }
+        }
+    }
+
+    /** The row as a verdict-pass candidate ([NeighborRow]); cosine is the caller's business here. */
+    suspend fun rowAsNeighbor(id: Long): NeighborRow? = db.withConnection { conn ->
+        conn.prepareStatement("SELECT id, content, created_at FROM memories WHERE id = ?").use { ps ->
+            ps.setLong(1, id)
+            ps.executeQuery().use { rs ->
+                if (!rs.next()) {
+                    null
+                } else {
+                    NeighborRow(
+                        id = rs.getLong(1),
+                        content = rs.getString(2),
+                        createdAt = (rs.getObject(3) as Timestamp).toInstant(),
+                        cosine = 0.0,
                     )
                 }
             }
