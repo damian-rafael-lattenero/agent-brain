@@ -11,12 +11,32 @@ class EvalSuitesTest {
     @Test
     fun `the shipped suites parse, validate and map to their axes`() {
         val suites = EvalSuites.shipped()
-        assertThat(suites.map { it.name }).containsExactly("recall-core", "extraction-core", "grounded-citation")
-        assertThat(suites.map { it.kind }).containsExactly(EvalKind.RECALL, EvalKind.EXTRACTION, EvalKind.GROUNDED)
-        assertThat(suites.map { it.axis }).containsExactly(EvalAxis.EMBED, EvalAxis.CHAT, EvalAxis.CHAT)
+        assertThat(suites.map { it.name }).containsExactly(
+            "recall-core",
+            "extraction-core",
+            "grounded-citation",
+            "contradiction-core",
+            "memory-core",
+        )
+        assertThat(suites.map { it.kind }).containsExactly(
+            EvalKind.RECALL,
+            EvalKind.EXTRACTION,
+            EvalKind.GROUNDED,
+            EvalKind.CONTRADICTION,
+            EvalKind.MEMORY,
+        )
+        assertThat(suites.map { it.axis }).containsExactly(
+            EvalAxis.EMBED,
+            EvalAxis.CHAT,
+            EvalAxis.CHAT,
+            EvalAxis.CHAT,
+            EvalAxis.EMBED,
+        )
         assertThat(suites.map { it.gate }).allSatisfy { assertThat(it).isBetween(0.0, 1.0) }
         suites.forEach { suite -> assertThat(suite.cases).isNotEmpty }
         assertThat(suites.first { it.kind == EvalKind.RECALL }.cases).hasSize(20)
+        assertThat(suites.first { it.kind == EvalKind.CONTRADICTION }.cases).hasSize(8)
+        assertThat(suites.first { it.kind == EvalKind.MEMORY }.cases).hasSize(10)
     }
 
     @Test

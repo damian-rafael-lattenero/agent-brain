@@ -26,13 +26,13 @@ class MemoryEdgesLawsTest {
 
     /** LAW 1 — the related band: edges exist iff RELATED_FLOOR <= cosine < the dedup threshold. */
     /** LAW 1 — the related band: edges exist iff RELATED_FLOOR <= cosine < the dedup threshold.
-     *  Boundaries are EXACT doubles (nextDown/nextUp): a random epsilon subtracted from the
-     *  floor can round back onto it (the flaky shrink of 15/11 — kotest shrank the offset to
-     *  0.0 and `floor - 0.0 == floor`), so the band's edges are pinned deterministically
-     *  and the property sweeps only the strict interior. */
+     *  Two shrink-proofing decisions (both bit us on 15/11): the neighbor ids live in a range
+     *  DISJOINT from the fixed source (kotest shrank a neighbor id onto 42 = the source; the
+     *  builder drops the self-loop and the case collapses), and the band edges are EXACT
+     *  doubles (nextDown/nextUp) with the property sweeping the strict interior. */
     @Test
     fun `law 1 - the related band is floor inclusive and the dedup threshold exclusive`() = runBlocking<Unit> {
-        checkAll(Arb.numericDouble(0.01, 0.1), Arb.long(1, 1000)) { inside, neighborId ->
+        checkAll(Arb.numericDouble(0.01, 0.1), Arb.long(1001, 2000)) { inside, neighborId ->
             val source = 42L
             // One double-step outside each edge of the band: deterministically NOT an edge.
             assertThat(
