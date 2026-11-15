@@ -53,6 +53,7 @@ internal fun memoryFamilies(memory: MemoryMetrics): List<MetricFamily> = listOf(
     family(NAME_ACTIVE, HELP_ACTIVE, TYPE_GAUGE, sample(NAME_ACTIVE, EMPTY_LABELS, memory.active)),
     family(NAME_COOLING, HELP_COOLING, TYPE_GAUGE, sample(NAME_COOLING, EMPTY_LABELS, memory.cooling)),
     family(NAME_ARCHIVED, HELP_ARCHIVED, TYPE_GAUGE, sample(NAME_ARCHIVED, EMPTY_LABELS, memory.archived)),
+    family(NAME_SUPERSEDED, HELP_SUPERSEDED, TYPE_GAUGE, sample(NAME_SUPERSEDED, EMPTY_LABELS, memory.superseded)),
     family(NAME_PENDING, HELP_PENDING, TYPE_GAUGE, sample(NAME_PENDING, EMPTY_LABELS, memory.pendingTurns)),
     family(NAME_PROCESSED, HELP_PROCESSED, TYPE_GAUGE, sample(NAME_PROCESSED, EMPTY_LABELS, memory.processedTurns)),
     family(NAME_QUARANTINED, HELP_QUARANTINED, TYPE_GAUGE, sample(NAME_QUARANTINED, EMPTY_LABELS, memory.quarantined)),
@@ -132,6 +133,8 @@ private const val NAME_COOLING = "brain_memory_cooling"
 private const val HELP_COOLING = "Memories the lifecycle classifies COOLING (MemoryStatus.cooling)."
 private const val NAME_ARCHIVED = "brain_memory_archived"
 private const val HELP_ARCHIVED = "Forgotten memories the lifecycle classifies ARCHIVED (MemoryStatus.archived)."
+private const val NAME_SUPERSEDED = "brain_memory_superseded"
+private const val HELP_SUPERSEDED = "Memories a Supersede verdict stamped invalid (MemoryStatus.superseded)."
 private const val NAME_PENDING = "brain_memory_pending_turns"
 private const val HELP_PENDING = "Completed turns the extraction has not processed yet (MemoryStatus.pendingTurns)."
 private const val NAME_PROCESSED = "brain_memory_processed_turns"
