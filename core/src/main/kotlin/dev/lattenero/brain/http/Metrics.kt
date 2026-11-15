@@ -96,6 +96,7 @@ data class MemoryMetrics(
     val processedTurns: Long,
     val quarantined: Long,
     val breakerState: String,
+    val edgesByKind: Map<String, Long> = emptyMap(),
 ) {
     companion object {
         fun of(status: MemoryStatus): MemoryMetrics = MemoryMetrics(
@@ -107,6 +108,7 @@ data class MemoryMetrics(
             processedTurns = status.processedTurns,
             quarantined = status.quarantined,
             breakerState = status.breaker,
+            edgesByKind = status.edgesByKind,
         )
     }
 }
