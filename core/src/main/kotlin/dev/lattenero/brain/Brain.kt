@@ -3,7 +3,10 @@ package dev.lattenero.brain
 import dev.lattenero.brain.bus.BusPipeline
 import dev.lattenero.brain.chat.ChatProvider
 import dev.lattenero.brain.chat.ChatProviders
+import dev.lattenero.brain.memory.EdgeBackfill
+import dev.lattenero.brain.memory.EdgeBuilder
 import dev.lattenero.brain.memory.MemoryExtractor
+import dev.lattenero.brain.memory.MemoryGraphStore
 import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.memory.MemoryStore
 import dev.lattenero.brain.memory.MemoryWorker
@@ -74,6 +77,11 @@ class Brain private constructor(
     )
     val memoryStore: MemoryStore = MemoryStore(db)
 
+    /** B4's memory graph: the memory_edges table's IO, the edge builder and the backfill over it. */
+    val memoryGraph: MemoryGraphStore = MemoryGraphStore(db)
+    val edgeBuilder: EdgeBuilder = EdgeBuilder(memoryGraph, config.memoryHalfLifeDays)
+    val edgeBackfill: EdgeBackfill = EdgeBackfill(db)
+
     /** The eval ledger: reads for `/eval/latest` and the CLI, writes from every eval run. */
     val evalLedger: EvalLedger = EvalLedger(db, config.embedDim)
 
@@ -88,8 +96,15 @@ class Brain private constructor(
             successThreshold = ProviderResilience.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
         ),
     )
-    val memoryWorker: MemoryWorker = MemoryWorker(memoryStore, extractor, embedPipeline)
-    val memory: MemoryService = MemoryService(provider, memoryStore, extractor, config.memoryHalfLifeDays)
+    val memoryWorker: MemoryWorker = MemoryWorker(memoryStore, extractor, embedPipeline, edges = edgeBuilder)
+    val memory: MemoryService = MemoryService(
+        provider = provider,
+        store = memoryStore,
+        extractor = extractor,
+        halfLifeDays = config.memoryHalfLifeDays,
+        graph = memoryGraph,
+        edges = edgeBuilder,
+    )
 
     companion object {
         const val COMPONENT_DATABASE = "database"
