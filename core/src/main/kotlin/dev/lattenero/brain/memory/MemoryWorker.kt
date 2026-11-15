@@ -51,9 +51,14 @@ sealed interface TurnOutcome {
      * new; [merged] carries the identities of EXISTING rows that the insert
      * reinforced instead — a near-duplicate (cosine at or above
      * [MemoryDedup.SIMILARITY]) is a bump of the memory already stored, never
-     * a pretended new row.
+     * a pretended new row. [insertedIds] are the new rows' identities (B4's
+     * edge builder walks exactly these).
      */
-    data class Stored(val inserted: Int, val merged: List<Long> = emptyList()) : TurnOutcome
+    data class Stored(
+        val inserted: Int,
+        val merged: List<Long> = emptyList(),
+        val insertedIds: List<Long> = emptyList(),
+    ) : TurnOutcome
 }
 
 /**
@@ -103,6 +108,7 @@ class MemoryWorker(
     private val embed: EmbedPipeline,
     private val batch: Int = DEFAULT_BATCH,
     private val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS,
+    private val edges: EdgeBuilder? = null,
 ) {
     suspend fun processOnce(): WorkerReport {
         val pending = store.pendingTurns(batch, maxAttempts)
@@ -139,7 +145,10 @@ class MemoryWorker(
             store.markProcessed(turn.eventId)
             return Either.Right(TurnOutcome.EmptyTurn)
         }
-        return attempt(transcript, turn).evalGraph().onLeft { quarantineOrDefer(it, transcript, turn) }
+        val settled = attempt(transcript, turn).evalGraph()
+        settled.onLeft { quarantineOrDefer(it, transcript, turn) }
+        settled.onRight { buildEdges(transcript, it) }
+        return settled
     }
 
     /** The attempt: extract, embed, insert (dedup-aware); failures converted at this boundary, never branch on. */
@@ -158,10 +167,26 @@ class MemoryWorker(
             .map { settled ->
                 val outcome: Either<ExtractionFailure, TurnOutcome> = when (settled) {
                     is Either.Left -> Either.Left(classify(settled.value, turn.attempts, maxAttempts))
-                    is Either.Right -> Either.Right(TurnOutcome.Stored(settled.value.inserted, settled.value.merged))
+                    is Either.Right -> Either.Right(
+                        TurnOutcome.Stored(settled.value.inserted, settled.value.merged, settled.value.insertedIds),
+                    )
                 }
                 outcome
             }
+
+    /**
+     * B4's honest degrade: the turn's edges are built AFTER the write landed,
+     * and their failure is logged, never raised — the memory write stands
+     * regardless of what the graph pass did.
+     */
+    private suspend fun buildEdges(transcript: Transcript, outcome: TurnOutcome) {
+        val builder = edges ?: return
+        if (outcome !is TurnOutcome.Stored || outcome.insertedIds.isEmpty()) return
+        when (val result = builder.forTurn(transcript.sessionId, transcript.turnId, outcome.insertedIds)) {
+            is EdgeOutcome.Built -> if (result.total > 0) log.debug("memory edges built: {}", result)
+            is EdgeOutcome.Failed -> log.warn("memory edge building degraded: {}", result.reason)
+        }
+    }
 
     /**
      * The edge where the bins turn back into rows — the same rows in the same
