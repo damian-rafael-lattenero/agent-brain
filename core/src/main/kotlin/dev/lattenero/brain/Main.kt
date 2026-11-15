@@ -511,7 +511,7 @@ private suspend fun memoryQuarantineStats(brain: Brain): Int {
  */
 private fun dream(args: List<String>): Int {
     val limit = args.optionValue("--limit")?.toIntOrNull() ?: DreamPass.DEFAULT_LIMIT
-    if (limit !in 1..MemoryService.MAX_K) return fail("dream: limit must be between 1 and ${MemoryService.MAX_K}")
+    if (limit !in 1..DreamPass.MAX_LIMIT) return fail("dream: limit must be between 1 and ${DreamPass.MAX_LIMIT}")
     val dryRun = "--dry-run" in args
     val config = Config.load()
     return withBrain(config) { brain ->

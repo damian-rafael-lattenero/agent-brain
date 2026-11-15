@@ -122,6 +122,10 @@ class DreamPass(private val store: MemoryStore, private val judge: VerdictJudge)
     companion object {
         /** How many COOLING rows one dream run considers, oldest first. */
         const val DEFAULT_LIMIT = 100
+
+        /** The CLI validation ceiling — NOT MemoryService.MAX_K (the search-k bound; the
+         *  dream limit counts rows, not recall hits, and 200 was a legal ask). */
+        const val MAX_LIMIT = 1000
     }
 
     /**
