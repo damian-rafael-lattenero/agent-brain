@@ -353,6 +353,50 @@ class MemoryStore(private val db: Database) {
         }
     }
 
+    /**
+     * Every COOLING row the dream pass reads, oldest first — B3's law as ONE
+     * SQL classification (life-weight in [forget_floor, cooling_floor)), the
+     * SAME expression the status buckets count with. Invalidated rows are not
+     * dream inputs (a dead claim has nothing to judge), and neither are
+     * forgotten (ARCHIVED) ones — the dream works on cooling memory only.
+     */
+    suspend fun dreamRows(halfLifeDays: Int, limit: Int): List<DedupRow> = db.withConnection { conn ->
+        conn.prepareStatement(
+            """
+            WITH params AS (SELECT ?::int AS half_life, ?::float8 AS cooling_floor, ?::float8 AS forget_floor)
+            SELECT m.id, m.kind, m.content, m.embed_model, m.salience, m.created_at, m.embedding::text
+            FROM memories m, params p
+            WHERE m.invalid_at IS NULL
+              AND $LIFE_WEIGHT_SQL >= p.forget_floor
+              AND $LIFE_WEIGHT_SQL < p.cooling_floor
+            ORDER BY m.created_at, m.id
+            LIMIT ?
+            """.trimIndent(),
+        ).use { ps ->
+            ps.setInt(1, halfLifeDays)
+            ps.setDouble(2, Lifecycle.COOLING_FLOOR)
+            ps.setDouble(3, Lifecycle.FORGET_FLOOR)
+            ps.setInt(4, limit)
+            ps.executeQuery().use { rs ->
+                generateSequence {
+                    if (!rs.next()) {
+                        null
+                    } else {
+                        DedupRow(
+                            id = rs.getLong(1),
+                            kind = rs.getString(2),
+                            content = rs.getString(3),
+                            embedModel = rs.getString(4),
+                            salience = rs.getDouble(5),
+                            createdAt = (rs.getObject(6) as Timestamp).toInstant(),
+                            embedding = PGvector(rs.getString(7)).toArray(),
+                        )
+                    }
+                }.toList()
+            }
+        }
+    }
+
     suspend fun byId(id: Long): Memory? = db.withConnection { conn ->
         conn.prepareStatement(
             """
