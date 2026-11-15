@@ -30,12 +30,15 @@ import dev.lattenero.brain.eval.PriceTable
 import dev.lattenero.brain.eval.StoredRun
 import dev.lattenero.brain.http.readCorpusFile
 import dev.lattenero.brain.memory.DedupReport
+import dev.lattenero.brain.memory.DreamPass
+import dev.lattenero.brain.memory.DreamReport
 import dev.lattenero.brain.memory.Memory
 import dev.lattenero.brain.memory.MemoryDedup
 import dev.lattenero.brain.memory.MemoryRequestException
 import dev.lattenero.brain.memory.MemorySaveRequest
 import dev.lattenero.brain.memory.MemorySearchRequest
 import dev.lattenero.brain.memory.MemorySearchResponse
+import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.memory.MemoryStatus
 import dev.lattenero.brain.memory.QuarantineRow
 import dev.lattenero.brain.memory.WorkerReport
@@ -90,6 +93,10 @@ const val USAGE = """usage: agent-brain <command> [args]
   memory search TEXT [--k N] | recent [--k N] [--kind K] | save KIND TEXT | quarantine | status | run [--once]
   memory dedup [--dry-run]
                      merge existing near-duplicate memories into their oldest row (one-shot, idempotent)
+  dream [--limit N] [--dry-run]
+                     judge clusters of COOLING near-neighbor memories pairwise and apply the verdicts
+                     (supersede invalidates the old claim, same merges, distinct nothing); --dry-run
+                     prints the plan and writes nothing
   health [--url U]   GET /ready of a running service; exit 1 when degraded
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
@@ -119,6 +126,7 @@ fun run(args: Array<String>): Int {
             "index" -> index(rest)
             "index-repos" -> indexRepos(rest)
             "memory" -> memory(rest)
+            "dream" -> dream(rest)
             "eval" -> eval(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
@@ -467,6 +475,25 @@ private fun memory(args: List<String>): Int {
 
 private fun List<String>.withoutOption(flag: String): List<String> =
     filterIndexed { i, a -> a != flag && (i == 0 || this[i - 1] != flag) }
+
+/**
+ * `dream [--limit N] [--dry-run]`: the one-shot dream pass over COOLING
+ * near-neighbor clusters — the SAME verdict machinery the worker's reconcile
+ * rides, applied pairwise within each cluster. Never wired to a worker
+ * cadence: dreaming runs when the operator calls it.
+ */
+private fun dream(args: List<String>): Int {
+    val limit = args.optionValue("--limit")?.toIntOrNull() ?: DreamPass.DEFAULT_LIMIT
+    if (limit !in 1..MemoryService.MAX_K) return fail("dream: limit must be between 1 and ${MemoryService.MAX_K}")
+    val dryRun = "--dry-run" in args
+    val config = Config.load()
+    return withBrain(config) { brain ->
+        brain.migrator.apply()
+        val report = DreamPass(brain.memoryStore, brain.verdictJudge).run(config.memoryHalfLifeDays, limit, dryRun)
+        printJson(responseJson.encodeToJsonElement(DreamReport.serializer(), report))
+        EXIT_OK
+    }
+}
 
 /**
  * `memory dedup [--dry-run]`: the one-shot backfill. Plan from values, apply
