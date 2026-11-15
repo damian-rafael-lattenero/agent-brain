@@ -20,6 +20,8 @@ import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Tag
@@ -68,6 +70,15 @@ class MemoryHttpTest {
             val found = json.decodeFromString<MemorySearchResponse>(search.bodyAsText())
             assertThat(found.memories.first().id).isEqualTo(saved.id)
             assertThat(found.memories.first().score).isGreaterThan(0.0)
+
+            // The graph leg's WIRE contract: `related` is always a key (an empty
+            // graph reads as []), and every entry names its via hit + edge kind.
+            val wire = json.parseToJsonElement(search.bodyAsText()).jsonObject
+            assertThat(wire).containsKey("related")
+            wire["related"]!!.jsonArray.forEach { entry ->
+                val related = entry.jsonObject
+                assertThat(related).containsKeys("viaId", "edgeKind", "content")
+            }
 
             val empty = client.post("/memory/search") {
                 contentType(ContentType.Application.Json)
