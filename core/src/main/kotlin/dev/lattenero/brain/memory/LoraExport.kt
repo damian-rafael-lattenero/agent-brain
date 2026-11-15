@@ -26,13 +26,19 @@ class LoraExport(private val store: MemoryStore) {
     /** What one export pass produced: counts and the token estimate. */
     data class Dataset(val file: Path, val positives: Int, val negatives: Int, val estimatedTokens: Long)
 
-    private fun extractionJson(facts: List<String>, decisions: List<String>, preferences: List<String>, summary: String): String =
-        buildJsonObject {
-            putJsonArray("facts") { facts.forEach { add(JsonPrimitive(it)) } }
-            putJsonArray("decisions") { decisions.forEach { add(JsonPrimitive(it)) } }
-            putJsonArray("preferences") { preferences.forEach { add(JsonPrimitive(it)) } }
-            put("summary", summary)
-        }.toString()
+    private fun extractionJson(
+        facts: List<String>,
+        decisions: List<String>,
+        preferences: List<String>,
+        summary: String,
+    ): String = buildJsonObject {
+        putJsonArray("facts") { facts.forEach { add(JsonPrimitive(it)) } }
+        putJsonArray("decisions") { decisions.forEach { add(JsonPrimitive(it)) } }
+        putJsonArray("preferences") { preferences.forEach { add(JsonPrimitive(it)) } }
+        put("summary", summary)
+    }.toString()
+
+    private fun byKindOrEmpty(byKind: Map<String, List<String>>, kind: String): List<String> = byKind[kind].orEmpty()
 
     private val emptyExtraction = extractionJson(emptyList(), emptyList(), emptyList(), "")
 
@@ -60,10 +66,10 @@ class LoraExport(private val store: MemoryStore) {
                 system = MemoryExtractor.SYSTEM_PROMPT,
                 user = transcript.render(MemoryExtractor.TRANSCRIPT_CAP),
                 assistant = extractionJson(
-                    byKind[MemoryKind.FACT.wire] ?: emptyList(),
-                    byKind[MemoryKind.DECISION.wire] ?: emptyList(),
-                    byKind[MemoryKind.PREFERENCE.wire] ?: emptyList(),
-                    byKind[MemoryKind.SUMMARY.wire]?.firstOrNull() ?: "",
+                    byKindOrEmpty(byKind, MemoryKind.FACT.wire),
+                    byKindOrEmpty(byKind, MemoryKind.DECISION.wire),
+                    byKindOrEmpty(byKind, MemoryKind.PREFERENCE.wire),
+                    byKind[MemoryKind.SUMMARY.wire]?.firstOrNull().orEmpty(),
                 ),
             )
         }
