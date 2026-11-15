@@ -62,7 +62,7 @@ class MetricsProjectionTest {
         val text = renderMetrics(
             MetricsSnapshot(
                 rag = RagMetrics(documents = 17460, chunks = 60441),
-                memory = MemoryMetrics(memories = 44, pendingTurns = 0, processedTurns = 31, quarantined = 2, breakerState = "Closed"),
+                memory = MemoryMetrics(memories = 44, active = 40, cooling = 3, archived = 1, pendingTurns = 0, processedTurns = 31, quarantined = 2, breakerState = "Closed"),
             ),
         )
         val expected = """
@@ -75,6 +75,15 @@ class MetricsProjectionTest {
             # HELP brain_memory_memories Live memories stored (MemoryStatus.memories).
             # TYPE brain_memory_memories gauge
             brain_memory_memories 44
+            # HELP brain_memory_active Memories the lifecycle classifies ACTIVE (MemoryStatus.active).
+            # TYPE brain_memory_active gauge
+            brain_memory_active 40
+            # HELP brain_memory_cooling Memories the lifecycle classifies COOLING (MemoryStatus.cooling).
+            # TYPE brain_memory_cooling gauge
+            brain_memory_cooling 3
+            # HELP brain_memory_archived Forgotten memories the lifecycle classifies ARCHIVED (MemoryStatus.archived).
+            # TYPE brain_memory_archived gauge
+            brain_memory_archived 1
             # HELP brain_memory_pending_turns Completed turns the extraction has not processed yet (MemoryStatus.pendingTurns).
             # TYPE brain_memory_pending_turns gauge
             brain_memory_pending_turns 0
@@ -238,5 +247,5 @@ class MetricsProjectionTest {
     )
 
     private fun memory(breaker: String) =
-        MemoryMetrics(memories = 44, pendingTurns = 0, processedTurns = 31, quarantined = 2, breakerState = breaker)
+        MemoryMetrics(memories = 44, active = 40, cooling = 3, archived = 1, pendingTurns = 0, processedTurns = 31, quarantined = 2, breakerState = breaker)
 }
