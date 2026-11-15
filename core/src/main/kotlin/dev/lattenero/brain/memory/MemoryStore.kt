@@ -61,7 +61,21 @@ class MemoryStore(private val db: Database) {
     data class MemoryRow(val kind: String, val content: String, val embedding: FloatArray)
 
     /** What one dedup-aware insert pass did: [inserted] new rows, [merged] identities of reinforced rows. */
-    data class InsertReport(val inserted: Int, val merged: List<Long>)
+    data class InsertReport(val inserted: Int, val merged: List<Long>, val insertedIds: List<Long> = emptyList())
+
+    /**
+     * One candidate a verdict pass (reconcile, dream) may judge: the row's
+     * identity, its claim and its birth (the older side of the pair is the
+     * one created earlier).
+     */
+    data class NeighborRow(val id: Long, val content: String, val createdAt: java.time.Instant)
+
+    /**
+     * The similarity window a verdict pass searches: cosine in [low, high)
+     * plus the forgetting half-life that keeps archived rows out (B3). One
+     * value so every pass hands the query the SAME knobs.
+     */
+    data class NeighborBand(val low: Double, val high: Double, val halfLifeDays: Int)
 
     suspend fun pendingTurns(limit: Int, maxAttempts: Int): List<PendingTurn> = db.withConnection { conn ->
         conn.prepareStatement(
@@ -147,6 +161,7 @@ class MemoryStore(private val db: Database) {
         if (rows.isEmpty()) return InsertReport(0, emptyList())
         return db.inTransaction { conn ->
             val merged = mutableListOf<Long>()
+            val insertedIds = mutableListOf<Long>()
             var inserted = 0
             for (row in rows) {
                 val replayed = findReplay(conn, transcript.eventId, row.kind, row.content)
@@ -156,11 +171,14 @@ class MemoryStore(private val db: Database) {
                     reinforce(conn, duplicate, REINFORCE_STEP)
                     merged += duplicate
                 } else {
-                    insertRow(conn, transcript, embedModel, row)
-                    inserted += 1
+                    val id = insertRow(conn, transcript, embedModel, row)
+                    if (id >= 0) {
+                        insertedIds += id
+                        inserted += 1
+                    }
                 }
             }
-            InsertReport(inserted, merged)
+            InsertReport(inserted, merged, insertedIds)
         }
     }
 
@@ -184,15 +202,16 @@ class MemoryStore(private val db: Database) {
     }
 
     /**
-     * Every row the dedup backfill reads, oldest first. The backfill is a
-     * CLI command, never a migration: a destructive merge must run when the
-     * operator asks for it, not at every startup.
+     * Every row the dedup backfill reads, oldest first — invalidated rows
+     * excluded (a live claim must never be absorbed by a dead one). The
+     * backfill is a CLI command, never a migration: a destructive merge must
+     * run when the operator asks for it, not at every startup.
      */
     suspend fun dedupRows(): List<DedupRow> = db.withConnection { conn ->
         conn.createStatement().use { st ->
             st.executeQuery(
                 "SELECT id, kind, content, embed_model, salience, created_at, embedding::text " +
-                    "FROM memories ORDER BY created_at, id",
+                    "FROM memories WHERE invalid_at IS NULL ORDER BY created_at, id",
             ).use { rs ->
                 generateSequence {
                     if (!rs.next()) null else DedupRow(
@@ -221,6 +240,97 @@ class MemoryStore(private val db: Database) {
             deleteMemories(conn, cluster.absorbedIds)
         }
         plan.removed
+    }
+
+    /**
+     * Zep-style invalidation (the reconcile law): the old claim is stamped
+     * with the current time and NOTHING else changes — content stays
+     * byte-identical, salience is untouched, the row is NOT deleted. A row
+     * already invalidated is left alone (idempotent: the first stamp is the
+     * only stamp). Returns whether THIS call stamped it.
+     */
+    suspend fun invalidate(id: Long): Boolean = db.withConnection { conn ->
+        invalidate(conn, id)
+    }
+
+    /**
+     * Dedup's own merge, one transaction, for the reconcile and dream passes:
+     * the survivor is reinforced exactly as an insert-time dedup merge would
+     * have reinforced it, and the absorbed row is deleted (the Same verdict
+     * means one memory said twice, so the store holds it once).
+     */
+    suspend fun mergeInto(survivorId: Long, absorbedId: Long): Unit = db.inTransaction { conn ->
+        if (survivorId != absorbedId) {
+            reinforce(conn, survivorId, REINFORCE_STEP)
+            deleteMemories(conn, listOf(absorbedId))
+        }
+    }
+
+    /**
+     * The nearest neighbor of [embedding] that dedup did NOT merge — cosine
+     * in the band (its high edge reads [MemoryDedup.SIMILARITY], so the band
+     * ends exactly where dedup takes over), same embed model, never the row
+     * itself, never an invalidated row (dead claims are not verdict inputs)
+     * and never a forgotten one (B3: archived rows are not reconcile/dream
+     * inputs). Nearest first — the ONE candidate a reconcile verdict sees.
+     */
+    suspend fun nearestNeighbor(
+        embedding: FloatArray,
+        selfId: Long,
+        embedModel: String,
+        band: NeighborBand,
+    ): NeighborRow? = db.withConnection { conn ->
+        conn.prepareStatement(
+            """
+            WITH params AS (SELECT ?::int AS half_life, ?::float8 AS forget_floor),
+                 q AS (SELECT ?::vector AS v)
+            SELECT m.id, m.content, m.created_at
+            FROM memories m, params p, q
+            WHERE m.embed_model = ?
+              AND m.id <> ?
+              AND m.invalid_at IS NULL
+              AND (1 - (m.embedding <=> q.v)) >= ?
+              AND (1 - (m.embedding <=> q.v)) < ?
+              AND $LIFE_WEIGHT_SQL >= p.forget_floor
+            ORDER BY m.embedding <=> q.v, m.id
+            LIMIT 1
+            """.trimIndent(),
+        ).use { ps ->
+            ps.setInt(1, band.halfLifeDays)
+            ps.setDouble(2, Lifecycle.FORGET_FLOOR)
+            ps.setObject(3, PGvector(embedding))
+            ps.setString(4, embedModel)
+            ps.setLong(5, selfId)
+            ps.setDouble(6, band.low)
+            ps.setDouble(7, band.high)
+            ps.executeQuery().use { rs ->
+                if (!rs.next()) {
+                    null
+                } else {
+                    NeighborRow(
+                        id = rs.getLong(1),
+                        content = rs.getString(2),
+                        createdAt = (rs.getObject(3) as Timestamp).toInstant(),
+                    )
+                }
+            }
+        }
+    }
+
+    /** The row's stored embedding, for passes that must compare neighbors without re-embedding. */
+    suspend fun embeddingOf(id: Long): FloatArray? = db.withConnection { conn ->
+        conn.prepareStatement("SELECT embedding::text FROM memories WHERE id = ?").use { ps ->
+            ps.setLong(1, id)
+            ps.executeQuery().use { rs -> if (rs.next()) PGvector(rs.getString(1)).toArray() else null }
+        }
+    }
+
+    /** Whether the row is invalidated (a stamp exists) — the passes' idempotence guard. */
+    suspend fun isInvalidated(id: Long): Boolean = db.withConnection { conn ->
+        conn.prepareStatement("SELECT invalid_at IS NOT NULL FROM memories WHERE id = ?").use { ps ->
+            ps.setLong(1, id)
+            ps.executeQuery().use { rs -> if (rs.next()) rs.getBoolean(1) else false }
+        }
     }
 
     suspend fun byId(id: Long): Memory? = db.withConnection { conn ->
@@ -392,9 +502,11 @@ class MemoryStore(private val db: Database) {
 
     /**
      * The OLDEST row at or above [threshold] to [embedding] — same embed
-     * model, any kind, any session (`<=>` is pgvector's cosine distance).
-     * Oldest, not most-similar, so insert-time merges and the backfill's
-     * oldest-first clusters agree on the survivor.
+     * model, any kind, any session (`<=>` is pgvector's cosine distance),
+     * never an invalidated row (a dead claim must not absorb a new landing:
+     * the restatement of the truth would vanish into the row that says it is
+     * false). Oldest, not most-similar, so insert-time merges and the
+     * backfill's oldest-first clusters agree on the survivor.
      */
     private fun findDuplicate(
         conn: java.sql.Connection,
@@ -402,7 +514,8 @@ class MemoryStore(private val db: Database) {
         embedModel: String,
         threshold: Double,
     ): Long? = conn.prepareStatement(
-        "SELECT id FROM memories WHERE embed_model = ? AND (1 - (embedding <=> ?::vector)) >= ? " +
+        "SELECT id FROM memories WHERE embed_model = ? AND invalid_at IS NULL " +
+            "AND (1 - (embedding <=> ?::vector)) >= ? " +
             "ORDER BY created_at, id LIMIT 1",
     ).use { ps ->
         ps.setString(1, embedModel)
@@ -422,6 +535,14 @@ class MemoryStore(private val db: Database) {
         }
     }
 
+    /** The stamp, guarded: only a live row (invalid_at IS NULL) takes a stamp. */
+    private fun invalidate(conn: java.sql.Connection, id: Long): Boolean = conn.prepareStatement(
+        "UPDATE memories SET invalid_at = now() WHERE id = ? AND invalid_at IS NULL",
+    ).use { ps ->
+        ps.setLong(1, id)
+        ps.executeUpdate() > 0
+    }
+
     private fun deleteMemories(conn: java.sql.Connection, ids: List<Long>) {
         conn.prepareStatement("DELETE FROM memories WHERE id = ANY(?)").use { ps ->
             ps.setArray(1, conn.createArrayOf("bigint", ids.toTypedArray()))
@@ -429,12 +550,13 @@ class MemoryStore(private val db: Database) {
         }
     }
 
-    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow) {
+    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow): Long {
         conn.prepareStatement(
             """
             INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
+            RETURNING id
             """,
         ).use { ps ->
             ps.setString(1, transcript.sessionId)
@@ -444,8 +566,13 @@ class MemoryStore(private val db: Database) {
             ps.setString(5, embedModel)
             ps.setObject(6, PGvector(row.embedding))
             ps.setString(7, transcript.eventId)
-            ps.executeUpdate()
+            ps.executeQuery().use { rs ->
+                if (rs.next()) return rs.getLong(1)
+            }
         }
+        // ON CONFLICT DO NOTHING swallowed the row (a concurrent writer landed
+        // the same content first): there is no new row, hence no id.
+        return -1L
     }
 
     private fun readMemories(rs: java.sql.ResultSet): List<Memory> = generateSequence {
@@ -499,6 +626,7 @@ class MemoryStore(private val db: Database) {
             ), alive AS (
               SELECT id FROM memories m, params p
               WHERE m.embed_model = p.model
+                AND m.invalid_at IS NULL
                 AND $LIFE_WEIGHT_SQL >= p.forget_floor
             ), vec AS (
               SELECT id, row_number() OVER (ORDER BY dist, id) AS r FROM (
