@@ -55,7 +55,17 @@ class Brain private constructor(
     val migrator: Migrator = Migrator(db, config.embedDim)
     val readiness: Readiness = Readiness(config, db, migrator, provider)
     val ragStore: RagStore = RagStore(db)
-    val rag: RagService = RagService(provider, ragStore, chat)
+
+    /**
+     * E3's split-provider: verdicts, rerank and dream ride [judgeChat] — a
+     * different, stronger model when `judge_provider` is configured (they are
+     * low-frequency, quality-critical calls), the primary chat otherwise. The
+     * extractor stays on the primary: the high-volume private path.
+     * Not an owned resource: providers hold no client of their own (the shared
+     * [httpClient] outlives them) and close() is a no-op for both shapes.
+     */
+    val judgeChat: ChatProvider = ChatProviders.judge(config, httpClient) ?: chat
+    val rag: RagService = RagService(provider, ragStore, judgeChat)
     val tracer: CountingTracer = CountingTracer()
     val embedPipeline: EmbedPipeline = EmbedPipeline(
         provider = provider,
@@ -100,7 +110,7 @@ class Brain private constructor(
         ),
     )
     /** The verdict machinery: ONE chat call per judged pair, one timeout, no retry (the write path never blocks). */
-    val verdictJudge: VerdictJudge = VerdictJudge(chat, config.chatTimeoutS.seconds)
+    val verdictJudge: VerdictJudge = VerdictJudge(judgeChat, config.judgeTimeoutS.seconds)
     val memoryReconciler: MemoryReconciler = MemoryReconciler(memoryStore, verdictJudge)
     val memoryWorker: MemoryWorker = MemoryWorker(
         store = memoryStore,
