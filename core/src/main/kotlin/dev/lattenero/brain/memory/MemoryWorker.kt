@@ -392,6 +392,9 @@ data class MemorySearchResponse(
     val query: String,
     val embedModel: String,
     val memories: List<Memory>,
+    // ALWAYS on the wire — the graph leg is additive but its CONTRACT is not
+    // optional: an empty graph reads as `"related": []`, never as an absent key.
+    @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.ALWAYS)
     val related: List<RelatedMemory> = emptyList(),
 )
 
