@@ -54,6 +54,13 @@ subprojects {
             source.setFrom(listOf("src/main/kotlin").filter { file(it).exists() })
             // Tests are out of scope for now (same policy as kap until its Fase 1 decides).
         }
+        // detektMain (the type-resolved pass) scans the MAIN compilation's source
+        // set, which KSP pads with build/generated — the kap builders grow with
+        // every @KapTypeSafe field and their line length is the GENERATOR's
+        // business, not the hand-styled gate's. Excluded like the plain pass.
+        tasks.withType(dev.detekt.gradle.Detekt::class.java).configureEach {
+            exclude { it.file.path.contains("build/generated") }
+        }
     }
 }
 
