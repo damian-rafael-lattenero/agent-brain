@@ -60,8 +60,12 @@ class MemoryStore(private val db: Database) {
 
     data class MemoryRow(val kind: String, val content: String, val embedding: FloatArray)
 
-    /** What one dedup-aware insert pass did: [inserted] new rows, [merged] identities of reinforced rows. */
-    data class InsertReport(val inserted: Int, val merged: List<Long>)
+    /**
+     * What one dedup-aware insert pass did: [inserted] new rows, [merged]
+     * identities of reinforced rows, and the new rows' identities
+     * ([insertedIds] — B4's edge builder walks exactly these).
+     */
+    data class InsertReport(val inserted: Int, val merged: List<Long>, val insertedIds: List<Long> = emptyList())
 
     suspend fun pendingTurns(limit: Int, maxAttempts: Int): List<PendingTurn> = db.withConnection { conn ->
         conn.prepareStatement(
@@ -147,7 +151,7 @@ class MemoryStore(private val db: Database) {
         if (rows.isEmpty()) return InsertReport(0, emptyList())
         return db.inTransaction { conn ->
             val merged = mutableListOf<Long>()
-            var inserted = 0
+            val insertedIds = mutableListOf<Long>()
             for (row in rows) {
                 val replayed = findReplay(conn, transcript.eventId, row.kind, row.content)
                 if (replayed != null) continue
@@ -156,11 +160,10 @@ class MemoryStore(private val db: Database) {
                     reinforce(conn, duplicate, REINFORCE_STEP)
                     merged += duplicate
                 } else {
-                    insertRow(conn, transcript, embedModel, row)
-                    inserted += 1
+                    insertedIds += insertRow(conn, transcript, embedModel, row)
                 }
             }
-            InsertReport(inserted, merged)
+            InsertReport(insertedIds.size, merged, insertedIds)
         }
     }
 
@@ -429,12 +432,13 @@ class MemoryStore(private val db: Database) {
         }
     }
 
-    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow) {
+    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow): Long =
         conn.prepareStatement(
             """
             INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
+            RETURNING id
             """,
         ).use { ps ->
             ps.setString(1, transcript.sessionId)
@@ -444,9 +448,8 @@ class MemoryStore(private val db: Database) {
             ps.setString(5, embedModel)
             ps.setObject(6, PGvector(row.embedding))
             ps.setString(7, transcript.eventId)
-            ps.executeUpdate()
+            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
         }
-    }
 
     private fun readMemories(rs: java.sql.ResultSet): List<Memory> = generateSequence {
         if (!rs.next()) null else Memory(
