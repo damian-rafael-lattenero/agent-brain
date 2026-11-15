@@ -48,10 +48,24 @@ def tg-send [text: string]: nothing -> nothing {
 }
 
 # One pass over every layer; returns the rows with their verdicts.
+# Layer detail is UNTRUSTED shape (a check may answer a list of strings) —
+# it is normalized ONCE at this boundary into the string the annotation
+# promises (parse-don't-validate). Before this, a list-detail tripped the
+# runtime annotation check and killed the run (measured 15/11 morning).
+def normalize-detail [d: any]: nothing -> string {
+    if ($d | describe) == "string" {
+        $d
+    } else if ($d | describe) == "list<string>" {
+        $d | str join "; "
+    } else {
+        $d | into string
+    }
+}
+
 def run-layers []: nothing -> list<record<layer: string, check: string, ok: bool, detail: string, hint: string>> {
     checks | each {|c|
         let r: any = (try { do $c.f } catch {|err| {ok: false, detail: $"exception: ($err.msg)", hint: "review the script"}})
-        {layer: $c.layer, check: $c.check, ok: ($r.ok | default false), detail: ($r.detail | default "?"), hint: ($r.hint | default "")}
+        {layer: $c.layer, check: $c.check, ok: ($r.ok | default false), detail: (normalize-detail ($r.detail | default "?")), hint: ($r.hint | default "")}
     }
 }
 
