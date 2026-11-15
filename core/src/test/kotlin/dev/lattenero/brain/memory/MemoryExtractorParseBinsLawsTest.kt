@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -207,5 +208,59 @@ class MemoryExtractorParseBinsLawsTest {
                 }
             }
         }
+    }
+
+    /** The 15/11 incident, verbatim: the degraded model's answers stored as salience-1.0 memories. */
+    private val incidentEchoes = listOf(
+        "A one-sentence summary of the turn.",
+        "The user's decisions in this turn.",
+        "Choices the user made in this turn.",
+    )
+
+    private fun answerWith(item: String, kind: String = "decisions"): String = buildJsonObject {
+        putJsonArray("facts") { add(JsonPrimitive("The deploy completed at noon today.")) }
+        if (kind == "decisions") putJsonArray("decisions") { add(JsonPrimitive(item)) } else putJsonArray("decisions") { }
+        if (kind == "preferences") putJsonArray("preferences") { add(JsonPrimitive(item)) } else putJsonArray("preferences") { }
+        put("summary", if (kind == "summary") item else "The turn was about a deploy.")
+    }.toString()
+
+    @Test
+    fun `template echoes quarantine the whole extraction - one echo means a degenerate answer`() {
+        for (echo in incidentEchoes) {
+            for (kind in listOf("decisions", "preferences", "summary")) {
+                val outcome = MemoryExtractor.parseBins(answerWith(echo, kind))
+                assertThat(outcome).isInstanceOf(ParseOutcome.Invalid::class.java)
+                assertThat((outcome as ParseOutcome.Invalid).reason).contains("template-echo")
+            }
+        }
+    }
+
+    @Test
+    fun `an echoed fact quarantines too - the echo check covers every kind`() {
+        val outcome = MemoryExtractor.parseBins(
+            buildJsonObject {
+                putJsonArray("facts") { add(JsonPrimitive("A one-sentence summary of the turn.")) }
+                putJsonArray("decisions") { }
+                putJsonArray("preferences") { }
+                put("summary", "")
+            }.toString(),
+        )
+        assertThat(outcome).isInstanceOf(ParseOutcome.Invalid::class.java)
+    }
+
+    @Test
+    fun `case and punctuation do not hide an echo - normalization is the comparison surface`() {
+        val outcome = MemoryExtractor.parseBins(answerWith("a ONE-SENTENCE summary of the turn..!"))
+        assertThat(outcome).isInstanceOf(ParseOutcome.Invalid::class.java)
+        assertThat((outcome as ParseOutcome.Invalid).reason).contains("template-echo")
+    }
+
+    @Test
+    fun `real content that merely resembles the prompt stays parsed - no false positives`() {
+        val outcome = MemoryExtractor.parseBins(
+            answerWith("The user decided to deploy the brain at noon after the gate went green."),
+        )
+        assertThat(outcome).isInstanceOf(ParseOutcome.Parsed::class.java)
+        assertThat((outcome as ParseOutcome.Parsed).extraction.decisions).hasSize(1)
     }
 }
