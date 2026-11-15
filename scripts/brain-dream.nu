@@ -45,5 +45,7 @@ def main [
     )
     announce $line
     print $line
-    printJson $report
+    # The full report rides the artifact; the console gets the one line and the
+    # machine-readable tail (nushell has no printJson — that is the CLI's name).
+    print ($report | to json -r)
 }
