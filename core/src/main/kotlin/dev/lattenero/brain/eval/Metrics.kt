@@ -155,7 +155,7 @@ object SuiteMetricsCalculator {
             durationMs = durationMs,
             supportChecked = supportChecked,
             supported = supportChecked?.let { cases.count { case -> case.supported == true } },
-            retrieval = if (kind == EvalKind.RECALL) {
+            retrieval = if (kind == EvalKind.RECALL || kind == EvalKind.MEMORY) {
                 RetrievalMetrics.summary(cases.map { it.rank }, EvalRunner.RECALL_K)
             } else {
                 null

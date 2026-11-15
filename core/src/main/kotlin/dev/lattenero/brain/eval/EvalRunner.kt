@@ -50,6 +50,11 @@ data class CaseResult(
     val decisions: Int = 0,
     val preferences: Int = 0,
     val summary: String? = null,
+    /** Contradiction suites: the judge's word and the word the case expected. */
+    val verdict: String? = null,
+    val expectedVerdict: String? = null,
+    /** Memory suites: how many graph neighbors traveled with the hit. */
+    val relatedHits: Int? = null,
     val failure: String? = null,
 )
 
@@ -105,6 +110,8 @@ class EvalRunner(
     private val options: EvalOptions = EvalOptions(gate = suite.gate),
     /** Where the run is recorded: the deployment's database, even when [config] points at a throwaway one. */
     private val ledger: Config = config,
+    /** The E2 memory legs (memory + contradiction), seeded and graded by their own class. */
+    private val legs: MemoryEvalLegs = MemoryEvalLegs(),
 ) {
 
     /** The admin connection through the same kap bracket as everything else (plan B2): close in NonCancellable. */
@@ -148,13 +155,13 @@ class EvalRunner(
         val startedAt = options.wallClock()
         val mark = options.timeSource.markNow()
         val report = runBlocking {
-            if (suite.kind.needsCorpus) {
-                freshEvalDatabase().use { name ->
+            when {
+                !suite.kind.usesFreshDatabase ->
+                    Brain.resource(config).use { brain -> extractionReport(brain, startedAt, mark) }
+                else -> freshEvalDatabase().use { name ->
                     val evalConfig = config.copy(pgUrl = config.pgUrl.substringBeforeLast('/') + "/" + name)
-                    Brain.resource(evalConfig).use { brain -> retrievalReport(brain, startedAt, mark) }
+                    Brain.resource(evalConfig).use { brain -> databaseReport(brain, startedAt, mark) }
                 }
-            } else {
-                Brain.resource(config).use { brain -> extractionReport(brain, startedAt, mark) }
             }
         }
         Database(ledger).use { db ->
@@ -163,8 +170,27 @@ class EvalRunner(
         return report
     }
 
-    private suspend fun retrievalReport(brain: Brain, startedAt: Instant, mark: TimeMark): EvalReport {
+    /** The fresh-database legs: corpus retrieval (recall/grounded) or the seeded memory legs (memory/contradiction). */
+    private suspend fun databaseReport(brain: Brain, startedAt: Instant, mark: TimeMark): EvalReport {
         brain.migrator.apply()
+        val seededIds: List<Long> = when {
+            suite.kind.indexesCorpus -> {
+                retrievalReport(brain)
+                emptyList()
+            }
+            else -> legs.seed(brain, suite)
+        }
+        val cases = when (suite.kind) {
+            EvalKind.RECALL -> recallCases(brain)
+            EvalKind.GROUNDED -> groundedCases(brain)
+            EvalKind.MEMORY -> legs.memoryCases(brain, suite)
+            EvalKind.CONTRADICTION -> legs.contradictionCases(brain, suite, seededIds)
+            EvalKind.EXTRACTION -> error("an extraction suite does not use a database")
+        }
+        return report(cases, startedAt, mark, identityFor(brain))
+    }
+
+    private suspend fun retrievalReport(brain: Brain) {
         // The corpus lives in a bracketed temp tree: indexed inside the bracket, removed on release.
         // macOS hands out /var/folders (a symlink of /private/var/...): normalize or the glob
         // never matches the walked paths.
@@ -174,22 +200,20 @@ class EvalRunner(
         check(indexed.failed.isEmpty() && indexed.indexed > 0) {
             "eval: the fixture corpus did not index (${indexed.failed})"
         }
-        val cases = when (suite.kind) {
-            EvalKind.RECALL -> recallCases(brain)
-            EvalKind.GROUNDED -> groundedCases(brain)
-            EvalKind.EXTRACTION -> error("an extraction suite does not index a corpus")
-        }
-        // The model under test is the one the axis replaces: embeddings for
-        // recall, the chat model for a composed answer (the embed model is
-        // context, reported separately).
-        val chatAxis = suite.kind == EvalKind.GROUNDED
-        val identity = ModelIdentity(
+    }
+
+    /**
+     * The chat axis is the model under test for grounded/contradiction; embeddings
+     * for recall/memory (the embed model is context, reported separately).
+     */
+    private fun identityFor(brain: Brain): ModelIdentity {
+        val chatAxis = suite.kind == EvalKind.GROUNDED || suite.kind == EvalKind.CONTRADICTION
+        return ModelIdentity(
             model = if (chatAxis) brain.chat.model else brain.provider.model,
             provider = if (chatAxis) brain.chat.name else brain.provider.name,
             embedModel = brain.provider.model,
             chatModel = brain.chat.model,
         )
-        return report(cases, startedAt, mark, identity)
     }
 
     private suspend fun extractionReport(brain: Brain, startedAt: Instant, mark: TimeMark): EvalReport {
@@ -481,9 +505,10 @@ class EvalRunner(
                     )
                 },
             )
+            else -> MemoryEvalLegs.markdown(report)
         }
 
-        private fun table(header: List<String>, rows: List<List<String?>>): String = buildString {
+        internal fun table(header: List<String>, rows: List<List<String?>>): String = buildString {
             appendLine("| ${header.joinToString(" | ")} |")
             appendLine("|${header.joinToString("|") { "---" }}|")
             for (row in rows) {
