@@ -1,0 +1,34 @@
+-- TYPING-ONLY declaration (see Memories.sq). uuid columns stand in as TEXT:
+-- the statements cast the binds to ::uuid explicitly.
+CREATE TABLE eval_runs (
+  id BIGINT PRIMARY KEY,
+  suite TEXT NOT NULL,
+  model TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  passed INTEGER NOT NULL,
+  total INTEGER NOT NULL,
+  cost_usd NUMERIC(10, 6) NOT NULL,
+  detail JSONB NOT NULL,
+  ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+  run_id TEXT,
+  matrix_id TEXT,
+  kind TEXT NOT NULL,
+  axis TEXT NOT NULL,
+  gate DOUBLE PRECISION NOT NULL,
+  ok BOOLEAN NOT NULL,
+  tokens_prompt BIGINT NOT NULL,
+  tokens_completion BIGINT NOT NULL,
+  cost_known BOOLEAN NOT NULL,
+  p50_ms INTEGER,
+  p95_ms INTEGER,
+  duration_ms INTEGER,
+  started_at TIMESTAMPTZ
+);
+
+insertEvalRun:
+INSERT INTO eval_runs (suite, model, provider, passed, total, cost_usd, detail,
+  run_id, matrix_id, kind, axis, gate, ok, tokens_prompt, tokens_completion,
+  cost_known, p50_ms, p95_ms, duration_ms, started_at)
+VALUES (:suite, :model, :provider, :passed, :total, :costUsd, :detail::jsonb,
+  :runId::uuid, :matrixId::uuid, :kind, :axis, :gate, :ok, :tokensPrompt, :tokensCompletion,
+  :costKnown, :p50Ms, :p95Ms, :durationMs, :startedAt::timestamptz);

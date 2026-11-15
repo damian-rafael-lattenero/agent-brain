@@ -9,6 +9,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.sql.Connection
 import java.util.concurrent.Executors
+import javax.sql.DataSource
 
 /**
  * JDBC is blocking; running it on virtual threads makes the blocking cheap
@@ -43,6 +44,13 @@ class Database(config: Config) : AutoCloseable {
             block(conn)
         }
     }
+
+    /**
+     * The pool itself, exposed for the SQLDelight seam (docs/spike-sqldelight.md):
+     * `pool.asJdbcDriver()` makes the generated queries ride the SAME Hikari
+     * connections as the raw paths — one pool, one database object.
+     */
+    val pool: DataSource get() = dataSource
 
     suspend fun ping(): Boolean = withConnection { conn ->
         conn.createStatement().use { st ->

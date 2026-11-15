@@ -1,0 +1,76 @@
+-- TYPING-ONLY declarations: the runtime schema is owned by db/Migrator
+-- (advisory-locked plain .sql files, __EMBED_DIM__ rendering). These blocks
+-- exist so the compiler can type the queries below; they are never executed.
+-- pgvector columns stand in as TEXT: statements bind/return the `[1,2,3]`
+-- text form explicitly (::vector casts in the statements).
+CREATE TABLE memories (
+  id BIGINT PRIMARY KEY,
+  session_id TEXT,
+  turn_id TEXT,
+  kind TEXT NOT NULL,
+  content TEXT NOT NULL,
+  embed_model TEXT NOT NULL,
+  embedding TEXT NOT NULL,
+  salience REAL NOT NULL DEFAULT 1.0,
+  last_accessed TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  source_event_id TEXT,
+  -- nullable stand-in for the REAL generated column (tsvector GENERATED
+  -- ALWAYS ... STORED): a typing-only declaration cannot express generation,
+  -- and the insert below must be allowed to omit it.
+  content_tsv TEXT,
+  invalid_at TIMESTAMPTZ
+);
+
+-- The quarantine table only backs the evidence statement below.
+CREATE TABLE memory_quarantine (
+  id BIGINT PRIMARY KEY,
+  turn_id TEXT,
+  reason TEXT NOT NULL,
+  raw TEXT NOT NULL,
+  ts TIMESTAMPTZ DEFAULT now()
+);
+
+insertMemory:
+INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
+VALUES (:sessionId, :turnId, :kind, :content, :embedModel, :embedding::vector, :sourceEventId)
+ON CONFLICT DO NOTHING
+RETURNING id;
+
+-- Evidence statements: md5 and split_part both parse (they sit BEFORE
+-- lifecycleCounts, whose verdict was previously masked by one-error-per-file).
+findReplay:
+SELECT id FROM memories
+WHERE source_event_id = :eventId AND kind = :kind AND md5(content) = md5(:content)
+LIMIT 1;
+
+quarantineBucketed:
+SELECT
+  CASE
+    WHEN reason LIKE 'template-echo%' THEN 'template-echo'
+    WHEN reason LIKE 'gave up%' THEN 'gave-up'
+    WHEN reason LIKE 'invalid extraction%' THEN 'invalid-extraction'
+    ELSE split_part(reason, ':', 1)
+  END AS bucket,
+  count(*) AS n
+FROM memory_quarantine
+GROUP BY bucket
+ORDER BY n DESC, bucket;
+
+-- CONFINED-RAW LAW (P0 verdict): every statement touching pgvector's
+-- cosine operator stays raw JDBC — the dialect has no generic operator
+-- token (neither `<=>` nor Postgres's OPERATOR(public.<=>) spelling parse;
+-- measured 2026-11-15, spike-sqldelight.md). They keep their plan-law
+-- KDocs, ITs and eval gates where they live today.
+
+-- WALL #2 (P0 verdict): the B3 forgetting law is pure math OUTSIDE the
+-- dialect's hard-coded function list — `power(2.0, ...)` fails with
+-- "OVER expected", and the exp/ln rendering (identical to SEARCH's weight
+-- column) fails the SAME way: `exp` and `ln` are unknown functions too.
+-- lifecycleCounts and dreamRows stay raw JDBC with the law.
+
+countMemories:
+SELECT count(*) AS n FROM memories;
+
+-- The retrieval law (MemoryStore.SEARCH) is one of the confined-raw
+-- statements: its vector leg rides `<=>` (see the CONFINED-RAW LAW above).
