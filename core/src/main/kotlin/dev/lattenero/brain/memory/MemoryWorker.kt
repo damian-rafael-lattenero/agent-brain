@@ -404,6 +404,7 @@ class MemoryService(
             .with { active from lifecycle.active }
             .with { cooling from lifecycle.cooling }
             .with { archived from lifecycle.archived }
+            .with { superseded from store.countSuperseded() }
             .with { byKind from store.countByKind() }
             .with { quarantined from store.countQuarantined() }
             .with { breaker from extractor.breaker.currentState.name }
