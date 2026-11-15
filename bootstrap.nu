@@ -17,16 +17,16 @@ def is-exec [path: string]: nothing -> bool {
 }
 
 def main []: nothing -> nothing {
-    let repo = $env.FILE_PWD
+    let repo: path = $env.FILE_PWD
     cd $repo
     mut missing: bool = false
 
     print "▶ JDK 25 \(Amazon Corretto\)"
-    let home_java = (do { ^/usr/libexec/java_home -v 25 } | complete)
+    let home_java: record = (do { ^/usr/libexec/java_home -v 25 } | complete)
     if $home_java.exit_code == 0 {
-        let java_home = ($home_java.stdout | str trim)
-        let java_bin = ($java_home | path join "bin/java")
-        let version = (do { ^$java_bin -version } | complete)
+        let java_home: string = ($home_java.stdout | str trim)
+        let java_bin: path = ($java_home | path join "bin/java")
+        let version: record = (do { ^$java_bin -version } | complete)
         if ($version.stderr | str contains "Corretto") {
             ok $java_home
         } else {
@@ -39,7 +39,7 @@ def main []: nothing -> nothing {
     }
 
     print "▶ Docker runtime \(colima\)"
-    let docker = (do { ^docker info } | complete)
+    let docker: record = (do { ^docker info } | complete)
     if $docker.exit_code == 0 {
         ok "docker reachable"
     } else {

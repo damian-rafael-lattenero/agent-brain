@@ -7,12 +7,12 @@
 # and launchd retries on its ThrottleInterval instead of crash-looping against
 # a database that is not there yet.
 
-const PG_HOST = "127.0.0.1"
-const PG_PORT = 5433
-const BIN = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
+const PG_HOST: string = "127.0.0.1"
+const PG_PORT: int = 5433
+const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 
 def main []: nothing -> nothing {
-    let probe = (^/usr/bin/nc -z $PG_HOST $PG_PORT | complete)
+    let probe: record = (^/usr/bin/nc -z $PG_HOST $PG_PORT | complete)
     if $probe.exit_code != 0 {
         print $"agent-brain: Postgres ($PG_HOST):($PG_PORT) is down; waiting for colima + make up"
         exit 75
