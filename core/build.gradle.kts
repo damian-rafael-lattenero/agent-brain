@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.sqldelight)
     application
 }
 
@@ -21,6 +22,7 @@ dependencies {
     implementation(libs.bundles.ktor.server)
     implementation(libs.bundles.ktor.client)
     implementation(libs.bundles.db)
+    implementation(libs.sqldelight.jdbc.driver)
     implementation(libs.kafka.clients)
     implementation(libs.bundles.logging)
     implementation(libs.bundles.kap)
@@ -42,6 +44,22 @@ dependencies {
 // Dry-run of the KAP builders: ./gradlew :core:kspKotlin -PkapDump
 ksp {
     if (project.hasProperty("kapDump")) arg("kap.dump", "true")
+}
+
+// Compile-time checked SQL (P0 spike → docs/spike-sqldelight.md): the .sq
+// queries parse under the PostgreSQL dialect at build time and generate typed
+// functions under dev.lattenero.brain.db.sq. The .sq CREATE TABLE blocks are
+// TYPING-ONLY — the runtime schema stays owned by db/Migrator (ADR-001:
+// advisory-locked plain .sql files with the __EMBED_DIM__ renderer, which
+// SQLDelight cannot express). No verifyMigrations, no .sqm: schema
+// generation is simply never invoked.
+sqldelight {
+    databases {
+        create("BrainDb") {
+            packageName.set("dev.lattenero.brain.db.sq")
+            dialect("app.cash.sqldelight:postgresql-dialect:${libs.versions.sqldelight.get()}")
+        }
+    }
 }
 
 application {

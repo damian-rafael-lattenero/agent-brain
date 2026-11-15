@@ -1,0 +1,25 @@
+-- TYPING-ONLY declaration (see Memories.sq). Cross-file references to the
+-- memories table are legal: one schema, several files.
+CREATE TABLE memory_edges (
+  src_id BIGINT NOT NULL,
+  dst_id BIGINT NOT NULL,
+  kind TEXT NOT NULL,
+  weight DOUBLE PRECISION NOT NULL
+);
+
+-- CONFINED-RAW (P0 verdict, see Memories.sq): neighborsInBand and traverse
+-- ride pgvector's `<=>` and stay raw JDBC with their measured plan laws.
+
+-- LATERAL evidence statement: the production TEMPORAL_PAIR carries the B3
+-- alive CTE (decay math — WALL #2) and therefore stays raw JDBC. This
+-- proves the LATERAL + row-constructor shape itself parses.
+temporalPair:
+SELECT cur.id AS cur_id, cur.created_at AS cur_at, prev.id AS prev_id, prev.created_at AS prev_at
+FROM memories cur
+LEFT JOIN LATERAL (
+  SELECT m.id, m.created_at FROM memories m
+  WHERE m.session_id IS NOT NULL AND m.session_id = cur.session_id
+    AND m.id <> cur.id
+    AND (m.created_at, m.id) < (cur.created_at, cur.id)
+  ORDER BY m.created_at DESC, m.id DESC LIMIT 1
+) prev ON TRUE;
