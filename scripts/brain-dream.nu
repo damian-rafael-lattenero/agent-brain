@@ -27,7 +27,10 @@ def main [
 
     let run: record = (do { run-external $BIN ...$args } | complete)
     if $run.exit_code != 0 {
-        let why: string = (if ($run.stderr | is-empty) { "no stderr" } else { $run.stderr | lines | last 1 })
+        # `complete`'s stderr may arrive as a string or a list of lines — fold to
+        # text FIRST (the drill of 15/11 crashed here and hid the real error).
+        let errText: string = (if ($run.stderr | describe | str starts-with "list") { $run.stderr | str join "\n" } else { $run.stderr })
+        let why: string = (if ($errText | is-empty) { "no stderr" } else { $errText | lines | last 1 })
         announce $"😴 dream FAILED — ($why | str substring 0..160)"
         print $"dream failed: ($why)"
         exit 1
