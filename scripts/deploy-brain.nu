@@ -79,5 +79,5 @@ def main []: nothing -> nothing {
     }
     announce-loud "🧠 <b>DEPLOY AGENT-BRAIN COMPLETO</b> — /ready 200; rag_query y memoria sirviendo con los bits nuevos"
     print 'done. Brain redeployed: /ready 200 on the fresh bits.'
-    print 'Health: nu scripts/health-check.nu (7 layers) · drills: ops/drills/.'
+    print 'Health: nu scripts/health-check.nu (8 layers) · drills: ops/drills/.'
 }
