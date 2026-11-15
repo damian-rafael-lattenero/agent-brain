@@ -43,10 +43,14 @@ import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.memory.MemoryStatus
 import dev.lattenero.brain.memory.QuarantineRow
 import dev.lattenero.brain.memory.WorkerReport
+import dev.lattenero.brain.memory.LoraExport
+import dev.lattenero.brain.memory.datasetReport
 import dev.lattenero.brain.rag.IndexReport
 import dev.lattenero.brain.rag.RepoScanReport
 import dev.lattenero.brain.rag.Repos
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import dev.lattenero.brain.rag.QueryRequest
 import dev.lattenero.brain.rag.QueryResponse
 import dev.lattenero.brain.rag.RagQueryException
@@ -68,6 +72,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import java.io.IOException
+import java.nio.file.Path
 import java.sql.SQLException
 import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.milliseconds
@@ -92,6 +97,9 @@ const val USAGE = """usage: agent-brain <command> [args]
                      agent-brain); --dry-run scans and reports, no Postgres needed
   query TEXT [--k N] hybrid retrieval with citations (no generation)
   memory search TEXT [--k N] | recent [--k N] [--kind K] | save KIND TEXT | quarantine | status | run [--once]
+  memory quarantine-stats
+                     quarantine reasons bucketed (template-echo / invalid-extraction / gave-up) —
+                     the degraded-extractor placeholder rate
   memory dedup [--dry-run]
                      merge existing near-duplicate memories into their oldest row (one-shot, idempotent)
   backfill-edges     compute memory_edges over existing rows (one-shot, idempotent)
@@ -99,6 +107,10 @@ const val USAGE = """usage: agent-brain <command> [args]
                      judge clusters of COOLING near-neighbor memories pairwise and apply the verdicts
                      (supersede invalidates the old claim, same merges, distinct nothing); --dry-run
                      prints the plan and writes nothing
+  export-lora-pairs [--limit N] [--out DIR]
+                     write the LoRA SFT dataset: positives from processed turns (transcript ->
+                     canonical extraction) + negatives from quarantine (raw -> empty); chat-format
+                     JSONL under evals/lora/
   health [--url U]   GET /ready of a running service; exit 1 when degraded
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
@@ -130,6 +142,7 @@ fun run(args: Array<String>): Int {
             "memory" -> memory(rest)
             "backfill-edges" -> backfillEdges()
             "dream" -> dream(rest)
+            "export-lora-pairs" -> exportLoraPairs(rest)
             "eval" -> eval(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
@@ -456,6 +469,7 @@ private fun memory(args: List<String>): Int {
                 printJson(responseJson.encodeToJsonElement(ListSerializer(QuarantineRow.serializer()), rows))
                 EXIT_OK
             }
+            "quarantine-stats" -> memoryQuarantineStats(brain)
             "dedup" -> memoryDedup(brain, dryRun = "--dry-run" in rest)
             "status" -> {
                 printJson(responseJson.encodeToJsonElement(MemoryStatus.serializer(), brain.memory.status()))
@@ -479,6 +493,16 @@ private fun memory(args: List<String>): Int {
 private fun List<String>.withoutOption(flag: String): List<String> =
     filterIndexed { i, a -> a != flag && (i == 0 || this[i - 1] != flag) }
 
+/** Quarantine reasons, bucketed — the degraded-extractor placeholder rate. */
+private suspend fun memoryQuarantineStats(brain: Brain): Int {
+    val reasons = brain.memoryStore.quarantineReasons()
+    printJson(responseJson.encodeToJsonElement(
+        MapSerializer(String.serializer(), Long.serializer()),
+        reasons,
+    ))
+    return EXIT_OK
+}
+
 /**
  * `dream [--limit N] [--dry-run]`: the one-shot dream pass over COOLING
  * near-neighbor clusters — the SAME verdict machinery the worker's reconcile
@@ -494,6 +518,26 @@ private fun dream(args: List<String>): Int {
         brain.migrator.apply()
         val report = DreamPass(brain.memoryStore, brain.verdictJudge).run(config.memoryHalfLifeDays, limit, dryRun)
         printJson(responseJson.encodeToJsonElement(DreamReport.serializer(), report))
+        EXIT_OK
+    }
+}
+
+/**
+ * `export-lora-pairs [--limit N] [--out DIR]`: the LoRA dataset builder —
+ * positives from processed turns (transcript -> canonical extraction) and
+ * negatives from quarantine (raw degenerate answer -> empty extraction),
+ * chat-format JSONL. The closing project's first brick: the training pairs
+ * live in the bus; the gate is the eval matrix.
+ */
+private fun exportLoraPairs(args: List<String>): Int {
+    val limit = args.optionValue("--limit")?.toIntOrNull() ?: 5_000
+    if (limit < 1) return fail("export-lora-pairs: --limit must be >= 1")
+    val out = args.optionValue("--out") ?: "evals/lora"
+    val config = Config.load()
+    return withBrain(config) { brain ->
+        brain.migrator.apply()
+        val dataset = LoraExport(brain.memoryStore).export(Path.of(out), limit)
+        println(datasetReport(dataset))
         EXIT_OK
     }
 }

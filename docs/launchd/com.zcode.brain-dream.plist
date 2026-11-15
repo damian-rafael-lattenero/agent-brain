@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- The brain's weekly dream: judge clusters of COOLING memories, consolidate
+     (supersede/merge) or leave them distinct. One-shot Sunday 04:00 — launchd
+     owns the schedule; the script is reactive (no sleeps) and announces its
+     one honest line on Telegram. Install = bootstrap gui/501/com.zcode.brain-dream. -->
+<dict>
+    <key>Label</key>
+    <string>com.zcode.brain-dream</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/nu</string>
+        <string>/Users/lattenero/Projects/agent-brain/scripts/brain-dream.nu</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/lattenero/Library/Logs/brain-dream.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lattenero/Library/Logs/brain-dream.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
