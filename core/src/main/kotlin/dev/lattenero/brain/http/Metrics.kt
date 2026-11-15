@@ -89,6 +89,9 @@ data class RagMetrics(val documents: Long, val chunks: Long) {
 /** The memory leg, projected from one [MemoryStatus]; [breakerState] is the machine's own name. */
 data class MemoryMetrics(
     val memories: Long,
+    val active: Long,
+    val cooling: Long,
+    val archived: Long,
     val pendingTurns: Long,
     val processedTurns: Long,
     val quarantined: Long,
@@ -97,6 +100,9 @@ data class MemoryMetrics(
     companion object {
         fun of(status: MemoryStatus): MemoryMetrics = MemoryMetrics(
             memories = status.memories,
+            active = status.active,
+            cooling = status.cooling,
+            archived = status.archived,
             pendingTurns = status.pendingTurns,
             processedTurns = status.processedTurns,
             quarantined = status.quarantined,
