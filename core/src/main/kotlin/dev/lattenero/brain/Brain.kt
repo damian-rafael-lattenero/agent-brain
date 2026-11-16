@@ -44,10 +44,15 @@ const val VERSION = "0.3.0"
  * every release in NonCancellable). Tests may hand in their own provider
  * (fake, or one that fails on purpose).
  */
+// The constructor IS the composition root: each parameter is one owned
+// component, so the list grows with the system instead of hiding parts in a
+// bundle object.
+@Suppress("LongParameterList")
 class Brain private constructor(
     val config: Config,
     val db: Database,
     val httpClient: HttpClient,
+    val chatHttpClient: HttpClient,
     val provider: EmbeddingProvider,
     val chat: ChatProvider,
     val bus: BusPipeline,
@@ -61,10 +66,17 @@ class Brain private constructor(
      * different, stronger model when `judge_provider` is configured (they are
      * low-frequency, quality-critical calls), the primary chat otherwise. The
      * extractor stays on the primary: the high-volume private path.
-     * Not an owned resource: providers hold no client of their own (the shared
-     * [httpClient] outlives them) and close() is a no-op for both shapes.
+     *
+     * 16/11 measured: chat calls are the LONG ones (a giant chunk generates
+     * for minutes), so they cannot ride the shared [httpClient] — its
+     * `http_timeout_s` request timeout (60 s) fired first and made
+     * `chat_timeout_s` dead config: every "ollama chat timed out" in the
+     * replay cascade was the 60 s client cut, not the 120 s knob. Chat and
+     * judge therefore hold the dedicated [chatHttpClient] (built from
+     * `chat_timeout_s`), an owned resource closed on release; the shared
+     * client keeps the fast legs (embeddings, Main's outbound HTTP).
      */
-    val judgeChat: ChatProvider = ChatProviders.judge(config, httpClient) ?: chat
+    val judgeChat: ChatProvider = ChatProviders.judge(config, chatHttpClient) ?: chat
     val rag: RagService = RagService(provider, ragStore, judgeChat)
     val tracer: CountingTracer = CountingTracer()
     val embedPipeline: EmbedPipeline = EmbedPipeline(
@@ -135,13 +147,15 @@ class Brain private constructor(
     companion object {
         const val COMPONENT_DATABASE = "database"
         const val COMPONENT_HTTP = "http-client"
+        const val COMPONENT_CHAT_HTTP = "chat-http-client"
         const val COMPONENT_PROVIDER = "embedding-provider"
         const val COMPONENT_CHAT = "chat-provider"
 
         /**
          * The whole composition as one [Resource]. Acquisition is ordered
-         * (pool, HTTP client, providers, bus) and release is its mirror: chat,
-         * embedding provider, HTTP client, pool. The bus owns no resource —
+         * (pool, HTTP client, chat HTTP client, providers, bus) and release is
+         * its mirror: chat, embedding provider, chat HTTP client, HTTP client,
+         * pool. The bus owns no resource —
          * its long-lived loops are Processes under the serve scope (Phase A2)
          * and its counters are kap `Ref` state — so its step in the chain
          * releases nothing and records nothing in the observer; it only needs
@@ -169,24 +183,32 @@ class Brain private constructor(
             )
             return Resource.zip(database, http) { db, client -> db to client }
                 .andThen { (db, client) ->
-                    val provider = component(
-                        name = COMPONENT_PROVIDER,
+                    val chatHttp = component(
+                        name = COMPONENT_CHAT_HTTP,
                         onRelease = onRelease,
-                        acquire = { providerOverride ?: EmbeddingProviders.create(config, client) },
+                        acquire = { HttpClients.create(config.chatTimeoutS) },
                         close = { it.close() },
                     )
-                    val chat = component(
-                        name = COMPONENT_CHAT,
-                        onRelease = onRelease,
-                        acquire = { chatOverride ?: ChatProviders.create(config, client) },
-                        close = { it.close() },
-                    )
-                    val bus = Resource(
-                        acquire = { BusPipeline.of(config, db).evalGraph() },
-                        release = { },
-                    )
-                    Resource.zip(provider, chat, bus) { providerValue, chatValue, busPipeline ->
-                        Brain(config, db, client, providerValue, chatValue, busPipeline)
+                    chatHttp.andThen { chatClient ->
+                        val provider = component(
+                            name = COMPONENT_PROVIDER,
+                            onRelease = onRelease,
+                            acquire = { providerOverride ?: EmbeddingProviders.create(config, client) },
+                            close = { it.close() },
+                        )
+                        val chat = component(
+                            name = COMPONENT_CHAT,
+                            onRelease = onRelease,
+                            acquire = { chatOverride ?: ChatProviders.create(config, chatClient) },
+                            close = { it.close() },
+                        )
+                        val bus = Resource(
+                            acquire = { BusPipeline.of(config, db).evalGraph() },
+                            release = { },
+                        )
+                        Resource.zip(provider, chat, bus) { providerValue, chatValue, busPipeline ->
+                            Brain(config, db, client, chatClient, providerValue, chatValue, busPipeline)
+                        }
                     }
                 }
         }
