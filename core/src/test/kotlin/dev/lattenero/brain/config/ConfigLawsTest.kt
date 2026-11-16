@@ -49,6 +49,7 @@ class ConfigLawsTest {
         "glm_model" to { c -> c.glmModel },
         "chat_provider" to { c -> c.chatProvider },
         "chat_model" to { c -> c.chatModel },
+        "chat_base_url" to { c -> c.chatBaseUrl },
         "glm_chat_model" to { c -> c.glmChatModel },
         "chat_timeout_s" to { c -> c.chatTimeoutS },
         "judge_provider" to { c -> c.judgeProvider },
