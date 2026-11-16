@@ -16,10 +16,9 @@ full statement set — retrieval laws included — compile with byte-faithful SQ
 ## Decision
 
 1. **SQLDelight 2.4.1 over the fork** for every store statement that the fork
-   compiles (all of them, measured). The artifact is VENDORED as a maven-layout
-   repo at `core/libs/maven/dev/lattenero/sqldelight/…` — CI resolves it with
-   zero auth (GitHub Packages would need a cross-repo PAT; Maven Central under
-   `io.github.damian-rafael-lattenero` is the M5 upgrade path).
+   compiles (all of them, measured). The artifact resolves from Maven Central
+   under `io.github.damian-rafael-lattenero` (M5, 16/11 — see the M5 section;
+   it was a vendored maven-layout repo at `core/libs/maven` before that).
 2. **`Migrator` remains the single schema owner** (advisory lock 727001,
    `schema_migrations` ledger, `__EMBED_DIM__` rendering, HNSW/GIN DDL). The
    `.sq` CREATE TABLE blocks are typing-only and never executed. No `.sqm`, no
@@ -43,9 +42,11 @@ full statement set — retrieval laws included — compile with byte-faithful SQ
 
 ## Fork stewardship
 
-- Coordinates never collide with upstream (`dev.lattenero.sqldelight`).
+- Coordinates never collide with upstream (`io.github.damian-rafael-lattenero`,
+  Maven Central since 16/11; before that `dev.lattenero.sqldelight` locally).
 - Sync discipline = the ZCode-fork pattern: rebase `damian` on upstream
-  releases, run the dialect fixture tests, bump `2.4.1-brainN`, re-vendor.
+  releases, run the dialect fixture tests, bump `2.4.1-brainN`, publish via the
+  fork's workflow (no re-vendor step anymore — M5 deleted it).
 - Drop conditions: sqldelight upstream lands a generic operator token /
   pgvector support and unknown-scalar-function tolerance. NOTE: the upstream
   Grammar-Kit-Composer repo rejects LLM-generated contributions — an upstream
@@ -59,25 +60,33 @@ full statement set — retrieval laws included — compile with byte-faithful SQ
   upstream release against the fork's `VERSION_NAME` base (exit 0 = current,
   10 = a rebase is due, 1 = the query failed) — read-only, safe for a sentinel.
 
-## M5 — the fork on Maven Central (prepared 2026-11-16, owner step pending)
+## M5 — the fork on Maven Central (DONE 2026-11-16)
 
-The fork's `damian` branch (`3db85f909`) is wired to publish
+The fork's `damian` branch (`3db85f909`) publishes
 `io.github.damian-rafael-lattenero:postgresql-dialect:2.4.1-brain2` — the
 GitHub-verified namespace the kap artifacts already use — through the
 vanniktech Central Portal tasks upstream already applies, scoped to
 `:dialects:postgresql`. `.github/workflows/publish.yml` carries the publish
-job; it needs the SAME five repository secrets kap's release uses
-(`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY_ID`,
-`SIGNING_PASSWORD`, `GPG_KEY_CONTENTS`) added to
-`damian-rafael-lattenero/sqldelight` — a human step (no Central token nor GPG
-key exists on the dev machine, measured 16/11).
+job (workflow_dispatch + release; it also lives on `main` because
+`workflow_dispatch` only sees workflows on the default branch). The five
+repository secrets (`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`,
+`SIGNING_KEY_ID`, `SIGNING_PASSWORD`, `GPG_KEY_CONTENTS`) are set on
+`damian-rafael-lattenero/sqldelight`; the signing key is ed25519
+`1D51AF73` (public arm on keyserver.ubuntu.com; Central looks it up there).
 
-**After the owner adds the secrets and runs the workflow:** switch
-`settings.gradle.kts` (drop the `core/libs/maven` repository + `mavenLocal()`
-fallback), change the two `dev.lattenero.sqldelight` coordinates to
-`io.github.damian-rafael-lattenero`, delete `core/libs/maven`, re-run
-`detektAll test` (the dialect resolution is the only moving part). The
-vendored copy stays the source of truth until the Central artifact exists.
+Published 16/11: `Uploaded bundle to Central Portal as AUTOMATIC, deployment
+id 1c226c74-1b44-4aeb-9b25-44848ca586dd`. Two traps measured on the way:
+signatory rejects 16-hex long key ids (use the 8-hex short form) and a
+corrupted `GPG_KEY_CONTENTS` secret surfaces as "Cannot find key with id X
+in key data" — re-set the secret from the exported `.asc` verbatim.
+
+**The switch is this change:** the build resolves the dialect from
+`mavenCentral()` under `io.github.damian-rafael-lattenero`;
+`core/libs/maven` (the vendored jar+pom+module) is deleted; the `mavenLocal()`
+fallback stays for the fork's local dev loop. Refresh procedure now =
+rebase `damian`, bump `2.4.1-brainN` in the fork's module properties, run the
+workflow (the artifact appears on Central; repo1 sync is async — minutes,
+occasionally up to two hours).
 
 ## Consequences
 
