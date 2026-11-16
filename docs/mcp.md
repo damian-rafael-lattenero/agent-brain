@@ -178,7 +178,7 @@ token, no paths) — it answers "is the process up, and how many tool calls has 
 served":
 
 ```json
-{"status":"ok","server":"brain-mcp","version":"0.1.0","transport":"streamable-http","endpoint":"/mcp","tools":4,"calls":2}
+{"status":"ok","server":"brain-mcp","version":"0.2.0","transport":"streamable-http","endpoint":"/mcp","tools":5,"calls":2}
 ```
 
 A tool call against a down brain is NOT a 5xx: it is the ordinary
@@ -418,12 +418,13 @@ $ curl -s -D headers -X POST http://127.0.0.1:8767/mcp \
 HTTP/1.1 200 OK
 mcp-session-id: 081b5eaa-340c-4dc0-84ee-3deeb85e4ad7
 
-{"id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"brain-mcp","version":"0.1.0"},…},"jsonrpc":"2.0"}
+{"id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{},"resources":{}},"serverInfo":{"name":"brain-mcp","version":"0.2.0"},…},"jsonrpc":"2.0"}
 
 ### 4. tools/list (same session, same token)
 - rag_query      | required: ['query'] | Hybrid (semantic + full-text) search over the indexed corpus
 - memory_search  | required: ['query'] | Recall durable memories (facts, decisions, preferences) …
 - memory_recent  | required: []         | The most recent memories (newest first) …
+- memory_status  | required: []         | The memory system's counters and health …
 - bus_status     | required: []         | The event bus tailer/consumer counters …
 
 ### 5. tools/call rag_query — REAL citations from the REAL index
