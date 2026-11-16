@@ -47,6 +47,8 @@ data class Config(
     val glmApiKey: String,
     val chatProvider: String,
     val chatModel: String,
+    val chatBaseUrl: String,
+    val chatApiKey: String,
     val glmChatModel: String,
     val chatTimeoutS: Int,
     val judgeProvider: String,
@@ -134,9 +136,10 @@ data class Config(
             "ollama_model" to "nomic-embed-text",
             "glm_base_url" to "https://api.z.ai/api/paas/v4",
             "glm_model" to "embedding-3",
-    "chat_provider" to "ollama", // ollama | glm | fake
+    "chat_provider" to "ollama", // ollama | glm | openai | fake
     "chat_model" to "qwen2.5:1.5b",
-    "glm_chat_model" to "glm-4.5-flash",
+    "chat_base_url" to "", // openai shape: the OpenAI-compatible endpoint (blank = unused by ollama/glm)
+    "glm_chat_model" to "glm-5.3-flash",
     // 240: a capped giant-chunk generation measures 90-130 s on qwen2.5:1.5b —
     // 120 left zero headroom and opened the breaker on every replay round.
     "chat_timeout_s" to 240,
@@ -180,6 +183,16 @@ data class Config(
             fun str(name: String) = resolve(name, env, fileCfg) as String
             fun int(name: String) = resolve(name, env, fileCfg) as Int
             fun bool(name: String) = resolve(name, env, fileCfg) as Boolean
+            // The judge key: env first, then the base/judge-api-key file — the
+            // durable store a plist rewrite cannot lose (16/11 measured: the
+            // plist envs vanished in a deploy and the judge silently fell back
+            // to the primary chat). The chat key rides the same relay: its own
+            // env, else the judge key.
+            fun secret(name: String): String = env[name]?.trim().takeUnless { it.isNullOrEmpty() }.orEmpty()
+            val judgeKey: String = secret("JUDGE_API_KEY").ifBlank {
+                val keyFile = base.resolve("judge-api-key")
+                if (Files.exists(keyFile)) Files.readString(keyFile).trim() else ""
+            }
             return Config(
                 base = base,
                 configPath = configPath,
@@ -198,12 +211,14 @@ data class Config(
                 glmApiKey = env["GLM_API_KEY"] ?: env["ZAI_API_KEY"] ?: "",
                 chatProvider = str("chat_provider"),
                 chatModel = str("chat_model"),
+                chatBaseUrl = str("chat_base_url"),
+                chatApiKey = secret("OPENAI_API_KEY").ifBlank { judgeKey },
                 glmChatModel = str("glm_chat_model"),
                 chatTimeoutS = int("chat_timeout_s"),
                 judgeProvider = str("judge_provider"),
                 judgeBaseUrl = str("judge_base_url"),
                 judgeModel = str("judge_model"),
-                judgeApiKey = env["JUDGE_API_KEY"].orEmpty(),
+                judgeApiKey = judgeKey,
                 judgeTimeoutS = int("judge_timeout_s"),
                 memoryWorker = bool("memory_worker"),
                 memoryPollMs = int("memory_poll_ms"),
