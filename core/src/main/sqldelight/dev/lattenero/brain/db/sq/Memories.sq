@@ -78,6 +78,26 @@ SELECT count(*) AS n FROM memories;
 -- surfaces must agree on who is alive, so recall surfaces never disagree.
 -- The fork dialect parses `<=>` (LTE GT token sequence) and the FTS functions
 -- resolve through the fork's TypeResolver.
+--
+-- The U1 law, measured 16/11 on the live DB (PG 18.6): the vec leg must let
+-- the planner pick memories_embedding_hnsw, and TWO things block that.
+-- (1) A semi-join (`m.id IN (SELECT id FROM alive)`) under
+-- `ORDER BY embedding <=> :qv LIMIT n` CANNOT be served by the HNSW access
+-- method — the planner falls back to a scan + hash semi-join + sort. So the
+-- VEC leg inlines the alive conditions into its WHERE — verbatim the same
+-- expressions the alive CTE computes (`now()` is statement-stable, so the
+-- inlined predicate selects exactly the alive set).
+-- (2) The distance operand must be the BOUND PARAMETER, not the params CTE
+-- column: an `embedding <=> p.qv` whose right side is a variable from another
+-- relation can never produce the ORDER BY pathkeys an ordered index scan
+-- needs (measured: identical inline shape with `p.qv` still seq-scans). So
+-- the vec leg's distance references `:qv` directly — the same value the
+-- params CTE carries; the fts leg keeps its CTE references. The FTS leg
+-- KEEPS the semi-join: it is served by the content_tsv GIN index and gains
+-- nothing from HNSW.
+-- Scale note: at ~3.9k rows the cost model still prefers a seq scan (the
+-- EXPLAIN shows the index path under enable_seqscan=off); the lever opens
+-- with scale — the shape is now HNSW-capable.
 searchMemory:
 WITH params AS (
   SELECT :qv::vector AS qv, :model::text AS model, :n::int AS n,
@@ -90,8 +110,10 @@ WITH params AS (
     AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
 ), vec AS (
   SELECT id, row_number() OVER (ORDER BY dist, id) AS r FROM (
-    SELECT m.id, m.embedding <=> p.qv AS dist FROM memories m, params p
-    WHERE m.embed_model = p.model AND m.id IN (SELECT id FROM alive)
+    SELECT m.id, m.embedding <=> :qv::vector AS dist FROM memories m, params p
+    WHERE m.embed_model = p.model
+      AND m.invalid_at IS NULL
+      AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
     ORDER BY dist, m.id LIMIT (SELECT n FROM params)
   ) top
 ), fts AS (
