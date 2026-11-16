@@ -3,6 +3,7 @@ package dev.lattenero.brain.memory
 import arrow.core.Either
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.rag.EmbedPipeline
+import kap.CircuitBreakerOpenException
 import kap.Kap
 import kap.Process
 import kap.RestartPolicy
@@ -304,11 +305,27 @@ class MemoryWorker(
          * defers until the attempt cap, then gives up. An open circuit
          * breaker needs no case of its own (plan C2): it is the provider
          * failing fast, i.e. [ExtractionFailure.ProviderDown].
+         *
+         * 16/11 measured correction to the interim: a breaker-open rejection
+         * must NOT consume the turn's attempt budget. It is the PROVIDER's
+         * state (self-healing within the reset window), not the turn's — one
+         * giant turn opening the breaker burned 12 queued turns to gave-up
+         * without a single model call reaching the provider. The breaker-open
+         * failure defers for free, at the CURRENT attempt count, for as long
+         * as the breaker stays open.
          */
         internal fun classify(e: Throwable, attemptsSoFar: Int, maxAttempts: Int): ExtractionFailure {
             if (e is ExtractionInvalid) return ExtractionFailure.Invalid(e.reason, e.raw)
             val reason = "${e::class.simpleName}: ${e.message}"
-            val attempts = attemptsSoFar + 1
+            // A breaker-open rejection defers FOR FREE — the provider's state,
+            // never the turn's budget (16/11 measured cascade: one giant turn
+            // opened the breaker and 12 queued turns burned to gave-up without
+            // a single model call). It never reaches the cap: attemptsSoFar
+            // does not move while the breaker stays open.
+            val attempts: Int = when (e) {
+                is CircuitBreakerOpenException -> attemptsSoFar
+                else -> attemptsSoFar + 1
+            }
             return if (attempts >= maxAttempts) {
                 ExtractionFailure.GaveUp(attempts, reason)
             } else {

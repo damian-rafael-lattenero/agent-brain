@@ -26,8 +26,11 @@ class MemoryWorkerTest {
     }
 
     @Test
-    fun `an open circuit breaker is a provider failure like any other - the C2 interim has no special case`() {
-        val failure = MemoryWorker.classify(CircuitBreakerOpenException(), attemptsSoFar = 0, maxAttempts = 5)
-        assertThat(failure).isEqualTo(ExtractionFailure.ProviderDown(attempts = 1, reason = "CircuitBreakerOpenException: Circuit breaker is open"))
+    fun `an open circuit breaker defers FOR FREE - the provider's state must not consume the turn's attempts`() {
+        // 16/11 measured: one giant turn opened the breaker and 12 queued
+        // turns burned their whole budget on instant open-breaker rejects,
+        // quarantined without a single model call reaching the provider.
+        val failure = MemoryWorker.classify(CircuitBreakerOpenException(), attemptsSoFar = 4, maxAttempts = 5)
+        assertThat(failure).isEqualTo(ExtractionFailure.ProviderDown(attempts = 4, reason = "CircuitBreakerOpenException: Circuit breaker is open"))
     }
 }

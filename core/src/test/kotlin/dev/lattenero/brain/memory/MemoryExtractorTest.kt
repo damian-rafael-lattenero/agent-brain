@@ -83,6 +83,51 @@ class MemoryExtractorTest {
     }
 
     @Test
+    fun `a giant transcript is extracted in two chunks and the bins merge under the caps`() = runTest {
+        val half: String = "detail ".repeat(300)
+        val giant = Transcript(
+            "ev1", "ses_1", "17", "bot",
+            prompt = "MARKER-A " + half,
+            reply = "MARKER-B " + half,
+            tools = emptyList(),
+            title = "Giant turn",
+        )
+        val chat = FakeChatProvider { _, user ->
+            when {
+                user.contains("MARKER-A") -> FakeChatProvider.json(
+                    "facts" to FakeChatProvider.strings("Chunk A produced this verifiable statement."),
+                    "summary" to JsonPrimitive("Chunk A summary."),
+                )
+                else -> FakeChatProvider.json(
+                    "facts" to FakeChatProvider.strings("Chunk B produced this verifiable statement."),
+                    "summary" to JsonPrimitive(""),
+                )
+            }
+        }
+        val extraction = extractor(chat).extract(giant).evalGraph()
+        assertThat(chat.calls).hasSize(2)
+        assertThat(extraction.facts).containsExactly(
+            "Chunk A produced this verifiable statement.",
+            "Chunk B produced this verifiable statement.",
+        )
+        assertThat(extraction.summary).isEqualTo("Chunk A summary.")
+        assertThat(chat.calls[0].second.length).isLessThanOrEqualTo(MemoryExtractor.CHUNK_CAP)
+        assertThat(chat.calls[1].second.length).isLessThanOrEqualTo(MemoryExtractor.CHUNK_CAP)
+    }
+
+    @Test
+    fun `a small transcript stays one call`() = runTest {
+        val chat = FakeChatProvider { _, _ ->
+            FakeChatProvider.json(
+                "facts" to FakeChatProvider.strings("Short turn fact."),
+                "summary" to JsonPrimitive("one call"),
+            )
+        }
+        extractor(chat).extract(transcript).evalGraph()
+        assertThat(chat.calls).hasSize(1)
+    }
+
+    @Test
     fun `caps and hygiene - short items dropped, long ones clipped, duplicates removed, ten per kind, empty lists fine`() {
         val many = (1..15).map { "Fact number $it that is long enough to keep." }
         val raw = FakeChatProvider.json(
