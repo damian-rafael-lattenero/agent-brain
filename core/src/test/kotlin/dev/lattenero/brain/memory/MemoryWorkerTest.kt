@@ -31,6 +31,18 @@ class MemoryWorkerTest {
         // turns burned their whole budget on instant open-breaker rejects,
         // quarantined without a single model call reaching the provider.
         val failure = MemoryWorker.classify(CircuitBreakerOpenException(), attemptsSoFar = 4, maxAttempts = 5)
-        assertThat(failure).isEqualTo(ExtractionFailure.ProviderDown(attempts = 4, reason = "CircuitBreakerOpenException: Circuit breaker is open"))
+        assertThat(failure).isEqualTo(
+            ExtractionFailure.ProviderDown(
+                attempts = 4,
+                reason = "CircuitBreakerOpenException: Circuit breaker is open",
+                fromOpenBreaker = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `a real outage keeps counting - the cap still gives up eventually`() {
+        val failure = MemoryWorker.classify(ProviderUnavailable("llm offline"), attemptsSoFar = 1, maxAttempts = 5)
+        assertThat(failure).isEqualTo(ExtractionFailure.ProviderDown(attempts = 2, reason = "ProviderUnavailable: llm offline"))
     }
 }
