@@ -27,15 +27,20 @@ class MemoryGraphStore(private val db: Database) {
     data class TemporalPair(val prev: DatedMemory, val cur: DatedMemory)
 
     /** Batched insert of edge values; returns how many rows actually landed (idempotent skips excluded). */
-    suspend fun insertEdges(edges: List<MemoryEdge>): Int = db.withConnection { conn ->
-        if (edges.isEmpty()) return@withConnection 0
-        conn.prepareStatement(INSERT_EDGE).use { ps ->
+    suspend fun insertEdges(edges: List<MemoryEdge>): Int = db.withDriver { brainDb ->
+        if (edges.isEmpty()) return@withDriver 0
+        var landed = 0
+        brainDb.transaction {
             for (edge in edges) {
-                ps.bind(conn, edge.srcId, edge.dstId, edge.kind.wire, edge.weight)
-                ps.addBatch()
+                landed += brainDb.memoryEdgesQueries.insertEdge(
+                    edge.srcId,
+                    edge.dstId,
+                    edge.kind.wire,
+                    edge.weight,
+                ).value.toInt()
             }
-            ps.executeBatch().count { it > 0 }
         }
+        landed
     }
 
     /**
@@ -182,10 +187,6 @@ class MemoryGraphStore(private val db: Database) {
     }
 
     companion object {
-        private const val INSERT_EDGE =
-            "INSERT INTO memory_edges (src_id, dst_id, kind, weight) VALUES (?, ?, ?, ?) " +
-                "ON CONFLICT (src_id, dst_id, kind) DO NOTHING"
-
         /**
          * The SQL twin of [Salience.weight] over the freshness clock
          * (created_at) — the same rendering `MemoryStore.SEARCH` uses for its

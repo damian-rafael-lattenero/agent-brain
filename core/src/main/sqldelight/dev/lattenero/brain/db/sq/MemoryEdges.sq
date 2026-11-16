@@ -70,3 +70,8 @@ memoriesAny:
 SELECT id FROM memories
 WHERE id = ANY(:ids::bigint[])
 ORDER BY id;
+
+insertEdge:
+INSERT INTO memory_edges (src_id, dst_id, kind, weight)
+VALUES (:srcId, :dstId, :kind, :weight)
+ON CONFLICT (src_id, dst_id, kind) DO NOTHING;

@@ -76,6 +76,29 @@ class SqlDelightSpikeIT {
     }
 
     @Test
+    fun `no aborted transaction leaks to the next pool borrower`() = runBlocking<Unit> {
+        // M2 transaction law (ADR-007): a rolled-back generated transaction must
+        // leave its pooled connection CLEAN — the next borrower (raw or generated)
+        // must not inherit Postgres's "current transaction is aborted" state.
+        assertThatThrownBy {
+            brainDb.transaction {
+                brainDb.memoriesQueries.insertMemory("s3", "t3", "fact", "abort probe", "fake", "[2,2,2,2]", null)
+                    .executeAsOne()
+                error("abort-probe")
+            }
+        }.hasMessageContaining("abort-probe")
+
+        // A fresh borrower writes through the RAW path on the same pool.
+        db.withConnection { conn ->
+            conn.createStatement().use { st ->
+                st.execute("INSERT INTO memories (kind, content, embed_model, embedding, salience) VALUES ('fact', 'post-rollback probe', 'fake', '[1,1,1,1]', 1.0)")
+            }
+        }
+        // ...and the generated path still answers on that pool.
+        assertThat(brainDb.memoriesQueries.countMemories().executeAsOne()).isPositive()
+    }
+
+    @Test
     fun `lateral temporal pair shape executes`() {
         // One transaction, two rows: now() is the transaction timestamp, so
         // created_at ties and the row constructor breaks the tie by id.
