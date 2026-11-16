@@ -28,7 +28,9 @@ CREATE TABLE memory_quarantine (
   turn_id TEXT,
   reason TEXT NOT NULL,
   raw TEXT NOT NULL,
-  ts TIMESTAMPTZ DEFAULT now()
+  ts TIMESTAMPTZ DEFAULT now(),
+  event_id TEXT,
+  session_id TEXT
 );
 
 insertMemory:
@@ -123,3 +125,58 @@ SELECT id FROM memories
 WHERE embed_model = :embedModel AND invalid_at IS NULL
   AND (1 - (embedding <=> :qv::vector)) >= :threshold
 ORDER BY created_at, id LIMIT 1;
+
+countSuperseded:
+SELECT count(*) AS n FROM memories WHERE invalid_at IS NOT NULL;
+
+countQuarantined:
+SELECT count(*) AS n FROM memory_quarantine;
+
+-- The memories one turn produced, in insertion order (the LoRA pair's target).
+memoriesOfTurn:
+SELECT kind, content FROM memories WHERE turn_id = :turnId AND invalid_at IS NULL ORDER BY id;
+
+byId:
+SELECT id, kind, content, session_id, turn_id, salience, created_at,
+       NULL::float8 AS score, NULL::float8 AS weight
+FROM memories WHERE id = :id;
+
+-- recent: the optional kind filter becomes two named queries (landmine fix).
+recent:
+SELECT id, kind, content, session_id, turn_id, salience, created_at,
+       NULL::float8 AS score, NULL::float8 AS weight
+FROM memories ORDER BY created_at DESC, id DESC LIMIT :lim;
+
+recentOfKind:
+SELECT id, kind, content, session_id, turn_id, salience, created_at,
+       NULL::float8 AS score, NULL::float8 AS weight
+FROM memories WHERE kind = :kind ORDER BY created_at DESC, id DESC LIMIT :lim;
+
+quarantined:
+SELECT id, event_id, session_id, turn_id, reason, raw, ts FROM memory_quarantine
+ORDER BY ts DESC, id DESC LIMIT :lim;
+
+-- M2 writes. The deduped batch insert (no RETURNING: the batch reports counts).
+insertMemoryNoReturn:
+INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
+VALUES (:sessionId, :turnId, :kind, :content, :embedModel, :embedding::vector, :sourceEventId)
+ON CONFLICT DO NOTHING;
+
+-- The verdict stamps, guarded.
+invalidate:
+UPDATE memories SET invalid_at = now() WHERE id = :id AND invalid_at IS NULL;
+
+-- Absorbed rows die (the dedup merge's loser deletion).
+deleteAbsorbed:
+DELETE FROM memories WHERE id = ANY(:ids::bigint[]);
+
+-- Access reinforcement: search hits and dedup merges.
+reinforceOne:
+UPDATE memories SET salience = salience + :by, last_accessed = now() WHERE id = :id;
+
+reinforceSearch:
+UPDATE memories SET salience = salience + :by, last_accessed = now() WHERE id = ANY(:ids::bigint[]);
+
+quarantineInsert:
+INSERT INTO memory_quarantine (turn_id, reason, raw, event_id, session_id)
+VALUES (:turnId, :reason, :raw, :eventId, :sessionId);
