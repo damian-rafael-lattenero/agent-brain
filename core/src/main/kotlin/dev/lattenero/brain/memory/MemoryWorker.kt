@@ -44,8 +44,15 @@ sealed interface ExtractionFailure {
     /** The model answered, but not with something we accept: quarantined with the raw output. */
     data class Invalid(val reason: String, val raw: String) : ExtractionFailure
 
-    /** The provider (chat or embed) could not answer: deferred, attempt counted, retried next cycle. */
-    data class ProviderDown(val attempts: Int, val reason: String) : ExtractionFailure
+    /** The provider (chat or embed) could not answer: deferred, attempt counted, retried next cycle.
+     *  [fromOpenBreaker] marks the special case measured 16/11: the rejection is the PROVIDER's
+     *  self-healing state, not the turn's — the defer must NOT touch the attempt counter, or a
+     *  single open breaker burns every queued turn to gave-up without a model call. */
+    data class ProviderDown(
+        val attempts: Int,
+        val reason: String,
+        val fromOpenBreaker: Boolean = false,
+    ) : ExtractionFailure
 
     /** Deferred past the attempt cap: quarantined with the reason. */
     data class GaveUp(val attempts: Int, val reason: String) : ExtractionFailure
@@ -257,7 +264,12 @@ class MemoryWorker(
                 store.markProcessed(turn.eventId)
             }
             is ExtractionFailure.ProviderDown -> {
-                store.bumpAttempts(turn.eventId)
+                // A breaker-open rejection is the provider's self-healing
+                // state, not progress on the turn: the attempt counter stays
+                // UNTOUCHED (16/11: 13 queued turns burned 0->5 through
+                // bumpAttempts-per-cycle on an open breaker). Real provider
+                // outages keep counting — the cap still gives up eventually.
+                if (!failure.fromOpenBreaker) store.bumpAttempts(turn.eventId)
                 log.warn(
                     "memory extraction deferred for {} (attempt {}): {}",
                     turn.eventId, failure.attempts, failure.reason,
@@ -329,7 +341,7 @@ class MemoryWorker(
             return if (attempts >= maxAttempts) {
                 ExtractionFailure.GaveUp(attempts, reason)
             } else {
-                ExtractionFailure.ProviderDown(attempts, reason)
+                ExtractionFailure.ProviderDown(attempts, reason, fromOpenBreaker = e is CircuitBreakerOpenException)
             }
         }
 
