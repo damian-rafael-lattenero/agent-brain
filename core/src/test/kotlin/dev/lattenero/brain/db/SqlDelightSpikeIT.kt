@@ -109,7 +109,8 @@ class SqlDelightSpikeIT {
                     .executeAsOne()
             }
         }
-        val row = brainDb.memoryEdgesQueries.temporalPair().executeAsList().first { it.cur_id == ids.max() }
+        val row = brainDb.memoryEdgesQueries.temporalPair(30, 0.125, ids.max()).executeAsList()
+            .first { it.cur_id == ids.max() }
         assertThat(row.prev_id).isEqualTo(ids.min())
     }
 

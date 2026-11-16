@@ -72,31 +72,27 @@ class RagStore(private val db: Database) {
             brainDb.ragQueries.deleteDocumentsNotIn(source, keptUris.toTypedArray()).value.toInt()
         }
 
-    suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int = DEFAULT_K): List<Hit> = db.withConnection { conn ->
+    suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int = DEFAULT_K): List<Hit> = db.withDriver { brainDb ->
         val candidates = maxOf(k * CANDIDATE_FACTOR, MIN_CANDIDATES)
-        conn.prepareStatement(SEARCH).use { ps ->
-            val vector = PGvector(queryEmbedding)
-            ps.setObject(1, vector)
-            ps.setString(2, embedModel)
-            ps.setInt(3, candidates)
-            ps.setString(4, queryText)
-            ps.setInt(5, k)
-            ps.executeQuery().use { rs ->
-                generateSequence {
-                    if (!rs.next()) null else Hit(
-                        chunkId = rs.getLong("id"),
-                        docId = rs.getLong("doc_id"),
-                        uri = rs.getString("uri"),
-                        title = rs.getString("title"),
-                        heading = rs.getString("heading"),
-                        ordinal = rs.getInt("ordinal"),
-                        content = rs.getString("content"),
-                        score = rs.getDouble("score"),
-                        vectorRank = rs.getObject("vec_rank")?.let { (it as Number).toInt() },
-                        textRank = rs.getObject("fts_rank")?.let { (it as Number).toInt() },
-                    )
-                }.toList()
-            }
+        brainDb.ragQueries.searchRag(
+            queryEmbedding.toVectorText(),
+            embedModel,
+            candidates,
+            queryText,
+            k.toLong(),
+        ).executeAsList().map {
+            Hit(
+                chunkId = it.id,
+                docId = it.doc_id,
+                uri = it.uri,
+                title = it.title,
+                heading = it.heading,
+                ordinal = it.ordinal,
+                content = it.content,
+                score = it.score?.toDouble() ?: 0.0,
+                vectorRank = it.vec_rank?.toInt(),
+                textRank = it.fts_rank?.toInt(),
+            )
         }
     }
 

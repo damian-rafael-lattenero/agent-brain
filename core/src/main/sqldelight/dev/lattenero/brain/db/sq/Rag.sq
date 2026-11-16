@@ -54,3 +54,38 @@ VALUES (:docId, :ordinal, :heading, :content, :embedModel, :embedding::vector);
 deleteDocumentsNotIn:
 DELETE FROM documents WHERE source = :source
   AND uri NOT IN (SELECT unnest(:keptUris::text[]));
+
+-- The citations hybrid (RagStore.SEARCH): two ranked legs, one fused list.
+-- The vector leg is an exact scan (the 1-row params CTE hides the constant
+-- from the HNSW planner); exact beats approximate until the corpus outgrows it.
+searchRag:
+WITH params AS (
+  SELECT :qv::vector AS qv, :model::text AS model, :n::int AS n, websearch_to_tsquery('simple', :text) AS tsq
+), vec AS (
+  SELECT id, row_number() OVER (ORDER BY dist, id) AS r FROM (
+    SELECT c.id, c.embedding <=> p.qv AS dist
+    FROM chunks c, params p WHERE c.embed_model = p.model
+    ORDER BY dist, c.id LIMIT (SELECT n FROM params)
+  ) top
+), fts AS (
+  SELECT id, row_number() OVER (ORDER BY rank DESC, id) AS r FROM (
+    SELECT c.id, ts_rank_cd(c.content_tsv, p.tsq) AS rank
+    FROM chunks c, params p
+    WHERE c.embed_model = p.model AND c.content_tsv @@ p.tsq
+    ORDER BY rank DESC, c.id LIMIT (SELECT n FROM params)
+  ) top
+), fused AS (
+  SELECT id, SUM(1.0 / (60 + r)) AS score
+  FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) legs
+  GROUP BY id
+)
+SELECT c.id, c.doc_id, d.uri, d.title, c.heading, c.ordinal, c.content, f.score,
+       vec.r AS vec_rank,
+       fts.r AS fts_rank
+FROM fused f
+JOIN chunks c ON c.id = f.id
+JOIN documents d ON d.id = c.doc_id
+LEFT JOIN vec ON vec.id = c.id
+LEFT JOIN fts ON fts.id = c.id
+ORDER BY f.score DESC, c.id
+LIMIT :k;

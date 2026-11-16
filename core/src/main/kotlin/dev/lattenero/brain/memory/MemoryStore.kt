@@ -4,13 +4,11 @@ import com.pgvector.PGvector
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.sq.LifecycleCounts as GeneratedLifecycleCounts
 import dev.lattenero.brain.db.toVectorText
-import dev.lattenero.brain.rag.Rrf
 import kap.KapTypeSafe
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.sql.Timestamp
 import java.time.OffsetDateTime
 
 @Serializable
@@ -232,24 +230,17 @@ class MemoryStore(private val db: Database) {
      * backfill is a CLI command, never a migration: a destructive merge must
      * run when the operator asks for it, not at every startup.
      */
-    suspend fun dedupRows(): List<DedupRow> = db.withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery(
-                "SELECT id, kind, content, embed_model, salience, created_at, embedding::text " +
-                    "FROM memories WHERE invalid_at IS NULL ORDER BY created_at, id",
-            ).use { rs ->
-                generateSequence {
-                    if (!rs.next()) null else DedupRow(
-                        id = rs.getLong(1),
-                        kind = rs.getString(2),
-                        content = rs.getString(3),
-                        embedModel = rs.getString(4),
-                        salience = rs.getDouble(5),
-                        createdAt = (rs.getObject(6) as Timestamp).toInstant(),
-                        embedding = PGvector(rs.getString(7)).toArray(),
-                    )
-                }.toList()
-            }
+    suspend fun dedupRows(): List<DedupRow> = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.dedupRows().executeAsList().map {
+            DedupRow(
+                id = it.id,
+                kind = it.kind,
+                content = it.content,
+                embedModel = it.embed_model,
+                salience = it.salience,
+                createdAt = it.created_at.toInstant(),
+                embedding = PGvector(it.embedding_text).toArray(),
+            )
         }
     }
 
@@ -314,78 +305,35 @@ class MemoryStore(private val db: Database) {
         selfId: Long,
         embedModel: String,
         band: NeighborBand,
-    ): NeighborRow? = db.withConnection { conn ->
-        conn.prepareStatement(
-            """
-            WITH params AS (SELECT ?::int AS half_life, ?::float8 AS forget_floor),
-                 q AS (SELECT ?::vector AS v)
-            SELECT m.id, m.content, m.created_at, 1 - (m.embedding <=> q.v) AS cosine
-            FROM memories m, params p, q
-            WHERE m.embed_model = ?
-              AND m.id <> ?
-              AND m.invalid_at IS NULL
-              AND (1 - (m.embedding <=> q.v)) >= ?
-              AND (1 - (m.embedding <=> q.v)) < ?
-              AND $LIFE_WEIGHT_SQL >= p.forget_floor
-            ORDER BY m.embedding <=> q.v, m.id
-            LIMIT 1
-            """.trimIndent(),
-        ).use { ps ->
-            ps.setInt(1, band.halfLifeDays)
-            ps.setDouble(2, Lifecycle.FORGET_FLOOR)
-            ps.setObject(3, PGvector(embedding))
-            ps.setString(4, embedModel)
-            ps.setLong(5, selfId)
-            ps.setDouble(6, band.low)
-            ps.setDouble(7, band.high)
-            ps.executeQuery().use { rs ->
-                if (!rs.next()) {
-                    null
-                } else {
-                    NeighborRow(
-                        id = rs.getLong(1),
-                        content = rs.getString(2),
-                        createdAt = (rs.getObject(3) as Timestamp).toInstant(),
-                        cosine = rs.getDouble(4),
-                    )
-                }
-            }
+    ): NeighborRow? = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.nearestNeighbor(
+            band.halfLifeDays,
+            Lifecycle.FORGET_FLOOR,
+            embedding.toVectorText(),
+            embedModel,
+            selfId,
+            band.low,
+            band.high,
+        ).executeAsOneOrNull()?.let {
+            NeighborRow(id = it.id, content = it.content, createdAt = it.created_at.toInstant(), cosine = it.cosine)
         }
     }
 
     /** The row as a verdict-pass candidate ([NeighborRow]); cosine is the caller's business here. */
-    suspend fun rowAsNeighbor(id: Long): NeighborRow? = db.withConnection { conn ->
-        conn.prepareStatement("SELECT id, content, created_at FROM memories WHERE id = ?").use { ps ->
-            ps.setLong(1, id)
-            ps.executeQuery().use { rs ->
-                if (!rs.next()) {
-                    null
-                } else {
-                    NeighborRow(
-                        id = rs.getLong(1),
-                        content = rs.getString(2),
-                        createdAt = (rs.getObject(3) as Timestamp).toInstant(),
-                        cosine = 0.0,
-                    )
-                }
-            }
+    suspend fun rowAsNeighbor(id: Long): NeighborRow? = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.rowAsNeighbor(id).executeAsOneOrNull()?.let {
+            NeighborRow(id = it.id, content = it.content, createdAt = it.created_at.toInstant(), cosine = 0.0)
         }
     }
 
     /** The row's stored embedding, for passes that must compare neighbors without re-embedding. */
-    suspend fun embeddingOf(id: Long): FloatArray? = db.withConnection { conn ->
-        conn.prepareStatement("SELECT embedding::text FROM memories WHERE id = ?").use { ps ->
-            ps.setLong(1, id)
-            ps.executeQuery().use { rs -> if (rs.next()) PGvector(rs.getString(1)).toArray() else null }
-        }
+    suspend fun embeddingOf(id: Long): FloatArray? = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.embeddingOf(id).executeAsOneOrNull()?.let { PGvector(it).toArray() }
     }
 
     /** Whether the row is invalidated (a stamp exists) — the passes' idempotence guard. */
-    suspend fun isInvalidated(id: Long): Boolean = db.withConnection { conn ->
-        conn.prepareStatement("SELECT invalid_at IS NOT NULL FROM memories WHERE id = ?").use { ps ->
-            ps.setLong(1, id)
-            ps.executeQuery().use { rs -> if (rs.next()) rs.getBoolean(1) else false }
-        }
+    suspend fun isInvalidated(id: Long): Boolean = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.isInvalidated(id).executeAsOneOrNull() ?: false
     }
 
     /**
@@ -395,40 +343,22 @@ class MemoryStore(private val db: Database) {
      * dream inputs (a dead claim has nothing to judge), and neither are
      * forgotten (ARCHIVED) ones — the dream works on cooling memory only.
      */
-    suspend fun dreamRows(halfLifeDays: Int, limit: Int): List<DedupRow> = db.withConnection { conn ->
-        conn.prepareStatement(
-            """
-            WITH params AS (SELECT ?::int AS half_life, ?::float8 AS cooling_floor, ?::float8 AS forget_floor)
-            SELECT m.id, m.kind, m.content, m.embed_model, m.salience, m.created_at, m.embedding::text
-            FROM memories m, params p
-            WHERE m.invalid_at IS NULL
-              AND $LIFE_WEIGHT_SQL >= p.forget_floor
-              AND $LIFE_WEIGHT_SQL < p.cooling_floor
-            ORDER BY m.created_at, m.id
-            LIMIT ?
-            """.trimIndent(),
-        ).use { ps ->
-            ps.setInt(1, halfLifeDays)
-            ps.setDouble(2, Lifecycle.COOLING_FLOOR)
-            ps.setDouble(3, Lifecycle.FORGET_FLOOR)
-            ps.setInt(4, limit)
-            ps.executeQuery().use { rs ->
-                generateSequence {
-                    if (!rs.next()) {
-                        null
-                    } else {
-                        DedupRow(
-                            id = rs.getLong(1),
-                            kind = rs.getString(2),
-                            content = rs.getString(3),
-                            embedModel = rs.getString(4),
-                            salience = rs.getDouble(5),
-                            createdAt = (rs.getObject(6) as Timestamp).toInstant(),
-                            embedding = PGvector(rs.getString(7)).toArray(),
-                        )
-                    }
-                }.toList()
-            }
+    suspend fun dreamRows(halfLifeDays: Int, limit: Int): List<DedupRow> = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.dreamRows(
+            halfLifeDays,
+            Lifecycle.COOLING_FLOOR,
+            Lifecycle.FORGET_FLOOR,
+            limit.toLong(),
+        ).executeAsList().map {
+            DedupRow(
+                id = it.id,
+                kind = it.kind,
+                content = it.content,
+                embedModel = it.embed_model,
+                salience = it.salience,
+                createdAt = it.created_at.toInstant(),
+                embedding = PGvector(it.embedding_text).toArray(),
+            )
         }
     }
 
@@ -480,25 +410,23 @@ class MemoryStore(private val db: Database) {
         embedModel: String,
         k: Int,
         lifecycle: Lifecycle.Params,
-    ): List<Memory> = db.withConnection { conn ->
-        val hits = conn.prepareStatement(SEARCH).use { ps ->
-            ps.setObject(1, PGvector(queryEmbedding))
-            ps.setString(2, embedModel)
-            ps.setInt(3, maxOf(k * CANDIDATE_FACTOR, MIN_CANDIDATES))
-            ps.setString(4, queryText)
-            ps.setInt(5, lifecycle.halfLifeDays)
-            ps.setDouble(6, lifecycle.forgetFloor)
-            ps.setInt(7, k)
-            ps.executeQuery().use { rs -> readMemories(rs) }
+    ): List<Memory> = db.withDriver { brainDb ->
+        val hits = brainDb.memoriesQueries.searchMemory(
+            queryEmbedding.toVectorText(),
+            embedModel,
+            maxOf(k * CANDIDATE_FACTOR, MIN_CANDIDATES),
+            queryText,
+            lifecycle.halfLifeDays,
+            lifecycle.forgetFloor,
+            k.toLong(),
+        ).executeAsList().map {
+            MemoryFields(
+                it.id, it.kind, it.content, it.session_id, it.turn_id,
+                it.salience, it.created_at, it.score?.toDouble(), it.weight,
+            ).toMemory()
         }
         if (hits.isNotEmpty()) {
-            conn.prepareStatement(
-                "UPDATE memories SET salience = salience + ?, last_accessed = now() WHERE id = ANY(?)",
-            ).use { ps ->
-                ps.setDouble(1, SEARCH_REINFORCE_STEP)
-                ps.setArray(2, conn.createArrayOf("bigint", hits.map { it.id }.toTypedArray()))
-                ps.executeUpdate()
-            }
+            brainDb.memoriesQueries.reinforceSearch(SEARCH_REINFORCE_STEP, hits.map { it.id }.toTypedArray())
         }
         hits
     }
@@ -600,26 +528,9 @@ class MemoryStore(private val db: Database) {
         weight,
     )
 
-    private fun readMemories(rs: java.sql.ResultSet): List<Memory> = generateSequence {
-        if (!rs.next()) null else Memory(
-            id = rs.getLong("id"),
-            kind = rs.getString("kind"),
-            content = rs.getString("content"),
-            sessionId = rs.getString("session_id"),
-            turnId = rs.getString("turn_id"),
-            salience = rs.getDouble("salience"),
-            createdAt = (rs.getObject("created_at") as Timestamp).toInstant().toString(),
-            score = rs.getObject("score")?.let { (it as Number).toDouble() },
-            weight = rs.getObject("weight")?.let { (it as Number).toDouble() },
-        )
-    }.toList()
-
     companion object {
         const val CANDIDATE_FACTOR = 4
         const val MIN_CANDIDATES = 50
-
-        /** The fusion constant lives in the pure core ([Rrf]); the SQL below is its executable twin. */
-        const val RRF_K = Rrf.K
         const val MAX_REASON_CHARS = 500
 
         /** Each absorbed duplicate reinforces the survivor by this much salience. */
@@ -633,52 +544,5 @@ class MemoryStore(private val db: Database) {
          */
         const val SEARCH_REINFORCE_STEP = 0.1
         private val json = Json { ignoreUnknownKeys = true }
-
-        // The SQL twin of Lifecycle's usefulness clock: salience decayed over the
-        // LAST ACCESS (created_at at birth). One expression, three consumers: the
-        // legs' forgetting exclusion, the status buckets, the lifecycle count.
-        // `p.half_life` comes from the params CTE the caller joins in.
-        const val LIFE_WEIGHT_SQL =
-            "(m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at)))" +
-                " / (86400.0 * p.half_life)))"
-
-        // Parameters: 1 query vector, 2 embed model, 3 candidates per leg, 4 query text,
-        // 5 half-life days, 6 forget floor, 7 k.
-        val SEARCH = """
-            WITH params AS (
-              SELECT ?::vector AS qv, ?::text AS model, ?::int AS n, websearch_to_tsquery('simple', ?) AS tsq,
-                     ?::int AS half_life, ?::float8 AS forget_floor
-            ), alive AS (
-              -- The exclusion law's search face: a live row is neither
-              -- invalidated nor forgotten. The graph twin is
-              -- MemoryGraphStore.ALIVE_CTE (and TRAVERSAL's inline copy) —
-              -- both surfaces must agree on who is alive.
-              SELECT id FROM memories m, params p
-              WHERE m.embed_model = p.model
-                AND m.invalid_at IS NULL
-                AND $LIFE_WEIGHT_SQL >= p.forget_floor
-            ), vec AS (
-              SELECT id, row_number() OVER (ORDER BY dist, id) AS r FROM (
-                SELECT m.id, m.embedding <=> p.qv AS dist FROM memories m, params p
-                WHERE m.embed_model = p.model AND m.id IN (SELECT id FROM alive)
-                ORDER BY dist, m.id LIMIT (SELECT n FROM params)
-              ) top
-            ), fts AS (
-              SELECT id, row_number() OVER (ORDER BY rank DESC, id) AS r FROM (
-                SELECT m.id, ts_rank_cd(m.content_tsv, p.tsq) AS rank FROM memories m, params p
-                WHERE m.embed_model = p.model AND m.content_tsv @@ p.tsq AND m.id IN (SELECT id FROM alive)
-                ORDER BY rank DESC, m.id LIMIT (SELECT n FROM params)
-              ) top
-            ), fused AS (
-              SELECT id, SUM(1.0 / ($RRF_K + r)) AS rrf
-              FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) legs GROUP BY id
-            )
-            SELECT m.id, m.kind, m.content, m.session_id, m.turn_id, m.salience, m.created_at,
-                   f.rrf AS score,
-                   m.salience * exp(-ln(2) * extract(epoch FROM (now() - m.created_at)) / (86400.0 * (SELECT half_life FROM params))) AS weight
-            FROM fused f JOIN memories m ON m.id = f.id
-            ORDER BY f.rrf DESC, weight DESC, m.id
-            LIMIT ?
-        """
     }
 }
