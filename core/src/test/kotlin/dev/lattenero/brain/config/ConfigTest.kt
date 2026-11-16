@@ -92,6 +92,17 @@ class ConfigTest {
     }
 
     @Test
+    fun `the judge key falls back to the base judge-api-key file - the store a plist rewrite cannot lose`() {
+        Files.createDirectories(tmp.resolve("base"))
+        Files.writeString(tmp.resolve("base").resolve("judge-api-key"), "file-secret\n")
+        assertThat(load().judgeApiKey).isEqualTo("file-secret")
+        assertThat(load(env = mapOf("JUDGE_API_KEY" to "env-secret")).judgeApiKey).isEqualTo("env-secret")
+        // the chat key rides the same relay: its own env, else the judge key
+        assertThat(load().chatApiKey).isEqualTo("file-secret")
+        assertThat(load(env = mapOf("OPENAI_API_KEY" to "openai-secret")).chatApiKey).isEqualTo("openai-secret")
+    }
+
+    @Test
     fun `every default has a declared type the resolver understands`() {
         Config.DEFAULTS.forEach { (name, default) ->
             assertThat(default).withFailMessage("$name has an unsupported default type").isInstanceOfAny(String::class.java, Int::class.javaObjectType, Boolean::class.javaObjectType)

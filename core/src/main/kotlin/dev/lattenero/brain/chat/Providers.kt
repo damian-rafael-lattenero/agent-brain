@@ -92,7 +92,10 @@ class GlmChatProvider(
     /** Optional extra headers some gateways demand — OpenCode Zen requires `x-opencode-session`. */
     private val extraHeaders: Map<String, String> = emptyMap(),
 ) : ChatProvider {
-    override val name = "glm"
+    // The WIRE SHAPE, not the vendor: this class serves any OpenAI-compatible
+    // endpoint (z.ai GLM, OpenCode Zen's deepseek, ...) — the name must not
+    // claim one vendor.
+    override val name = "openai"
     private val baseUrl = baseUrl.trimEnd('/')
 
     init {
