@@ -130,4 +130,25 @@ class SqlDelightSpikeIT {
             assertThat(bucket.n).isPositive()
         }
     }
+
+    @Test
+    fun `array binds carry typed long arrays`() {
+        // Two known rows: capture their ids from the RETURNING insert.
+        val first = brainDb.memoriesQueries.insertMemory("arr", "arr-1", "fact", "array one", "fake", "[1,2,3,4]", null)
+            .executeAsOne()
+        val second = brainDb.memoriesQueries.insertMemory("arr", "arr-2", "fact", "array two", "fake", "[4,3,2,1]", null)
+            .executeAsOne()
+        val ids = arrayOf(first, second)
+
+        val viaUnnest = brainDb.memoryEdgesQueries.hitsByIds(ids).executeAsList()
+        val viaAny = brainDb.memoryEdgesQueries.memoriesAny(ids).executeAsList()
+        assertThat(viaUnnest).containsExactlyInAnyOrder(first, second)
+        assertThat(viaAny).containsExactlyInAnyOrder(first, second)
+    }
+
+    @Test
+    fun `withDriver rides the same typed facade`() = runBlocking<Unit> {
+        val n = db.withDriver { it.memoriesQueries.countMemories().executeAsOne() }
+        assertThat(n).isPositive()
+    }
 }

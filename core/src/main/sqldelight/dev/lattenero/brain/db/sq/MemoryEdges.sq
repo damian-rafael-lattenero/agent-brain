@@ -58,3 +58,15 @@ LEFT JOIN LATERAL (
     AND (m.created_at, m.id) < (cur.created_at, cur.id)
   ORDER BY m.created_at DESC, m.id DESC LIMIT 1
 ) prev ON TRUE;
+
+-- M0 law probes: array binds ride TEXT literals ({1,2}::bigint[]) — the one
+-- bind shape the spike IT had not proven.
+hitsByIds:
+SELECT id FROM memories
+WHERE id IN (SELECT unnest(:ids::bigint[]))
+ORDER BY id;
+
+memoriesAny:
+SELECT id FROM memories
+WHERE id = ANY(:ids::bigint[])
+ORDER BY id;
