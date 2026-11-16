@@ -57,6 +57,7 @@ data class Config(
     val memoryWorker: Boolean,
     val memoryPollMs: Int,
     val memoryHalfLifeDays: Int,
+    val extractionConcurrency: Int,
     val httpTimeoutS: Int,
     val busTransport: String,
     val busPollMs: Int,
@@ -136,7 +137,9 @@ data class Config(
     "chat_provider" to "ollama", // ollama | glm | fake
     "chat_model" to "qwen2.5:1.5b",
     "glm_chat_model" to "glm-4.5-flash",
-    "chat_timeout_s" to 120,
+    // 240: a capped giant-chunk generation measures 90-130 s on qwen2.5:1.5b —
+    // 120 left zero headroom and opened the breaker on every replay round.
+    "chat_timeout_s" to 240,
     "judge_provider" to "", // blank = same chat as the extractor; ollama | glm | openai | fake
     "judge_base_url" to "", // blank = the provider's own default
     "judge_model" to "",
@@ -144,6 +147,9 @@ data class Config(
     "memory_worker" to true,
     "memory_poll_ms" to 2000,
     "memory_half_life_days" to 30,
+    // turns extracted at a time; the chat runner is ONE ollama process (16/11:
+    // unbounded batch concurrency just queued behind itself into timeouts)
+    "extraction_concurrency" to 1,
             "http_timeout_s" to 60,
             "bus_transport" to "file",
     "bus_poll_ms" to 500,
@@ -202,6 +208,7 @@ data class Config(
                 memoryWorker = bool("memory_worker"),
                 memoryPollMs = int("memory_poll_ms"),
                 memoryHalfLifeDays = int("memory_half_life_days"),
+                extractionConcurrency = int("extraction_concurrency"),
                 httpTimeoutS = int("http_timeout_s"),
                 busTransport = validTransport(str("bus_transport")),
                 busPollMs = int("bus_poll_ms"),

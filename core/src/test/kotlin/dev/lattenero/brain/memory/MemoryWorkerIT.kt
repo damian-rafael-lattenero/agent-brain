@@ -15,6 +15,7 @@ import dev.lattenero.brain.rag.CountingTracer
 import dev.lattenero.brain.rag.EmbedPipeline
 import kap.CircuitBreaker
 import kap.evalGraph
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import java.nio.file.Files
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -173,6 +175,45 @@ class MemoryWorkerIT {
             assertThat(second.quarantined).isEqualTo(1)
             assertThat(f.store.quarantined(5).single().reason).contains("gave up after 2 attempts").contains("llm offline")
             assertThat(f.store.pendingTurns(10, 5)).isEmpty()
+        }
+    }
+
+    @Test
+    fun `the batch extracts one turn at a time - one shared ollama runner`() = runBlocking<Unit> {
+        fixture("memseq").use { f ->
+            // three pending turns: a concurrent batch would fire three chats at once
+            val bus = (1..3).joinToString("\n") { i ->
+                """{"id": "${i.toString().padStart(32, '0')}", "ts": "2026-10-28T20:47:20.859Z", """ +
+                    """"kind": "turn.completed", "sid": "ses_fixture01", "turn": "17616852001${i}", "source": "bot", """ +
+                    """"payload": {"duration_s": 42.5, "reply_chars": 300, "reply": "done: the turn $i work landed", "cot_chars": 3500}}"""
+            }
+            Files.createDirectories(f.config.busFile.parent)
+            Files.writeString(f.config.busFile, bus + "\n")
+            assertThat(BusPipeline.of(f.config, f.db).evalGraph().drain()).isEqualTo(3)
+
+            val inflight = AtomicInteger()
+            val maxSeen = AtomicInteger()
+            val tracked = object : ChatProvider {
+                override val name = "tracked"
+                override val model = "tracked-model"
+                override suspend fun completeJson(system: String, user: String, schema: JsonObject): ChatResult {
+                    val now = inflight.incrementAndGet()
+                    maxSeen.accumulateAndGet(now, ::maxOf)
+                    delay(100)
+                    inflight.decrementAndGet()
+                    return ChatResult(
+                        FakeChatProvider.json(
+                            "facts" to FakeChatProvider.strings("The tracked turn recorded a fact."),
+                            "decisions" to FakeChatProvider.strings("The tracked turn was decided."),
+                            "preferences" to FakeChatProvider.strings("unknown preference"),
+                            "summary" to JsonPrimitive("The tracked turn processed."),
+                        ),
+                    )
+                }
+            }
+            val report = worker(f, tracked).processOnce()
+            assertThat(report.processed).isEqualTo(3)
+            assertThat(maxSeen.get()).isEqualTo(1)
         }
     }
 
