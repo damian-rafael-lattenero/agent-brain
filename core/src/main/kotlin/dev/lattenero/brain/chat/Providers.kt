@@ -6,6 +6,7 @@ import dev.lattenero.brain.embeddings.postForProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.setBody
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -22,16 +23,30 @@ class OllamaChatProvider(private val client: HttpClient, baseUrl: String, overri
     /** Generation bounds (the 15/11 starvation incident): without `num_predict` a
      *  degenerate repetition generates to the context limit, hogging the shared
      *  runner for minutes while clients time out; without `num_ctx` the KV cache
-     *  rides the model default. 512 tokens covers every extraction (10 items x
-     *  300 chars) and verdict with wide margin; 4096 matches the model context. */
-    private val numPredict = 512
+     *  rides the model default.
+     *
+     *  512 was chosen believing it "covers every extraction" — the 16/11 audit
+     *  disproved it: quarantined raws of 1.7-3.0 KB (~600-900 tokens) ended
+     *  MID-WORD, i.e. the generator was cut at the cap and the JSON never
+     *  closed. 1536 covers ~5-6 KB of output and still leaves room inside the
+     *  4096 context after a capped transcript (~1.5-2 K prompt tokens); a
+     *  generation cut from here on is visible as `done_reason: length` and the
+     *  extractor quarantines it as truncated, not as bad JSON. */
+    private val numPredict = 1536
     private val numCtx = 4096
 
     @Serializable
     private data class Message(val role: String, val content: String)
 
     @Serializable
-    private data class Response(val message: Message? = null, val prompt_eval_count: Int? = null, val eval_count: Int? = null, val error: String? = null)
+    private data class Response(
+        val message: Message? = null,
+        val prompt_eval_count: Int? = null,
+        val eval_count: Int? = null,
+        /** `stop` = the model finished; `length` = the num_predict cap cut it. */
+        @SerialName("done_reason") val doneReason: String? = null,
+        val error: String? = null,
+    )
 
     override suspend fun completeJson(system: String, user: String, schema: JsonObject): ChatResult {
         val url = "$baseUrl/api/chat"
@@ -54,7 +69,12 @@ class OllamaChatProvider(private val client: HttpClient, baseUrl: String, overri
         }
         val parsed: Response = response.body()
         val content = parsed.message?.content ?: throw ChatException("ollama chat answered without a message: ${parsed.error ?: "?"}")
-        return ChatResult(content, parsed.prompt_eval_count, parsed.eval_count)
+        return ChatResult(
+            content,
+            parsed.prompt_eval_count,
+            parsed.eval_count,
+            truncated = parsed.doneReason == "length",
+        )
     }
 }
 
@@ -78,7 +98,11 @@ class GlmChatProvider(
     private data class Message(val role: String, val content: String)
 
     @Serializable
-    private data class Choice(val message: Message)
+    private data class Choice(
+        val message: Message,
+        /** `stop` = the model finished; `length` = the output cap cut it. */
+        @SerialName("finish_reason") val finishReason: String? = null,
+    )
 
     @Serializable
     private data class Usage(val prompt_tokens: Int? = null, val completion_tokens: Int? = null)
@@ -103,20 +127,37 @@ class GlmChatProvider(
             setBody(body)
         }
         val parsed: Response = response.body()
-        val content = parsed.choices.firstOrNull()?.message?.content ?: throw ChatException("glm answered without choices")
-        return ChatResult(content, parsed.usage?.prompt_tokens, parsed.usage?.completion_tokens)
+        val choice = parsed.choices.firstOrNull() ?: throw ChatException("glm answered without choices")
+        return ChatResult(
+            choice.message.content,
+            parsed.usage?.prompt_tokens,
+            parsed.usage?.completion_tokens,
+            truncated = choice.finishReason == "length",
+        )
     }
 }
 
-/** Scripted answers for tests; records every call. */
-class FakeChatProvider(private val responder: (system: String, user: String) -> String = { _, _ -> "{}" }) : ChatProvider {
+/**
+ * Scripted answers for tests; records every call. The responder stays LAST so
+ * the trailing-lambda call sites (`FakeChatProvider { _, _ -> ... }`) keep working.
+ */
+class FakeChatProvider(
+    /** Script the provider's truncation signal (done_reason: length) when a test needs it. */
+    private val truncated: Boolean = false,
+    private val responder: (system: String, user: String) -> String = { _, _ -> "{}" },
+) : ChatProvider {
     override val name = "fake"
     override val model = "fake-chat"
     val calls = ArrayList<Pair<String, String>>()
 
     override suspend fun completeJson(system: String, user: String, schema: JsonObject): ChatResult {
         calls += system to user
-        return ChatResult(responder(system, user), promptTokens = user.length / 4, completionTokens = 20)
+        return ChatResult(
+            responder(system, user),
+            promptTokens = user.length / 4,
+            completionTokens = 20,
+            truncated = truncated,
+        )
     }
 
     companion object {
