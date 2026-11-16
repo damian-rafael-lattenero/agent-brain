@@ -39,6 +39,15 @@ reads the file bus and produces to a topic; the consumer runs the same handler
 behind `bus_transport: file|kafka`, and the contract test feeds identical
 fixtures through both and asserts identical database state.
 
+**Persistence:** every store statement is SQLDelight — compile-time-checked SQL
+in `core/src/main/sqldelight/` generating typed functions over the SAME Hikari
+pool (`Database.withDriver`). The pgvector `<=>` operator, aggregate FILTER
+without OVER and the SELECT-level WINDOW clause ride the vendored dialect fork
+`dev.lattenero.sqldelight:postgresql-dialect` (ADR-007: coordinates, sync
+procedure, drop conditions). Schema creation/migration stays with `db/Migrator`
+(advisory-locked plain SQL, `__EMBED_DIM__` rendering) — the `.sq` CREATE TABLE
+blocks are typing-only and never executed.
+
 ## Why Kotlin
 
 Judged purely on ecosystem gravity for an LLM-centric service, Python would be
