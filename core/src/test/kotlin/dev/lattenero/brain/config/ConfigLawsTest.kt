@@ -58,6 +58,7 @@ class ConfigLawsTest {
         "memory_worker" to { c -> c.memoryWorker },
         "memory_poll_ms" to { c -> c.memoryPollMs },
         "memory_half_life_days" to { c -> c.memoryHalfLifeDays },
+        "extraction_concurrency" to { c -> c.extractionConcurrency },
         "http_timeout_s" to { c -> c.httpTimeoutS },
         "bus_transport" to { c -> c.busTransport },
         "bus_poll_ms" to { c -> c.busPollMs },

@@ -117,7 +117,10 @@ class Brain private constructor(
         extractor = extractor,
         embed = embedPipeline,
         reconciler = memoryReconciler,
-        params = WorkerParams(halfLifeDays = config.memoryHalfLifeDays),
+        params = WorkerParams(
+            extractionConcurrency = config.extractionConcurrency,
+            halfLifeDays = config.memoryHalfLifeDays,
+        ),
         edges = edgeBuilder,
     )
     val memory: MemoryService = MemoryService(

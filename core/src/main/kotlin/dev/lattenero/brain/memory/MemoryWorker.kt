@@ -83,17 +83,19 @@ sealed interface TurnOutcome {
 }
 
 /**
- * The worker's knobs as ONE value: the batch size, the attempt cap and the
- * verdict half-life the reconcile band's forgetting exclusion reads (the same
- * knob [MemoryService] ranks with).
+ * The worker's knobs as ONE value: the batch size, the extraction concurrency,
+ * the attempt cap and the verdict half-life the reconcile band's forgetting
+ * exclusion reads (the same knob [MemoryService] ranks with).
  */
 data class WorkerParams(
     val batch: Int = DEFAULT_BATCH,
+    val extractionConcurrency: Int = DEFAULT_EXTRACTION_CONCURRENCY,
     val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS,
     val halfLifeDays: Int = DEFAULT_HALF_LIFE_DAYS,
 ) {
     companion object {
         const val DEFAULT_BATCH = 10
+        const val DEFAULT_EXTRACTION_CONCURRENCY = 1
         const val DEFAULT_MAX_ATTEMPTS = 5
         const val DEFAULT_HALF_LIFE_DAYS = 30
     }
@@ -113,11 +115,16 @@ data class WorkerParams(
  * is marked; a provider failure defers the turn (attempt counted, retried
  * next cycle); too many deferrals quarantine it with the reason.
  *
- * The batch runs through `traverseSettled`: every turn is attempted to
- * completion, no sibling cancels another, and the report is a fold over the
- * settled [Either]s. An unexpected settled failure (only the turn's own
- * bookkeeping can produce one, e.g. the transcript read) still crashes the
- * cycle, as before — the process restarts it.
+ * The batch runs through `traverseSettled` bounded by
+ * [WorkerParams.extractionConcurrency]: every turn is attempted to completion,
+ * no sibling cancels another, and the report is a fold over the settled
+ * [Either]s. The default is ONE turn at a time (16/11 measured): the chat
+ * runner is a single ollama process, so concurrent extractions only queue
+ * behind each other — and each queued call burns its whole `chat_timeout_s`
+ * budget waiting for the runner, turning a healthy provider into a wall of
+ * timeouts. An unexpected settled failure (only the turn's own bookkeeping
+ * can produce one, e.g. the transcript read) still crashes the cycle, as
+ * before — the process restarts it.
  *
  * The early abort on an open circuit breaker (the old
  * `if (e is CircuitBreakerOpenException) break`) is a supervision policy
@@ -151,7 +158,7 @@ class MemoryWorker(
     suspend fun processOnce(): WorkerReport {
         val pending = store.pendingTurns(params.batch, params.maxAttempts)
         val settled: List<Result<Either<ExtractionFailure, TurnOutcome>>> =
-            pending.traverseSettled { turn -> Kap { processTurn(turn) } }.evalGraph()
+            pending.traverseSettled(params.extractionConcurrency) { turn -> Kap { processTurn(turn) } }.evalGraph()
         val start = WorkerReport(
             scanned = pending.size,
             processed = 0,
