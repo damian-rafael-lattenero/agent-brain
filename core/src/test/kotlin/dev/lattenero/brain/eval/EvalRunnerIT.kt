@@ -37,7 +37,7 @@ class EvalRunnerIT {
         assertThat(report.suite).isEqualTo("recall-core")
         assertThat(report.kind).isEqualTo(EvalKind.RECALL)
         assertThat(report.axis).isEqualTo(EvalAxis.EMBED)
-        assertThat(report.total).isEqualTo(20)
+        assertThat(report.total).isEqualTo(33)
         assertThat(report.provider).isEqualTo("ollama")
         assertThat(report.model).isEqualTo(TestEnv.base.ollamaModel)
         assertThat(report.passed)
@@ -64,7 +64,7 @@ class EvalRunnerIT {
         val markdown = EvalRunner.markdown(report)
         assertThat(markdown)
             .contains("# eval: recall-core (recall)")
-            .contains("${report.passed}/20 passed")
+            .contains("${report.passed}/${report.total} passed")
             .contains("latency p50")
             .contains("| case | question | expected | rank@5 | top hit | support |")
     }
@@ -76,7 +76,7 @@ class EvalRunnerIT {
         val corpus = javaClass.classLoader.getResourceAsStream("eval/corpus/index.txt")!!.bufferedReader()
             .use { reader -> reader.readLines().filter { it.endsWith(".md") }.toSet() }
         val recall = suites.single { it.kind == EvalKind.RECALL }
-        assertThat(recall.cases).hasSize(20)
+        assertThat(recall.cases).hasSize(33)
         recall.cases.filterIsInstance<RecallCase>().forEach { case ->
             assertThat(case.uri.substringAfterLast('/')).isIn(corpus)
         }

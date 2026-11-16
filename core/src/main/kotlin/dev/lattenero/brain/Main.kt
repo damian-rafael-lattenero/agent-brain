@@ -115,7 +115,7 @@ const val USAGE = """usage: agent-brain <command> [args]
   embed TEXT...      embed text(s) with the configured provider
   config             print the effective configuration (secrets redacted)
   eval [--suite NAME|PATH[,...]] [--gate G] [--matrix MODEL[@DIM],...] [--out DIR] [--strict]
-                     suites: recall-core (the default gate: 20 questions, gate 0.9),
+                     suites: recall-core (the default gate: 33 questions, gate 0.9),
                      extraction-core, grounded-citation, or a path to a suite file;
                      --matrix runs the same suites on >=2 models into one comparative artifact
   eval latest [--suite S] [--matrix] [--limit N] [--md]
