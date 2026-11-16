@@ -13,6 +13,9 @@ dependencyResolutionManagement {
         // modules answer 200 on repo1) — the Phase G dogfooding fallback is
         // retired with it, and G5's Central-only resolution is back for good.
         mavenCentral()
+        // The pgvector-capable postgres dialect fork (U5): publishes to
+        // mavenLocal only, coordinates never collide with upstream.
+        mavenLocal()
     }
 }
 

@@ -32,3 +32,7 @@ INSERT INTO eval_runs (suite, model, provider, passed, total, cost_usd, detail,
 VALUES (:suite, :model, :provider, :passed, :total, :costUsd, :detail::jsonb,
   :runId::uuid, :matrixId::uuid, :kind, :axis, :gate, :ok, :tokensPrompt, :tokensCompletion,
   :costKnown, :p50Ms, :p95Ms, :durationMs, :startedAt::timestamptz);
+
+-- Fork verdict (U5): with dev.lattenero.sqldelight:postgresql-dialect
+-- 2.4.1-brain1, ALL the retrieval laws compile — see Memories.sq /
+-- MemoryEdges.sq. The old confined-raw walls are gone.
