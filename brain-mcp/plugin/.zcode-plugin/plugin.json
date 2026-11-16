@@ -1,7 +1,7 @@
 {
   "name": "brain-mcp",
-  "version": "0.1.0",
-  "description": "agent-brain inside the harness: rag_query (hybrid retrieval with citations), memory_search / memory_recent (durable memories about you and your projects), bus_status (event bus health). Every answer is a status envelope with a trace id.",
+  "version": "0.2.0",
+  "description": "agent-brain inside the harness: rag_query (hybrid retrieval with citations), memory_search / memory_recent (durable memories about you and your projects), memory_status (memory health), bus_status (event bus health) — plus the Brain panel (a persistent session panel: status, search, recent). Every answer is a status envelope with a trace id.",
   "author": { "name": "Damian Lattenero" },
   "license": "MIT",
   "mcpServers": {
@@ -14,6 +14,17 @@
       }
     }
   },
+  "ui": {
+    "surfaces": [
+      {
+        "id": "brain-panel",
+        "title": "Brain",
+        "server": "brain",
+        "resourceUri": "ui://brain/panel.html",
+        "availability": "session"
+      }
+    ]
+  },
   "homepage": "https://github.com/damian-rafael-lattenero/agent-brain",
-  "keywords": ["rag", "memory", "agent", "bus", "kotlin"]
+  "keywords": ["rag", "memory", "agent", "bus", "kotlin", "panel", "mcp-app"]
 }

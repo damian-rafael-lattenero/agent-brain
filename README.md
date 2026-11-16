@@ -114,19 +114,24 @@ From the Telegram chat: `/brain <question>`, `/brain status`, `/memory <query>`,
 ## The plugin (brain-mcp)
 
 `make plugin` builds `brain-mcp/build/plugin/` (manifest + installed distribution). In ZCode add that
-directory as a local marketplace and install `brain-mcp`; the harness gains four tools that talk to the
-running `agent-brain serve` over HTTP. The exact JSON, the UI and CLI steps, verification and
-troubleshooting live in [docs/install-brain-mcp.md](docs/install-brain-mcp.md). Every tool answers the
-same envelope, so a model can branch on
-`status` and quote `meta.trace_id`:
+directory as a local marketplace and install `brain-mcp`; the harness gains five tools that talk to the
+running `agent-brain serve` over HTTP, plus the **Brain panel** — a persistent session panel
+(`ui://brain/panel.html`, declared under the manifest's `ui.surfaces`) with three tabs: status counters,
+memory search and recent memories. The panel is ONE self-contained HTML resource: the host loads it raw
+into a sandboxed webview, so the official MCP Apps SDK rides an importmap data-URI baked by
+`:brain-mcp:generatePanelHtml` (`plugin/assets/ext-apps/app-with-deps.js`, MIT); every datum comes from
+the same tools through the host, inside the same read-only envelope contract. The exact JSON, the UI
+and CLI steps, verification and troubleshooting live in
+[docs/install-brain-mcp.md](docs/install-brain-mcp.md). Every tool answers the same envelope, so a
+model can branch on `status` and quote `meta.trace_id`:
 
 ```json
 {"status":"ok","result":{...},"warnings":[],"nextStep":"cite the uri and heading of what you use; ...",
  "meta":{"trace_id":"trace-1793228960047-3","tool_version":1}}
 ```
 
-The same four tools are also served over the MCP **streamable HTTP** transport, on loopback and behind a
-mandatory bearer token, for clients that are not this machine's ZCode:
+The same five tools (and the panel resource) are also served over the MCP **streamable HTTP** transport,
+on loopback and behind a mandatory bearer token, for clients that are not this machine's ZCode:
 
 ```bash
 AB_MCP_TOKEN_FILE=~/.zcode/agent-brain/mcp.token brain-mcp serve --transport http --port 8767
@@ -203,7 +208,7 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 |---|---|
 | Tiers 1-3 pass (125 tests, GLM tier skipped without a key) | `make test` |
 | The eval gate: 20/20 recall@5 with the real local model on the shipped fixture corpus, the run persisted in `eval_runs`, the eval database dropped afterwards | `make eval` (`EvalRunnerIT` in the suite) |
-| The installed `brain-mcp` binary speaks real MCP over stdio: initialize, tools/list (4 tools, flat schemas), every tool answers the envelope with a trace id; invalid input and a down brain are error envelopes; unknown argv refuses to start | `./gradlew :brain-mcp:test` |
+| The installed `brain-mcp` binary speaks real MCP over stdio: initialize, tools/list (5 tools, flat schemas), every tool answers the envelope with a trace id; the panel is listed under `resources/list` with the MCP Apps mime and `resources/read` returns the expanded page (SDK bundle as data-URI, no placeholder survived); invalid input and a down brain are error envelopes; unknown argv refuses to start | `./gradlew :brain-mcp:test` |
 | No `while(true)` survives in production sources: every long-lived loop is a KAP `repeat(schedule)` policy, the quiet-window drain a `KapStream.pollUntilQuiet` + `Schedule.debounce`, the bridge drain a `repeatUntil`, the plugin parks on `Kap.awaiting` | `grep -rn 'while (true)' core/src/main brain-mcp/src/main` (empty) |
 | detekt 2.0 on the single-JDK-25 build (workers isolated, no daemon dance): both flavours per module — plain + type-resolved — existing findings baselined, any NEW violation fails | `./gradlew detektAll` |
 | Extraction parsing: typed items, every invalid shape quarantined with reason and raw text, caps and hygiene, transport failures retried but invalid output not | `./gradlew test --tests '*MemoryExtractorTest*'` |
@@ -366,8 +371,10 @@ against a running `serve`.
 ## Layout
 
 ```
-brain-mcp/               the MCP surface: the same four tools over stdio (the ZCode plugin) and over
-                         token-gated streamable HTTP; ToolSpec registry, envelope, plugin manifest
+brain-mcp/               the MCP surface: the same five tools over stdio (the ZCode plugin) and over
+                         token-gated streamable HTTP, plus the Brain panel resource; ToolSpec registry,
+                         envelope, plugin manifest; plugin/panel/panel.template.html + the vendored
+                         MCP Apps SDK bundle (plugin/assets/ext-apps, MIT)
 core/                    Kotlin module: config, db (pool + migrator), embeddings, chat, bus (tailer + ingest),
                          rag (corpus, repos, chunker, store, KAP embed pipeline, indexer, service),
                          memory (extractor, store, worker, service), http, Main

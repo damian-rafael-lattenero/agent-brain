@@ -29,7 +29,9 @@ import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
+import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import io.modelcontextprotocol.kotlin.sdk.types.TextResourceContents
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -59,7 +61,7 @@ private val log = LoggerFactory.getLogger("agent-brain.mcp")
 @KapTypeSafe
 data class ToolWiring(val registry: List<ToolSpec>, val brainReady: Boolean)
 
-/** The four tools the harness gains. Every handler answers with the envelope, never throws. */
+/** The five tools the harness gains. Every handler answers with the envelope, never throws. */
 object BrainTools {
     val ragQuery = ToolSpec(
         name = "rag_query",
@@ -107,7 +109,19 @@ object BrainTools {
         nextStep = "a growing lag means the brain is down or the bus moved; /brain status shows this to the user",
     )
 
-    val all = listOf(ragQuery, memorySearch, memoryRecent, busStatus)
+    val memoryStatus = ToolSpec(
+        name = "memory_status",
+        description = "The memory system's counters and health: lifecycle buckets " +
+            "(active/cooling/archived/superseded), kinds, quarantine, the extractor's " +
+            "breaker state and the models in use. Read-only.",
+        properties = buildJsonObject { putJsonObject("nowait") { put("type", "boolean"); put("description", "ignored, schema symmetry") } },
+        required = emptyList(),
+        version = 1,
+        nextStep = "a growing pendingTurns means extraction is behind; " +
+            "the Brain panel (ui://brain/panel.html) shows this to the user",
+    )
+
+    val all = listOf(ragQuery, memorySearch, memoryRecent, memoryStatus, busStatus)
 
     fun intArg(args: JsonObject?, name: String, default: Int, max: Int): Int {
         val raw = args?.get(name) ?: return default
@@ -241,7 +255,7 @@ private suspend fun serveStdio(brain: Brain) {
 }
 
 /**
- * The service transport: the same four tools over streamable HTTP on loopback,
+ * The service transport: the same tools over streamable HTTP on loopback,
  * for any client that is not this machine's ZCode plugin. No Brain is built —
  * the facade talks to `agent-brain serve` over its loopback HTTP API, so there
  * is no second pool, no second provider and no second tailer (see docs/mcp.md).
@@ -288,11 +302,17 @@ private fun http(config: Config, host: String, port: Int) {
 internal val READ_ONLY_TOOL: ToolAnnotations =
     ToolAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false)
 
-/** The MCP server with the four tools; every handler answers with the envelope, never throws. */
+/** The MCP server with the five tools and the panel resource; every handler answers with the envelope, never throws. */
 internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces, served: Ref<Int>): Server = Server(
     serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
-    options = ServerOptions(capabilities = ServerCapabilities(tools = ServerCapabilities.Tools())),
-    instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent) and bus health (bus_status). " +
+    options = ServerOptions(
+        capabilities = ServerCapabilities(
+            tools = ServerCapabilities.Tools(),
+            resources = ServerCapabilities.Resources(),
+        ),
+    ),
+    instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent), memory health (memory_status) " +
+        "and bus health (bus_status); the Brain panel (ui://brain/panel.html) surfaces them visually. " +
         "Every response is an envelope: {status, result|error{kind,message}, warnings, nextStep, meta{trace_id, tool_version}}.",
 ) {
     for (spec in wiring.registry) {
@@ -318,11 +338,28 @@ internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces
                         val kind = BrainTools.stringArg(args, "kind")
                         http.get("/memory/recent?limit=$limit" + (if (kind.isEmpty()) "" else "&kind=" + java.net.URLEncoder.encode(kind, Charsets.UTF_8))).second
                     }
+                    BrainTools.memoryStatus.name -> http.get("/memory/status").second
                     BrainTools.busStatus.name -> http.get("/bus/status").second
                     else -> throw IllegalStateException("unrouted tool ${spec.name}")
                 }
             }
         }
+    }
+
+    // The panel rides the resources capability (addResource refuses to
+    // register without it). One read, cached in [Panel.html]: the page is
+    // build output, immutable for the server's lifetime.
+    addResource(
+        uri = Panel.URI,
+        name = Panel.NAME,
+        description = Panel.DESCRIPTION,
+        mimeType = Panel.MIME_TYPE,
+    ) {
+        ReadResourceResult(
+            contents = listOf(
+                TextResourceContents(text = Panel.html, uri = Panel.URI, mimeType = Panel.MIME_TYPE),
+            ),
+        )
     }
 }
 

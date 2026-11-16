@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
@@ -44,6 +46,47 @@ application {
     mainClass = "dev.lattenero.brain.mcp.MainKt"
     applicationDefaultJvmArgs = listOf("-Xmx128m", "-XX:+UseSerialGC")
 }
+
+// The MCP App panel (ui://brain/panel.html): ONE self-contained HTML
+// resource, because the host loads it raw into a sandboxed webview where
+// sibling fetches are impossible. The official MCP Apps SDK bundle
+// (plugin/assets/ext-apps, MIT) rides an importmap data-URI baked here —
+// 418 KB JS -> ~558 KB base64, well under the host's 4 MiB HTML limit.
+// A typed task (not a doLast lambda): the configuration cache refuses
+// script-object captures.
+abstract class GeneratePanelHtmlTask : DefaultTask() {
+    @get:InputFile
+    abstract val template: RegularFileProperty
+
+    @get:InputFile
+    abstract val bundle: RegularFileProperty
+
+    @get:OutputFile
+    abstract val output: RegularFileProperty
+
+    @TaskAction
+    fun generate() {
+        val sdk = Base64.getEncoder().encodeToString(bundle.get().asFile.readBytes())
+        val html = template.get().asFile.readText().replace("@@EXT_APPS_B64@@", sdk)
+        check("@@EXT_APPS_B64@@" !in html) { "placeholder survived the expansion (bundle contains it?)" }
+        val out = output.get().asFile
+        out.parentFile.mkdirs()
+        out.writeText(html)
+    }
+}
+
+val generatedPanelDir = layout.buildDirectory.dir("generated/panel")
+tasks.register<GeneratePanelHtmlTask>("generatePanelHtml") {
+    description = "Expands the panel template with the base64 SDK bundle (importmap data-URI)"
+    group = "distribution"
+    template.set(layout.projectDirectory.file("plugin/panel/panel.template.html"))
+    bundle.set(layout.projectDirectory.file("plugin/assets/ext-apps/app-with-deps.js"))
+    output.set(generatedPanelDir.map { it.file("panel.html") })
+}
+sourceSets.main {
+    resources.srcDir(generatedPanelDir)
+}
+tasks.named("processResources") { dependsOn("generatePanelHtml") }
 
 tasks.test {
     useJUnitPlatform()

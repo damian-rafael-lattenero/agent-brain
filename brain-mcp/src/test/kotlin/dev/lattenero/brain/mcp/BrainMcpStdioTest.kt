@@ -87,6 +87,12 @@ class BrainMcpStdioTest {
                     )
                 }
                 get("/memory/recent") { call.respondText("""[${memory(7)}]""", ContentType.Application.Json) }
+                get("/memory/status") {
+                    call.respondText(
+                        """{"pendingTurns":2,"processedTurns":100,"memories":7,"active":5,"cooling":1,"archived":1,"superseded":0,"byKind":{"fact":4,"preference":3},"quarantined":1,"breaker":"Closed","chatModel":"fake","embedModel":"fake","edgesByKind":{"same_session":3}}""",
+                        ContentType.Application.Json,
+                    )
+                }
                 get("/bus/status") {
                     call.respondText("""{"transport":"file","file":"/x","fileExists":true,"fileBytes":9,"offset":9,"lagBytes":0,"polls":1,"linesRead":9,"malformed":0,"shrinks":0,"seen":9,"inserted":7,"duplicates":2,"dbEvents":7,"lastTs":"t","lastKind":"turn.completed"}""", ContentType.Application.Json)
                 }
@@ -160,15 +166,21 @@ class BrainMcpStdioTest {
                 """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"memory_search","arguments":{"query":"jdk"}}}""",
                 """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"memory_recent","arguments":{}}}""",
                 """{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"bus_status","arguments":{}}}""",
+                """{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"memory_status","arguments":{}}}""",
+                """{"jsonrpc":"2.0","id":8,"method":"resources/list"}""",
+                """{"jsonrpc":"2.0","id":9,"method":"resources/read","params":{"uri":"ui://brain/panel.html"}}""",
             ),
-            answers = 6,
+            answers = 9,
         )
         val init = out.getValue(1)
         val toolsList = out.getValue(2)
         assertThat(init["result"]!!.jsonObject["serverInfo"]!!.jsonObject["name"]!!.jsonPrimitive.content).isEqualTo("brain-mcp")
+        // The panel needs the resources capability advertised at initialize —
+        // addResource refuses to register without it.
+        assertThat(init["result"]!!.jsonObject["capabilities"]!!.jsonObject["resources"]).isNotNull()
         val tools = toolsList["result"]!!.jsonObject["tools"]!!.jsonArray
         assertThat(tools.map { it.jsonObject["name"]!!.jsonPrimitive.content }).containsExactlyInAnyOrder(
-            "rag_query", "memory_search", "memory_recent", "bus_status",
+            "rag_query", "memory_search", "memory_recent", "memory_status", "bus_status",
         )
         tools.forEach { tool ->
             val schema = tool.jsonObject["inputSchema"]!!.jsonObject
@@ -189,6 +201,25 @@ class BrainMcpStdioTest {
         assertThat(searched["result"].toString()).contains("Corretto")
         val bus = envelopeOf(out.getValue(6))
         assertThat(bus["result"].toString()).contains("dbEvents")
+
+        val status = envelopeOf(out.getValue(7))
+        assertThat(status["status"]!!.jsonPrimitive.content).isEqualTo("ok")
+        assertThat(status["result"].toString()).contains("breaker").contains("\"memories\":7")
+
+        // The panel: listed with the MCP Apps mime, and its read returns the
+        // EXPANDED page — the SDK bundle arrived as a data-URI and no build
+        // placeholder survived.
+        val resources = out.getValue(8)["result"]!!.jsonObject["resources"]!!.jsonArray
+        assertThat(resources).hasSize(1)
+        val panel = resources[0].jsonObject
+        assertThat(panel["uri"]!!.jsonPrimitive.content).isEqualTo("ui://brain/panel.html")
+        assertThat(panel["mimeType"]!!.jsonPrimitive.content).isEqualTo("text/html;profile=mcp-app")
+        val read = out.getValue(9)["result"]!!.jsonObject["contents"]!!.jsonArray[0].jsonObject
+        val html = read["text"]!!.jsonPrimitive.content
+        assertThat(read["mimeType"]!!.jsonPrimitive.content).isEqualTo("text/html;profile=mcp-app")
+        assertThat(html).contains("data:text/javascript;base64,")
+        assertThat(html).contains("callServerTool")
+        assertThat(html).doesNotContain("@@EXT_APPS_B64@@")
     }
 
     @Test

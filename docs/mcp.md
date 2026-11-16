@@ -1,10 +1,11 @@
 # The MCP surface: stdio plugin and a token-gated HTTP endpoint
 
-`brain-mcp` exposes the brain as four read-only MCP tools. It has always done
-that as a **stdio** plugin for this machine's ZCode (P5). U8 adds the second
-half: the **same four tools over the MCP streamable HTTP transport**, on
-loopback, behind a **bearer token** — so another machine or another MCP client
-can use the brain without shipping it a plugin directory.
+`brain-mcp` exposes the brain as five read-only MCP tools plus the Brain panel
+resource. It has always done that as a **stdio** plugin for this machine's
+ZCode (P5). U8 adds the second half: the **same tools over the MCP streamable
+HTTP transport**, on loopback, behind a **bearer token** — so another machine
+or another MCP client can use the brain without shipping it a plugin
+directory.
 
 ```bash
 # the plugin (unchanged, the default: no arguments = stdio)
