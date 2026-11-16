@@ -9,6 +9,7 @@ import dev.lattenero.brain.embeddings.withProviderResilience
 import kap.CircuitBreaker
 import kap.Kap
 import kap.KapTracer
+import kap.andThen
 import kap.map
 import kap.traced
 import kotlinx.serialization.SerializationException
@@ -102,8 +103,30 @@ class MemoryExtractor(
 ) {
     val model: String get() = chat.model
 
-    fun extract(transcript: Transcript): Kap<Extraction> =
-        Kap { chat.completeJson(SYSTEM_PROMPT, transcript.render(TRANSCRIPT_CAP), SCHEMA) }
+    /**
+     * One turn, ONE extraction — unless the turn is GIANT. The 16/11 replay
+     * measured the tail: a 6 K-char transcript can demand a near-ceiling
+     * output (~9.5 KB of JSON), which no output cap should have to cover and
+     * whose generation time threatens the timeout. So a rendered transcript
+     * longer than [CHUNK_CAP] is split at a line boundary and extracted in
+     * TWO sequential passes (`andThen` — never concurrent: the shared ollama
+     * runner must not take two giant prompts at once), each small enough that
+     * its output fits every cap, and the bins merge under the same caps.
+     * Small turns are byte-identical to the single-call path.
+     */
+    fun extract(transcript: Transcript): Kap<Extraction> {
+        val rendered = transcript.render(TRANSCRIPT_CAP)
+        return if (rendered.length <= CHUNK_CAP) {
+            single(rendered)
+        } else {
+            val (first, second) = splitForExtraction(rendered)
+            single(first).andThen { a -> single(second).map { b -> merge(a, b) } }
+        }
+    }
+
+    /** The single-pass extraction pipeline (resilience + trace + parse). */
+    private fun single(chunk: String): Kap<Extraction> =
+        Kap { chat.completeJson(SYSTEM_PROMPT, chunk, SCHEMA) }
             .withProviderResilience(timeout, attempts, backoffBase, breaker) { attempt, error, delay ->
                 log.warn("extraction retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)
             }
@@ -114,6 +137,10 @@ class MemoryExtractor(
         const val PHASE_EXTRACT = "extract"
         val DEFAULT_BACKOFF_BASE = 500.milliseconds
         const val TRANSCRIPT_CAP = 6_000
+
+        /** A chunk's extraction output (~10 items x 300 chars per kind + summary)
+         *  fits every output cap with margin; 6000/3500 = at most two chunks. */
+        const val CHUNK_CAP = 3_500
         const val MAX_ITEMS_PER_KIND = 10
         const val MAX_ITEM_CHARS = 300
         const val MAX_SUMMARY_CHARS = 500
@@ -243,5 +270,38 @@ class MemoryExtractor(
                 outcome.raw,
             )
         }
+
+        /** Split a rendered transcript at the line boundary nearest the middle;
+         *  a candidate boundary is valid only when BOTH halves carry real
+         *  content (measured 16/11: a 2 K-char single prompt line made the
+         *  nearest boundary the 26-char "PROMPT:" header — chunk one would
+         *  have been an empty-feeling stub the model answers uselessly). */
+        internal fun splitForExtraction(rendered: String): Pair<String, String> {
+            val mid: Int = rendered.length / 2
+            val minHalf: Int = minOf(CHUNK_CAP, rendered.length) / 4
+            val before: Int = rendered.lastIndexOf('\n', mid)
+            val after: Int = rendered.indexOf('\n', mid)
+            val at: Int = when {
+                before > minHalf && (rendered.length - before) > minHalf -> before
+                after > minHalf && (rendered.length - after) > minHalf -> after
+                else -> mid
+            }
+            return rendered.substring(0, at).trim() to rendered.substring(at).trim()
+        }
+
+        /** The two chunk extractions merge under the SAME caps the single pass
+         *  enforces; the summary keeps the first non-empty; the raw carries
+         *  both chunks (quarantine evidence stays complete). */
+        private fun merge(a: Extraction, b: Extraction): Extraction = Extraction(
+            facts = (a.facts + b.facts).distinct().take(MAX_ITEMS_PER_KIND),
+            decisions = (a.decisions + b.decisions).distinct().take(MAX_ITEMS_PER_KIND),
+            preferences = (a.preferences + b.preferences).distinct().take(MAX_ITEMS_PER_KIND),
+            summary = a.summary.ifBlank { b.summary },
+            raw = a.raw + "\n-- chunk --\n" + b.raw,
+            promptTokens = sumTokens(a.promptTokens, b.promptTokens),
+            completionTokens = sumTokens(a.completionTokens, b.completionTokens),
+        )
+
+        private fun sumTokens(x: Int?, y: Int?): Int? = if (x == null && y == null) null else (x ?: 0) + (y ?: 0)
     }
 }
