@@ -32,7 +32,7 @@ class ChatProvidersJudgeTest {
         )
         val judge = ChatProviders.judge(config, client)
         assertThat(judge).isNotNull
-        assertThat(judge!!.name).isEqualTo("glm")
+        assertThat(judge!!.name).isEqualTo("openai")
         assertThat(judge.model).isEqualTo("deepseek-v4.1-flash")
     }
 

@@ -28,7 +28,10 @@ class MemoryExtractionOllamaIT {
 
     @Test
     fun `a clear turn yields a valid extraction that mentions what was said`() = runBlocking<Unit> {
-        val chat = OllamaChatProvider(client, TestEnv.base.ollamaBaseUrl, TestEnv.base.chatModel)
+        // THIS IT is about the local small model under structured outputs —
+        // pinned literally: the user's config chat_model may be a REMOTE model
+        // (16/11: the extractor moved to deepseek) and ollama would reject it.
+        val chat = OllamaChatProvider(client, TestEnv.base.ollamaBaseUrl, "qwen2.5:1.5b")
         val extractor = MemoryExtractor(chat, 170.seconds, CountingTracer(), attempts = 2)
         val transcript = Transcript(
             "ev", "ses", "1", "bot",
