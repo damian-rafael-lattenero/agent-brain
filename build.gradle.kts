@@ -10,7 +10,7 @@ plugins {
 
 allprojects {
     group = "dev.lattenero.brain"
-    version = "0.2.0"
+    version = "0.3.0"
 }
 
 // ── Built with Corretto 25, runs on 21+ (kap's pattern) ─────────────────────

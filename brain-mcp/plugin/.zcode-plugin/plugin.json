@@ -1,7 +1,7 @@
 {
   "name": "brain-mcp",
-  "version": "0.2.0",
-  "description": "agent-brain inside the harness: rag_query (hybrid retrieval with citations), memory_search / memory_recent (durable memories about you and your projects), memory_status (memory health), bus_status (event bus health) — plus the Brain panel (a persistent session panel: status, search, recent). Every answer is a status envelope with a trace id.",
+  "version": "0.3.0",
+  "description": "agent-brain inside the harness: rag_query (hybrid retrieval with citations), memory_search / memory_recent (durable memories about you and your projects), memory_status (memory health), bus_status (event bus health), eval_latest (the last persisted eval runs) — plus the Brain panel (a persistent session panel: status, search, recent, evals). Every answer is a status envelope with a trace id.",
   "author": { "name": "Damian Lattenero" },
   "license": "MIT",
   "mcpServers": {

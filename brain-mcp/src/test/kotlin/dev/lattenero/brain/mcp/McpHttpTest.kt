@@ -225,13 +225,13 @@ class McpHttpTest {
     }
 
     @Test
-    fun `tools list is the same five flat schemas as stdio`() = runBlocking<Unit> {
+    fun `tools list is the same six flat schemas as stdio`() = runBlocking<Unit> {
         val session = initializedSession()
         val response = mcpPost("""{"jsonrpc":"2.0","id":2,"method":"tools/list"}""", tokenValue, session)
         val tools = json.parseToJsonElement(response.bodyAsText())
             .jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
         assertThat(tools.map { it.jsonObject["name"]!!.jsonPrimitive.content })
-            .containsExactlyInAnyOrder("rag_query", "memory_search", "memory_recent", "memory_status", "bus_status")
+            .containsExactlyInAnyOrder("rag_query", "memory_search", "memory_recent", "memory_status", "bus_status", "eval_latest")
         tools.forEach { tool ->
             val schema = tool.jsonObject["inputSchema"]!!.jsonObject
             assertThat(schema["type"]!!.jsonPrimitive.content).isEqualTo("object")

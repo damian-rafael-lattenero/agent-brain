@@ -29,8 +29,8 @@ class PanelTest {
             .isEqualTo(1)
         assertThat(html).contains("""<script type="importmap">""")
         assertThat(html).contains("data:text/javascript;base64,@@EXT_APPS_B64@@")
-        // The three tabs ride the three tools the server routes.
-        assertThat(html).contains("memory_status").contains("memory_search").contains("memory_recent")
+        // The four tabs ride the four tools the server routes.
+        assertThat(html).contains("memory_status").contains("memory_search").contains("memory_recent").contains("eval_latest")
     }
 
     @Test

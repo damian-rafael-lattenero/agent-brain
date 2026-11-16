@@ -12,9 +12,9 @@
   with the base64 of plugin/assets/ext-apps/app-with-deps.js, MIT — LICENSE
   beside it; that placeholder appears exactly once, in the importmap).
   The page never talks to the brain directly: every datum comes from the
-  plugin's own tools (memory_status, memory_search, memory_recent) through
-  the host bridge, inside the same read-only + envelope contract the model
-  sees (V10).
+  plugin's own tools (memory_status, memory_search, memory_recent, eval_latest)
+  through the host bridge, inside the same read-only + envelope contract the
+  model sees (V10).
 -->
 <script type="importmap">
 {"imports":{"@modelcontextprotocol/ext-apps":"data:text/javascript;base64,@@EXT_APPS_B64@@"}}
@@ -78,6 +78,15 @@
   .memory .score { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11px; }
   .memory .content { margin: 5px 0 4px; white-space: pre-wrap; word-break: break-word; }
   .memory .meta { color: var(--muted); font-size: 11px; }
+  .badge {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    border: 1px solid var(--border); border-radius: 4px; padding: 0 5px;
+  }
+  .badge.ok { color: var(--ok); border-color: var(--ok); }
+  .badge.fail { color: var(--err); border-color: var(--err); }
+  table.kinds .bar-track { fill: none; stroke: var(--border); stroke-width: 1; }
+  table.kinds .bar-fill { fill: var(--accent); }
+  .mut { color: var(--muted); font-size: 11px; }
   #foot {
     padding: 6px 14px; color: var(--muted); font-size: 11px; min-height: 26px;
     border-top: 1px solid var(--border); background: var(--panel);
@@ -93,6 +102,7 @@
     <button id="tab-status" aria-selected="true">Status</button>
     <button id="tab-search" aria-selected="false">Search</button>
     <button id="tab-recent" aria-selected="false">Recent</button>
+    <button id="tab-evals" aria-selected="false">Evals</button>
   </nav>
 </header>
 <main>
@@ -123,13 +133,18 @@
     </div>
     <ul class="memories" id="recent-results"></ul>
   </section>
+  <section id="sec-evals" hidden>
+    <p class="hint">The last persisted eval runs, newest first. A run's ok is the gate verdict; retrieval suites also carry graded columns.</p>
+    <div class="row"><button class="act" id="do-evals">Refresh evals</button></div>
+    <table class="kinds" id="evals-table"></table>
+  </section>
 </main>
 <footer id="foot"></footer>
 
 <script type="module">
 import { App } from "@modelcontextprotocol/ext-apps";
 
-const app = new App({ name: "brain-panel", version: "0.2.0" }, {});
+const app = new App({ name: "brain-panel", version: "0.3.0" }, {});
 
 // ---- pure render helpers -------------------------------------------------
 
@@ -189,6 +204,40 @@ const renderMemories = (listEl, memories) => {
     : `<li class="memory"><div class="content">no memories</div></li>`;
 };
 
+// One eval run = one row. The headline metric is the graded MRR when the run
+// carries retrieval columns (recall/memory suites), the gate ratio otherwise;
+// recall@5 only exists in the first case. The pass bar is a tiny inline SVG —
+// the page stays library-free.
+const evalRow = (r) => {
+  const retrieval = r.detail?.metrics?.retrieval ?? null;
+  const metric = retrieval
+    ? `MRR ${esc(Number(retrieval.mrr ?? 0).toFixed(3))}`
+    : `gate ${esc(Number(r.gate ?? 0).toFixed(2))}`;
+  const recall = retrieval ? esc(Number(retrieval.recall5 ?? 0).toFixed(3)) : "—";
+  const pct = r.total > 0 ? Math.round((100 * r.passed) / r.total) : 0;
+  const fill = Math.max(0, Math.min(59, Math.round(0.59 * pct)));
+  const bar = `<svg width="60" height="9" role="img" aria-label="${esc(pct)}% passed">` +
+    `<rect class="bar-track" x="0.5" y="0.5" width="59" height="8" rx="3"/>` +
+    `<rect class="bar-fill" x="1" y="1" width="${esc(fill)}" height="7" rx="2"/></svg>`;
+  const badge = r.ok ? `<span class="badge ok">ok</span>` : `<span class="badge fail">fail</span>`;
+  const started = esc((r.startedAt ?? r.ts ?? "").replace("T", " ").replace(/\.\d+/, "").replace(/Z$/, ""));
+  return `<tr><td>${esc(r.suite)} <span class="mut">· ${esc(r.kind)}</span></td>` +
+    `<td>${esc(r.model)}</td>` +
+    `<td>${esc(r.passed)}/${esc(r.total)} ${bar}</td>` +
+    `<td>${metric}</td>` +
+    `<td>${recall}</td>` +
+    `<td>${started}</td>` +
+    `<td>${badge}</td></tr>`;
+};
+
+const renderEvals = (runs) => {
+  const list = runs ?? [];
+  document.getElementById("evals-table").innerHTML = list.length
+    ? `<tr><th>suite</th><th>model</th><th>pass/total</th><th>metric</th><th>R@5</th><th>started</th><th></th></tr>` +
+      list.map(evalRow).join("")
+    : `<tr><td>no eval runs yet</td></tr>`;
+};
+
 // ---- the envelope contract, client side ----------------------------------
 
 // One tool call = one envelope {status, result|error}. The plugin's handlers
@@ -206,13 +255,14 @@ async function call(name, args) {
 
 // ---- tabs ----------------------------------------------------------------
 
-const tabs = ["status", "search", "recent"];
+const tabs = ["status", "search", "recent", "evals"];
 const show = (name) => {
   for (const t of tabs) {
     document.getElementById(`tab-${t}`).setAttribute("aria-selected", String(t === name));
     document.getElementById(`sec-${t}`).hidden = t !== name;
   }
   if (name === "status" && !document.getElementById("status-cards").children.length) loadStatus();
+  if (name === "evals" && !document.getElementById("evals-table").children.length) loadEvals();
 };
 for (const t of tabs) document.getElementById(`tab-${t}`).addEventListener("click", () => show(t));
 
@@ -262,6 +312,18 @@ async function doRecent() {
   }
 }
 document.getElementById("do-recent").addEventListener("click", doRecent);
+
+async function loadEvals() {
+  foot("loading evals…");
+  try {
+    const runs = await call("eval_latest", {});
+    renderEvals(runs);
+    foot(`${(runs ?? []).length} runs`);
+  } catch (e) {
+    foot(e.message, true);
+  }
+}
+document.getElementById("do-evals").addEventListener("click", loadEvals);
 
 // ---- boot ----------------------------------------------------------------
 
