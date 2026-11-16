@@ -45,6 +45,7 @@ class BrainLifecycleTest {
     private val releaseOrder = listOf(
         Brain.COMPONENT_CHAT,
         Brain.COMPONENT_PROVIDER,
+        Brain.COMPONENT_CHAT_HTTP,
         Brain.COMPONENT_HTTP,
         Brain.COMPONENT_DATABASE,
     )
@@ -95,6 +96,7 @@ class BrainLifecycleTest {
         }.isInstanceOf(ConfigException::class.java)
         assertThat(releases).containsExactly(
             Brain.COMPONENT_PROVIDER,
+            Brain.COMPONENT_CHAT_HTTP,
             Brain.COMPONENT_HTTP,
             Brain.COMPONENT_DATABASE,
         )
@@ -103,6 +105,8 @@ class BrainLifecycleTest {
     private fun assertClosed(brain: Brain) {
         assertThatThrownBy { runBlocking { brain.db.ping() } }.isInstanceOf(SQLException::class.java)
         assertThatThrownBy { runBlocking { brain.httpClient.get("http://127.0.0.1:1/") } }
+            .isInstanceOf(IllegalStateException::class.java)
+        assertThatThrownBy { runBlocking { brain.chatHttpClient.get("http://127.0.0.1:1/") } }
             .isInstanceOf(IllegalStateException::class.java)
     }
 }
