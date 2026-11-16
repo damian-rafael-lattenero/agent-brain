@@ -17,5 +17,16 @@ def main []: nothing -> nothing {
         print $"agent-brain: Postgres ($PG_HOST):($PG_PORT) is down; waiting for colima + make up"
         exit 75
     }
+    # JUDGE_API_KEY: the judge leg (judge_provider=openai, deepseek via
+    # OpenCode Zen) reads the key from the ENVIRONMENT (Config.kt); the secret
+    # lives in a local file so the launchd plist never carries it. A missing
+    # or blank file leaves the variable unset — the judge is optional by
+    # design, but the openai leg fails at construction without it, so the
+    # service would not start: this is the one place that bridges the file.
+    let key_file: path = ($nu.home-dir | path join ".zcode/agent-brain/judge-api-key")
+    if ($key_file | path exists) {
+        let key: string = (open --raw $key_file | str trim)
+        if ($key | is-not-empty) { $env.JUDGE_API_KEY = $key }
+    }
     exec $BIN serve
 }
