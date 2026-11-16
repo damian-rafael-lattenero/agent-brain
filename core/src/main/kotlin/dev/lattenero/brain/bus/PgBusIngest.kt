@@ -66,11 +66,7 @@ class PgBusIngest private constructor(private val db: Database, val stats: Inges
         events.last().let { stats.accept(events.size, inserted, it.ts, it.kind.wire) }
     }
 
-    suspend fun count(): Long = db.withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery("SELECT count(*) FROM bus_events").use { rs -> rs.next(); rs.getLong(1) }
-        }
-    }
+    suspend fun count(): Long = db.withDriver { it.busEventsQueries.countBusEvents().executeAsOne() }
 
     companion object {
         const val INSERT = """
