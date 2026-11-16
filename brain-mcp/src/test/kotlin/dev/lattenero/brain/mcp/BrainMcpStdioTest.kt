@@ -96,6 +96,15 @@ class BrainMcpStdioTest {
                 get("/bus/status") {
                     call.respondText("""{"transport":"file","file":"/x","fileExists":true,"fileBytes":9,"offset":9,"lagBytes":0,"polls":1,"linesRead":9,"malformed":0,"shrinks":0,"seen":9,"inserted":7,"duplicates":2,"dbEvents":7,"lastTs":"t","lastKind":"turn.completed"}""", ContentType.Application.Json)
                 }
+                get("/eval/latest") {
+                    call.respondText(
+                        buildJsonArray {
+                            add(evalRun("recall-core", "run-retrieval", ok = true, passed = 9, total = 10, withRetrieval = true))
+                            add(evalRun("grounded", "run-grounded", ok = false, passed = 3, total = 5, withRetrieval = false))
+                        }.toString(),
+                        ContentType.Application.Json,
+                    )
+                }
             }
         }.start(wait = false)
         launcher = File(System.getProperty("brainmcpt.dist") ?: fail("brainmcpt.dist not set"))
@@ -104,6 +113,42 @@ class BrainMcpStdioTest {
 
     private fun memory(id: Int) =
         """{"id":$id,"kind":"preference","content":"Prefers Amazon Corretto JDKs.","sessionId":null,"turnId":null,"salience":1.0,"createdAt":"2026-10-28T00:00:00Z","score":0.02}"""
+
+    /** One StoredRun as /eval/latest answers it; retrieval suites carry the graded columns inside detail. */
+    private fun evalRun(suite: String, runId: String, ok: Boolean, passed: Int, total: Int, withRetrieval: Boolean): JsonObject =
+        buildJsonObject {
+            put("runId", runId)
+            put("suite", suite)
+            put("kind", "recall")
+            put("axis", "embed")
+            put("model", "fake-judge")
+            put("provider", "fake")
+            put("passed", passed)
+            put("total", total)
+            put("gate", 0.9)
+            put("ok", ok)
+            put("p50Ms", 120)
+            put("p95Ms", 300)
+            put("promptTokens", 100)
+            put("completionTokens", 40)
+            put("costUsd", 0.0)
+            put("costKnown", false)
+            put("startedAt", "2026-11-16T10:00:00Z")
+            put("ts", "2026-11-16T10:00:05Z")
+            put("detail", buildJsonObject {
+                put("metrics", buildJsonObject {
+                    if (withRetrieval) {
+                        put("retrieval", buildJsonObject {
+                            put("mrr", 0.812)
+                            put("recall1", 0.7)
+                            put("recall5", 0.9)
+                            put("ndcg5", 0.83)
+                            put("cases", total)
+                        })
+                    }
+                })
+            })
+        }
 
     @AfterAll
     fun down() {
@@ -169,8 +214,9 @@ class BrainMcpStdioTest {
                 """{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"memory_status","arguments":{}}}""",
                 """{"jsonrpc":"2.0","id":8,"method":"resources/list"}""",
                 """{"jsonrpc":"2.0","id":9,"method":"resources/read","params":{"uri":"ui://brain/panel.html"}}""",
+                """{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"eval_latest","arguments":{}}}""",
             ),
-            answers = 9,
+            answers = 10,
         )
         val init = out.getValue(1)
         val toolsList = out.getValue(2)
@@ -180,7 +226,7 @@ class BrainMcpStdioTest {
         assertThat(init["result"]!!.jsonObject["capabilities"]!!.jsonObject["resources"]).isNotNull()
         val tools = toolsList["result"]!!.jsonObject["tools"]!!.jsonArray
         assertThat(tools.map { it.jsonObject["name"]!!.jsonPrimitive.content }).containsExactlyInAnyOrder(
-            "rag_query", "memory_search", "memory_recent", "memory_status", "bus_status",
+            "rag_query", "memory_search", "memory_recent", "memory_status", "bus_status", "eval_latest",
         )
         tools.forEach { tool ->
             val schema = tool.jsonObject["inputSchema"]!!.jsonObject
@@ -205,6 +251,12 @@ class BrainMcpStdioTest {
         val status = envelopeOf(out.getValue(7))
         assertThat(status["status"]!!.jsonPrimitive.content).isEqualTo("ok")
         assertThat(status["result"].toString()).contains("breaker").contains("\"memories\":7")
+
+        val evals = envelopeOf(out.getValue(10))
+        assertThat(evals["status"]!!.jsonPrimitive.content).isEqualTo("ok")
+        assertThat(evals["result"].toString()).contains("recall-core").contains("run-retrieval").contains("\"passed\":9")
+        assertThat(evals["result"].toString()).contains("grounded").contains("\"ok\":false")
+        assertThat(evals["meta"]!!.jsonObject["trace_id"]!!.jsonPrimitive.content).startsWith("trace-")
 
         // The panel: listed with the MCP Apps mime, and its read returns the
         // EXPANDED page — the SDK bundle arrived as a data-URI and no build

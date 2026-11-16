@@ -61,7 +61,7 @@ private val log = LoggerFactory.getLogger("agent-brain.mcp")
 @KapTypeSafe
 data class ToolWiring(val registry: List<ToolSpec>, val brainReady: Boolean)
 
-/** The five tools the harness gains. Every handler answers with the envelope, never throws. */
+/** The six tools the harness gains. Every handler answers with the envelope, never throws. */
 object BrainTools {
     val ragQuery = ToolSpec(
         name = "rag_query",
@@ -121,7 +121,18 @@ object BrainTools {
             "the Brain panel (ui://brain/panel.html) shows this to the user",
     )
 
-    val all = listOf(ragQuery, memorySearch, memoryRecent, memoryStatus, busStatus)
+    val evalLatest = ToolSpec(
+        name = "eval_latest",
+        description = "The most recent persisted eval runs (newest first): suite, model, pass/total, gate, " +
+            "latency percentiles and, for retrieval suites, the graded MRR/recall columns. Read-only.",
+        properties = buildJsonObject { putJsonObject("nowait") { put("type", "boolean"); put("description", "ignored, schema symmetry") } },
+        required = emptyList(),
+        version = 1,
+        nextStep = "a run's ok is the gate verdict, not the whole story; " +
+            "rerun with `agent-brain eval` instead of trusting stale numbers",
+    )
+
+    val all = listOf(ragQuery, memorySearch, memoryRecent, memoryStatus, busStatus, evalLatest)
 
     fun intArg(args: JsonObject?, name: String, default: Int, max: Int): Int {
         val raw = args?.get(name) ?: return default
@@ -302,7 +313,7 @@ private fun http(config: Config, host: String, port: Int) {
 internal val READ_ONLY_TOOL: ToolAnnotations =
     ToolAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false)
 
-/** The MCP server with the five tools and the panel resource; every handler answers with the envelope, never throws. */
+/** The MCP server with the six tools and the panel resource; every handler answers with the envelope, never throws. */
 internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces, served: Ref<Int>): Server = Server(
     serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
     options = ServerOptions(
@@ -311,8 +322,9 @@ internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces
             resources = ServerCapabilities.Resources(),
         ),
     ),
-    instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent), memory health (memory_status) " +
-        "and bus health (bus_status); the Brain panel (ui://brain/panel.html) surfaces them visually. " +
+    instructions = "agent-brain: retrieval (rag_query, memory_search, memory_recent), memory health (memory_status), " +
+        "bus health (bus_status) and eval history (eval_latest); the Brain panel " +
+        "(ui://brain/panel.html) surfaces them visually. " +
         "Every response is an envelope: {status, result|error{kind,message}, warnings, nextStep, meta{trace_id, tool_version}}.",
 ) {
     for (spec in wiring.registry) {
@@ -340,6 +352,7 @@ internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces
                     }
                     BrainTools.memoryStatus.name -> http.get("/memory/status").second
                     BrainTools.busStatus.name -> http.get("/bus/status").second
+                    BrainTools.evalLatest.name -> http.get("/eval/latest").second
                     else -> throw IllegalStateException("unrouted tool ${spec.name}")
                 }
             }
