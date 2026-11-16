@@ -55,8 +55,8 @@ marketplace is named `dev-agent-brain`, and the plugin below it is `brain-mcp`:
     {
       "name": "brain-mcp",
       "source": "./brain-mcp",
-      "version": "0.1.0",
-      "description": "agent-brain tools for the harness: rag_query, memory_search, memory_recent, bus_status.",
+      "version": "0.2.0",
+      "description": "agent-brain tools and the Brain panel for the harness: rag_query, memory_search, memory_recent, memory_status, bus_status.",
       "displayName": "Agent Brain"
     }
   ]
@@ -73,8 +73,8 @@ manifest, including the MCP server declaration:
 ```json
 {
   "name": "brain-mcp",
-  "version": "0.1.0",
-  "description": "agent-brain inside the harness: rag_query (hybrid retrieval with citations), memory_search / memory_recent (durable memories about you and your projects), bus_status (event bus health). Every answer is a status envelope with a trace id.",
+  "version": "0.2.0",
+  "description": "agent-brain inside the harness: rag_query (hybrid retrieval with citations), memory_search / memory_recent (durable memories about you and your projects), memory_status (memory health), bus_status (event bus health) — plus the Brain panel (a persistent session panel: status, search, recent). Every answer is a status envelope with a trace id.",
   "author": { "name": "Damian Lattenero" },
   "license": "MIT",
   "mcpServers": {
@@ -87,10 +87,29 @@ manifest, including the MCP server declaration:
       }
     }
   },
+  "ui": {
+    "surfaces": [
+      {
+        "id": "brain-panel",
+        "title": "Brain",
+        "server": "brain",
+        "resourceUri": "ui://brain/panel.html",
+        "availability": "session"
+      }
+    ]
+  },
   "homepage": "https://github.com/damian-rafael-lattenero/agent-brain",
-  "keywords": ["rag", "memory", "agent", "bus", "kotlin"]
+  "keywords": ["rag", "memory", "agent", "bus", "kotlin", "panel", "mcp-app"]
 }
 ```
+
+The `ui.surfaces` block declares the **Brain panel**: the host offers it as a
+persistent session panel and loads `ui://brain/panel.html` — one
+self-contained page served by the MCP server's resources capability (the SDK
+bundle rides an importmap data-URI baked at build time by
+`:brain-mcp:generatePanelHtml`). The page's three tabs (Status / Search /
+Recent) call `memory_status`, `memory_search` and `memory_recent` through the
+host bridge, so it reads exactly what the model reads.
 
 `${ZCODE_PLUGIN_ROOT}` resolves to the installed copy of the `brain-mcp`
 directory. `env.AB_HTTP_PORT` pins the port the plugin calls: if the brain
@@ -161,9 +180,10 @@ enabled, with the `brain` MCP server attached.
    ```
 
    It prints the initialize result (`serverInfo.name = "brain-mcp"`) and the
-   four tools: `rag_query`, `memory_search`, `memory_recent`, `bus_status`.
+   five tools: `rag_query`, `memory_search`, `memory_recent`, `memory_status`,
+   `bus_status`; `resources/list` shows the panel (`ui://brain/panel.html`).
    The project's own e2e (`./gradlew :brain-mcp:test`) does this against the
-   installed binary and every tool.
+   installed binary, every tool and the panel read.
 
 ## 5. Update after a rebuild
 
@@ -190,8 +210,9 @@ zcode plugins marketplace remove dev-agent-brain
 ## Not the plugin: the HTTP endpoint
 
 This document installs the *stdio plugin*. If the client is another machine, or
-another MCP client that does not spawn processes, the same four tools are served
-over streamable HTTP on loopback behind a bearer token:
+another MCP client that does not spawn processes, the same five tools (and the
+panel resource) are served over streamable HTTP on loopback behind a bearer
+token:
 
 ```bash
 AB_MCP_TOKEN_FILE=~/.zcode/agent-brain/mcp.token \
@@ -200,7 +221,8 @@ AB_MCP_TOKEN_FILE=~/.zcode/agent-brain/mcp.token \
 
 Client configuration, the token rules, the remote-machine tunnel and the tool
 contracts are in [docs/mcp.md](mcp.md). The two transports share one
-implementation, so the four tools documented here behave the same on both.
+implementation, so the tools and the panel documented here behave the same on
+both.
 
 ## Troubleshooting
 
@@ -214,5 +236,5 @@ implementation, so the four tools documented here behave the same on both.
 | MCP errors about malformed stdout | Something wrote a banner to stdout before the transport | Not expected: the server redirects stdout to stderr during startup and logs on stderr; check the plugin's stderr in ZCode |
 | `rag_query` returns no hits | Nothing indexed yet, or the query embedding provider is down | `make index-repos` / `make index`; check `agent-brain health` |
 
-All four tools are read-only; nothing in the plugin writes to your repository
-or to `~/.zcode`.
+All five tools are read-only; nothing in the plugin writes to your repository
+or to `~/.zcode`. The panel is a pure view over those same tools.

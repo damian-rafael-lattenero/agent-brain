@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brain</title>
+<!--
+  The brain's MCP App panel. ONE self-contained page: the host loads this
+  resource raw into a sandboxed webview (no sibling fetches, no CDN), so the
+  official MCP Apps SDK bundle rides an importmap data-URI baked at build
+  time (Gradle task generatePanelHtml expands the build placeholder below
+  with the base64 of plugin/assets/ext-apps/app-with-deps.js, MIT — LICENSE
+  beside it; that placeholder appears exactly once, in the importmap).
+  The page never talks to the brain directly: every datum comes from the
+  plugin's own tools (memory_status, memory_search, memory_recent) through
+  the host bridge, inside the same read-only + envelope contract the model
+  sees (V10).
+-->
+<script type="importmap">
+{"imports":{"@modelcontextprotocol/ext-apps":"data:text/javascript;base64,@@EXT_APPS_B64@@"}}
+</script>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #14161a; --panel: #1c1f26; --card: #22262f; --border: #2e333d;
+    --text: #e6e9ef; --muted: #9aa3b2; --accent: #7aa2f7; --err: #f7768e; --ok: #9ece6a;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8; --panel: #ffffff; --card: #f0f1f4; --border: #d9dce3;
+    --text: #1f2430; --muted: #667085; --accent: #2d5bd7; --err: #c02d4b; --ok: #2f7d42;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 13px/1.45 ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0;
+  }
+  header h1 { font-size: 14px; margin: 0; font-weight: 600; }
+  nav { display: flex; gap: 4px; }
+  nav button {
+    border: 0; background: transparent; color: var(--muted); padding: 5px 10px;
+    border-radius: 6px; cursor: pointer; font: inherit;
+  }
+  nav button[aria-selected="true"] { background: var(--card); color: var(--text); }
+  main { flex: 1; padding: 14px; }
+  section[hidden] { display: none; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .card .label { color: var(--muted); font-size: 11px; }
+  .card .value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .card .value.ok { color: var(--ok); }
+  .card .value.warn { color: var(--err); }
+  table.kinds { border-collapse: collapse; margin-top: 10px; width: 100%; }
+  table.kinds td, table.kinds th { text-align: left; padding: 3px 10px 3px 0; border-bottom: 1px solid var(--border); }
+  table.kinds td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  input[type="text"], input[type="number"], select {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 9px; font: inherit;
+  }
+  input[type="text"] { flex: 1; min-width: 160px; }
+  button.act {
+    background: var(--accent); color: #fff; border: 0; border-radius: 6px;
+    padding: 6px 14px; font: inherit; cursor: pointer;
+  }
+  button.act:disabled { opacity: 0.5; cursor: wait; }
+  ul.memories { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  li.memory { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; }
+  .memory .top { display: flex; gap: 8px; align-items: baseline; }
+  .memory .kind {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 5px;
+  }
+  .memory .score { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11px; }
+  .memory .content { margin: 5px 0 4px; white-space: pre-wrap; word-break: break-word; }
+  .memory .meta { color: var(--muted); font-size: 11px; }
+  #foot {
+    padding: 6px 14px; color: var(--muted); font-size: 11px; min-height: 26px;
+    border-top: 1px solid var(--border); background: var(--panel);
+  }
+  #foot.error { color: var(--err); }
+  .hint { color: var(--muted); margin: 0 0 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧠 Brain</h1>
+  <nav aria-label="panel tabs">
+    <button id="tab-status" aria-selected="true">Status</button>
+    <button id="tab-search" aria-selected="false">Search</button>
+    <button id="tab-recent" aria-selected="false">Recent</button>
+  </nav>
+</header>
+<main>
+  <section id="sec-status">
+    <div class="row"><button class="act" id="refresh">Refresh</button></div>
+    <div class="cards" id="status-cards"></div>
+    <table class="kinds" id="kinds-table"></table>
+  </section>
+  <section id="sec-search" hidden>
+    <p class="hint">Ranking is retrieval-first: salience and half-life decay only break ties.</p>
+    <div class="row">
+      <input type="text" id="query" placeholder="what to remember…" autocomplete="off">
+      <input type="number" id="k" value="5" min="1" max="50" title="hits">
+      <button class="act" id="do-search">Search</button>
+    </div>
+    <ul class="memories" id="search-results"></ul>
+  </section>
+  <section id="sec-recent" hidden>
+    <div class="row">
+      <select id="limit" title="limit">
+        <option>5</option><option selected>10</option><option>25</option><option>50</option>
+      </select>
+      <select id="kind" title="kind">
+        <option value="">all kinds</option>
+        <option>fact</option><option>decision</option><option>preference</option><option>summary</option>
+      </select>
+      <button class="act" id="do-recent">Recent</button>
+    </div>
+    <ul class="memories" id="recent-results"></ul>
+  </section>
+</main>
+<footer id="foot"></footer>
+
+<script type="module">
+import { App } from "@modelcontextprotocol/ext-apps";
+
+const app = new App({ name: "brain-panel", version: "0.2.0" }, {});
+
+// ---- pure render helpers -------------------------------------------------
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const foot = (msg, isError = false) => {
+  const el = document.getElementById("foot");
+  el.textContent = msg ?? "";
+  el.classList.toggle("error", isError);
+};
+
+const card = (label, value, cls = "") =>
+  `<div class="card"><div class="label">${esc(label)}</div><div class="value ${cls}">${esc(value)}</div></div>`;
+
+const fmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : esc(n));
+
+const kindRows = (title, map) => {
+  const entries = Object.entries(map ?? {}).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return "";
+  const rows = entries.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${fmt(v)}</td></tr>`).join("");
+  return `<tr><th>${esc(title)}</th><th></th></tr>${rows}`;
+};
+
+const memory = (m) => `
+  <li class="memory">
+    <div class="top">
+      <span class="kind">${esc(m.kind)}</span>
+      ${m.score != null ? `<span class="score">score ${Number(m.score).toFixed(4)}</span>` : ""}
+    </div>
+    <div class="content">${esc(m.content)}</div>
+    <div class="meta">#${m.id} · salience ${Number(m.salience ?? 0).toFixed(2)} · ${esc((m.createdAt ?? "").replace("T", " ").replace(/Z$/, ""))}${m.sessionId ? " · " + esc(m.sessionId) : ""}</div>
+  </li>`;
+
+const renderStatus = (s) => {
+  const breakerOk = s.breaker === "Closed";
+  document.getElementById("status-cards").innerHTML = [
+    card("memories", fmt(s.memories)),
+    card("active", fmt(s.active)),
+    card("cooling", fmt(s.cooling)),
+    card("archived", fmt(s.archived)),
+    card("superseded", fmt(s.superseded)),
+    card("quarantined", fmt(s.quarantined)),
+    card("pending turns", fmt(s.pendingTurns), Number(s.pendingTurns) > 0 ? "warn" : "ok"),
+    card("processed turns", fmt(s.processedTurns)),
+    card("breaker", s.breaker, breakerOk ? "ok" : "warn"),
+  ].join("");
+  document.getElementById("kinds-table").innerHTML =
+    kindRows("by kind", s.byKind) + kindRows("edges by kind", s.edgesByKind) +
+    `<tr><td>chat model</td><td>${esc(s.chatModel)}</td></tr>` +
+    `<tr><td>embed model</td><td>${esc(s.embedModel)}</td></tr>`;
+};
+
+const renderMemories = (listEl, memories) => {
+  listEl.innerHTML = memories.length
+    ? memories.map(memory).join("")
+    : `<li class="memory"><div class="content">no memories</div></li>`;
+};
+
+// ---- the envelope contract, client side ----------------------------------
+
+// One tool call = one envelope {status, result|error}. The plugin's handlers
+// never throw: a dead brain or a bad query is data (status "error"), only a
+// broken bridge throws here.
+async function call(name, args) {
+  const result = await app.callServerTool({ name, arguments: args });
+  const text = (result.content ?? []).find((c) => c.type === "text")?.text;
+  const envelope = text ? JSON.parse(text) : {};
+  if (envelope.status !== "ok") {
+    throw new Error(envelope.error?.message ?? `${name} failed`);
+  }
+  return envelope.result;
+}
+
+// ---- tabs ----------------------------------------------------------------
+
+const tabs = ["status", "search", "recent"];
+const show = (name) => {
+  for (const t of tabs) {
+    document.getElementById(`tab-${t}`).setAttribute("aria-selected", String(t === name));
+    document.getElementById(`sec-${t}`).hidden = t !== name;
+  }
+  if (name === "status" && !document.getElementById("status-cards").children.length) loadStatus();
+};
+for (const t of tabs) document.getElementById(`tab-${t}`).addEventListener("click", () => show(t));
+
+// ---- actions -------------------------------------------------------------
+
+async function loadStatus() {
+  foot("loading status…");
+  try {
+    renderStatus(await call("memory_status", {}));
+    foot("");
+  } catch (e) {
+    foot(e.message, true);
+  }
+}
+document.getElementById("refresh").addEventListener("click", loadStatus);
+
+async function doSearch() {
+  const button = document.getElementById("do-search");
+  const query = document.getElementById("query").value.trim();
+  const k = Number(document.getElementById("k").value) || 5;
+  if (!query) { foot("type a query first", true); return; }
+  button.disabled = true;
+  foot(`searching “${query}”…`);
+  try {
+    const r = await call("memory_search", { query, k });
+    renderMemories(document.getElementById("search-results"), r.memories ?? []);
+    foot(`${(r.memories ?? []).length} memories · model ${r.embedModel ?? "?"}`);
+  } catch (e) {
+    foot(e.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+document.getElementById("do-search").addEventListener("click", doSearch);
+document.getElementById("query").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+
+async function doRecent() {
+  const limit = Number(document.getElementById("limit").value) || 10;
+  const kind = document.getElementById("kind").value;
+  foot("loading recent…");
+  try {
+    const rows = await call("memory_recent", kind ? { limit, kind } : { limit });
+    renderMemories(document.getElementById("recent-results"), rows ?? []);
+    foot(`${(rows ?? []).length} memories`);
+  } catch (e) {
+    foot(e.message, true);
+  }
+}
+document.getElementById("do-recent").addEventListener("click", doRecent);
+
+// ---- boot ----------------------------------------------------------------
+
+await app.connect();
+document.documentElement.dataset.theme = app.getHostContext()?.theme ?? "dark";
+app.onhostcontextchanged = () => {
+  document.documentElement.dataset.theme = app.getHostContext()?.theme ?? "dark";
+};
+await loadStatus();
+</script>
+</body>
+</html>

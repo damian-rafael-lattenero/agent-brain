@@ -36,7 +36,7 @@ private val log = LoggerFactory.getLogger("agent-brain.mcp.http")
 
 /**
  * The MCP endpoint as a service: streamable HTTP on loopback, gated by a
- * bearer token, exposing exactly the four tools the stdio plugin exposes.
+ * bearer token, exposing exactly the tools and the panel the stdio plugin exposes.
  *
  * Why this shape (the trade-off is written up in `docs/mcp.md`):
  *

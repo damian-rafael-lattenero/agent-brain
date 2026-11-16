@@ -108,7 +108,7 @@ class McpHttpProcessTest {
     }
 
     @Test
-    fun `a valid token initializes, lists the four tools and runs rag_query with citations`() = runBlocking<Unit> {
+    fun `a valid token initializes, lists the five tools and runs rag_query with citations`() = runBlocking<Unit> {
         val init = post(
             """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"process-client","version":"0"}}}""",
             token,
@@ -130,7 +130,7 @@ class McpHttpProcessTest {
         val tools = json.parseToJsonElement(list.bodyAsText())
             .jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
         assertThat(tools.map { it.jsonObject["name"]!!.jsonPrimitive.content })
-            .containsExactlyInAnyOrder("rag_query", "memory_search", "memory_recent", "bus_status")
+            .containsExactlyInAnyOrder("rag_query", "memory_search", "memory_recent", "memory_status", "bus_status")
 
         val call = post(
             """{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rag_query","arguments":{"query":"tailer truncation"}}}""",
