@@ -23,7 +23,20 @@ interface ChatProvider : AutoCloseable {
     override fun close() {}
 }
 
-data class ChatResult(val text: String, val promptTokens: Int? = null, val completionTokens: Int? = null)
+/**
+ * [truncated] is the provider's own "I stopped at the output cap" signal
+ * (`done_reason: length` on Ollama, `finish_reason: length` on OpenAI-shaped
+ * APIs). A cut generation is NOT a bad model answer — the 16/11 finding: 13
+ * quarantined turns in two days labelled "not JSON" when the JSON was simply
+ * never finished because `num_predict` was 512. The extractor reads this flag
+ * and quarantines the turn as TRUNCATED instead of posing it as invalid.
+ */
+data class ChatResult(
+    val text: String,
+    val promptTokens: Int? = null,
+    val completionTokens: Int? = null,
+    val truncated: Boolean = false,
+)
 
 class ChatException(message: String, cause: Throwable? = null) : ProviderException(message, cause)
 

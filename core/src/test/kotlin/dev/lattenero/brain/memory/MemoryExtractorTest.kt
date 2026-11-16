@@ -63,6 +63,26 @@ class MemoryExtractorTest {
     }
 
     @Test
+    fun `a generation cut at the output cap is quarantined as truncated, not as bad JSON`() {
+        // The 16/11 audit: every lost raw ended mid-word because the provider's
+        // cap cut the JSON. The reason must say so — "not JSON" hid the cause.
+        val cut = ChatResult("""{"facts": ["The Kotlin""", truncated = true)
+        assertThatThrownBy { MemoryExtractor.parse(cut) }
+            .isInstanceOf(ExtractionInvalid::class.java)
+            .hasMessageContaining("truncated")
+            .extracting("raw").isEqualTo(cut.text)
+    }
+
+    @Test
+    fun `a truncated flag over valid JSON changes nothing - the parse stands`() {
+        val valid = ChatResult(
+            """{"facts": ["The core is Kotlin on Corretto 25."], "decisions": [], "preferences": [], "summary": "fine"}""",
+            truncated = true,
+        )
+        assertThat(MemoryExtractor.parse(valid).facts).containsExactly("The core is Kotlin on Corretto 25.")
+    }
+
+    @Test
     fun `caps and hygiene - short items dropped, long ones clipped, duplicates removed, ten per kind, empty lists fine`() {
         val many = (1..15).map { "Fact number $it that is long enough to keep." }
         val raw = FakeChatProvider.json(

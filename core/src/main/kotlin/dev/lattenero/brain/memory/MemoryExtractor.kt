@@ -234,7 +234,14 @@ class MemoryExtractor(
                 promptTokens = result.promptTokens,
                 completionTokens = result.completionTokens,
             )
-            is ParseOutcome.Invalid -> throw ExtractionInvalid(outcome.reason, outcome.raw)
+            // The provider said it stopped at the output cap (done_reason:
+            // length). A cut generation is not a model that answered badly —
+            // quarantining it as "not JSON" hides the real cause (the 16/11
+            // audit: 13 turns in two days, every raw ending mid-word).
+            is ParseOutcome.Invalid -> throw ExtractionInvalid(
+                if (result.truncated) "truncated: the output cap cut the JSON before it closed" else outcome.reason,
+                outcome.raw,
+            )
         }
     }
 }
