@@ -7,7 +7,7 @@ CREATE TABLE documents (
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   content_sha TEXT NOT NULL,
-  meta TEXT NOT NULL,
+  meta TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -32,3 +32,25 @@ SELECT count(*) AS n FROM chunks;
 
 documentsBySource:
 SELECT source, count(*) AS n FROM documents GROUP BY source ORDER BY source;
+
+-- M2 writes.
+existingDoc:
+SELECT id, content_sha FROM documents WHERE uri = :uri;
+
+upsertDocument:
+INSERT INTO documents (source, uri, title, content, content_sha)
+VALUES (:source, :uri, :title, :content, :sha)
+ON CONFLICT (uri) DO UPDATE SET source = EXCLUDED.source, title = EXCLUDED.title,
+  content = EXCLUDED.content, content_sha = EXCLUDED.content_sha, updated_at = now()
+RETURNING id;
+
+deleteChunksByDoc:
+DELETE FROM chunks WHERE doc_id = :docId;
+
+insertChunk:
+INSERT INTO chunks (doc_id, ordinal, heading, content, embed_model, embedding)
+VALUES (:docId, :ordinal, :heading, :content, :embedModel, :embedding::vector);
+
+deleteDocumentsNotIn:
+DELETE FROM documents WHERE source = :source
+  AND uri NOT IN (SELECT unnest(:keptUris::text[]));

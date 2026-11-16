@@ -39,13 +39,6 @@ VALUES (:sessionId, :turnId, :kind, :content, :embedModel, :embedding::vector, :
 ON CONFLICT DO NOTHING
 RETURNING id;
 
--- Evidence statements: md5 and split_part both parse (they sit BEFORE
--- lifecycleCounts, whose verdict was previously masked by one-error-per-file).
-findReplay:
-SELECT id FROM memories
-WHERE source_event_id = :eventId AND kind = :kind AND md5(content) = md5(:content)
-LIMIT 1;
-
 quarantineBucketed:
 SELECT
   CASE
@@ -59,13 +52,8 @@ FROM memory_quarantine
 GROUP BY bucket
 ORDER BY n DESC, bucket;
 
--- CONFINED-RAW LAW (P0 verdict): every statement touching pgvector's
--- cosine operator stays raw JDBC — the dialect has no generic operator
--- token (neither `<=>` nor Postgres's OPERATOR(public.<=>) spelling parse;
--- measured 2026-11-15, spike-sqldelight.md). They keep their plan-law
--- KDocs, ITs and eval gates where they live today.
-
--- The B3 lifecycle buckets: aggregate FILTER without OVER + the decay math.
+-- The B3 lifecycle buckets: aggregate FILTER without OVER + the decay math
+-- (both carried by the fork dialect — the U5 walls are dead).
 lifecycleCounts:
 WITH params AS (
   SELECT :halfLife::int AS half_life, :coolingFloor::float8 AS cooling_floor, :forgetFloor::float8 AS forget_floor
@@ -120,6 +108,19 @@ FROM fused f JOIN memories m ON m.id = f.id
 ORDER BY f.rrf DESC, weight DESC, m.id
 LIMIT :k;
 
+-- findReplay law: the same extraction landing again — (event, kind, content)
+-- already there — is absorbed silently (a crash between insert and mark
+-- re-runs the turn: that is idempotence, never a salience bump).
+findReplay:
+SELECT id FROM memories
+WHERE source_event_id = :eventId AND kind = :kind AND md5(content) = md5(:content)
+LIMIT 1;
+
+-- findDuplicate law: the OLDEST row at or above the threshold to the new
+-- embedding — same embed model (ADR-004), any kind, any session, never an
+-- invalidated row (a dead claim must not absorb a new landing). Oldest, not
+-- most-similar, so insert-time merges and the backfill's oldest-first
+-- clusters agree on the survivor.
 findDuplicate:
 SELECT id FROM memories
 WHERE embed_model = :embedModel AND invalid_at IS NULL

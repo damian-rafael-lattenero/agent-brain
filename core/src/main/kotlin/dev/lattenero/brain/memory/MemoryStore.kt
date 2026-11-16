@@ -2,8 +2,8 @@ package dev.lattenero.brain.memory
 
 import com.pgvector.PGvector
 import dev.lattenero.brain.db.Database
-import dev.lattenero.brain.db.inTransaction
 import dev.lattenero.brain.db.sq.LifecycleCounts as GeneratedLifecycleCounts
+import dev.lattenero.brain.db.toVectorText
 import dev.lattenero.brain.rag.Rrf
 import kap.KapTypeSafe
 import kotlinx.serialization.Serializable
@@ -131,27 +131,21 @@ class MemoryStore(private val db: Database) {
     }
 
     /** The raw insert: exactly these rows, ON CONFLICT DO NOTHING, no dedup. */
-    suspend fun insertAll(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): Int = db.withConnection { conn ->
-        if (rows.isEmpty()) return@withConnection 0
-        conn.prepareStatement(
-            """
-            INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT DO NOTHING
-            """,
-        ).use { ps ->
-            for (row in rows) {
-                ps.setString(1, transcript.sessionId)
-                ps.setString(2, transcript.turnId)
-                ps.setString(3, row.kind)
-                ps.setString(4, row.content)
-                ps.setString(5, embedModel)
-                ps.setObject(6, PGvector(row.embedding))
-                ps.setString(7, transcript.eventId)
-                ps.addBatch()
-            }
-            ps.executeBatch().count { it > 0 }
+    suspend fun insertAll(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): Int = db.withDriver { brainDb ->
+        if (rows.isEmpty()) return@withDriver 0
+        var landed = 0
+        for (row in rows) {
+            landed += brainDb.memoriesQueries.insertMemoryNoReturn(
+                transcript.sessionId,
+                transcript.turnId,
+                row.kind,
+                row.content,
+                embedModel,
+                row.embedding.toVectorText(),
+                transcript.eventId,
+            ).value.toInt()
         }
+        landed
     }
 
     /**
@@ -167,18 +161,34 @@ class MemoryStore(private val db: Database) {
      */
     suspend fun insertAllDeduped(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): InsertReport {
         if (rows.isEmpty()) return InsertReport(0, emptyList())
-        return db.inTransaction { conn ->
+        return db.withDriver { brainDb ->
             val merged = mutableListOf<Long>()
             val insertedIds = mutableListOf<Long>()
-            for (row in rows) {
-                val replayed = findReplay(conn, transcript.eventId, row.kind, row.content)
-                if (replayed != null) continue
-                val duplicate = findDuplicate(conn, row.embedding, embedModel, MemoryDedup.SIMILARITY)
-                if (duplicate != null) {
-                    reinforce(conn, duplicate, REINFORCE_STEP)
-                    merged += duplicate
-                } else {
-                    insertedIds += insertRow(conn, transcript, embedModel, row)
+            brainDb.transaction {
+                for (row in rows) {
+                    val replayed = brainDb.memoriesQueries.findReplay(transcript.eventId, row.kind, row.content)
+                        .executeAsOneOrNull()
+                    if (replayed == null) {
+                        val duplicate = brainDb.memoriesQueries.findDuplicate(
+                            embedModel,
+                            row.embedding.toVectorText(),
+                            MemoryDedup.SIMILARITY,
+                        ).executeAsOneOrNull()
+                        if (duplicate != null) {
+                            brainDb.memoriesQueries.reinforceOne(REINFORCE_STEP, duplicate)
+                            merged += duplicate
+                        } else {
+                            insertedIds += brainDb.memoriesQueries.insertMemory(
+                                transcript.sessionId,
+                                transcript.turnId,
+                                row.kind,
+                                row.content,
+                                embedModel,
+                                row.embedding.toVectorText(),
+                                transcript.eventId,
+                            ).executeAsOne()
+                        }
+                    }
                 }
             }
             InsertReport(insertedIds.size, merged, insertedIds)
@@ -187,9 +197,12 @@ class MemoryStore(private val db: Database) {
 
     /** Manual saves dedup with the same rule and return the surviving row's id. */
     suspend fun saveManual(kind: String, content: String, embedModel: String, embedding: FloatArray, sessionId: String?): Long {
-        val duplicate = db.withConnection { conn -> findDuplicate(conn, embedding, embedModel, MemoryDedup.SIMILARITY) }
+        val duplicate = db.withDriver { brainDb ->
+            brainDb.memoriesQueries.findDuplicate(embedModel, embedding.toVectorText(), MemoryDedup.SIMILARITY)
+                .executeAsOneOrNull()
+        }
         if (duplicate != null) {
-            db.withConnection { conn -> reinforce(conn, duplicate, REINFORCE_STEP) }
+            db.withDriver { brainDb -> brainDb.memoriesQueries.reinforceOne(REINFORCE_STEP, duplicate) }
             return duplicate
         }
         return saveRaw(MemoryRow(kind, content, embedding), embedModel, sessionId)
@@ -201,17 +214,16 @@ class MemoryStore(private val db: Database) {
      * at insert time would leave nothing to judge. The eval/IT faces use this;
      * the write path never does.
      */
-    suspend fun saveRaw(row: MemoryRow, embedModel: String, sessionId: String?): Long = db.withConnection { conn ->
-        conn.prepareStatement(
-            "INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id) VALUES (?, NULL, ?, ?, ?, ?, NULL) RETURNING id",
-        ).use { ps ->
-            ps.setString(1, sessionId)
-            ps.setString(2, row.kind)
-            ps.setString(3, row.content)
-            ps.setString(4, embedModel)
-            ps.setObject(5, PGvector(row.embedding))
-            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
-        }
+    suspend fun saveRaw(row: MemoryRow, embedModel: String, sessionId: String?): Long = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.insertMemory(
+            sessionId,
+            null,
+            row.kind,
+            row.content,
+            embedModel,
+            row.embedding.toVectorText(),
+            null,
+        ).executeAsOne()
     }
 
     /**
@@ -247,10 +259,15 @@ class MemoryStore(private val db: Database) {
      * dedup would have accumulated for them) and the absorbed rows are
      * deleted. Returns the number of rows removed.
      */
-    suspend fun applyDedup(plan: Plan): Int = db.inTransaction { conn ->
-        for (cluster in plan.clusters) {
-            reinforce(conn, cluster.keepId, REINFORCE_STEP * cluster.reinforcements)
-            deleteMemories(conn, cluster.absorbedIds)
+    // Array<Long> boxing is inherent to the generated array bind; cluster
+    // cardinalities are tiny — noise.
+    @Suppress("ArrayPrimitive")
+    suspend fun applyDedup(plan: Plan): Int = db.withDriver { brainDb ->
+        brainDb.transaction {
+            for (cluster in plan.clusters) {
+                brainDb.memoriesQueries.reinforceOne(REINFORCE_STEP * cluster.reinforcements, cluster.keepId)
+                brainDb.memoriesQueries.deleteAbsorbed(cluster.absorbedIds.toTypedArray())
+            }
         }
         plan.removed
     }
@@ -262,8 +279,8 @@ class MemoryStore(private val db: Database) {
      * already invalidated is left alone (idempotent: the first stamp is the
      * only stamp). Returns whether THIS call stamped it.
      */
-    suspend fun invalidate(id: Long): Boolean = db.withConnection { conn ->
-        invalidate(conn, id)
+    suspend fun invalidate(id: Long): Boolean = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.invalidate(id).value > 0
     }
 
     /**
@@ -272,10 +289,15 @@ class MemoryStore(private val db: Database) {
      * have reinforced it, and the absorbed row is deleted (the Same verdict
      * means one memory said twice, so the store holds it once).
      */
-    suspend fun mergeInto(survivorId: Long, absorbedId: Long): Unit = db.inTransaction { conn ->
+    // The generated signature binds arrays as Array<Long> (boxing inherent to
+    // the JDBC array type); cardinalities here are single digits — noise.
+    @Suppress("ArrayPrimitive")
+    suspend fun mergeInto(survivorId: Long, absorbedId: Long): Unit = db.withDriver { brainDb ->
         if (survivorId != absorbedId) {
-            reinforce(conn, survivorId, REINFORCE_STEP)
-            deleteMemories(conn, listOf(absorbedId))
+            brainDb.transaction {
+                brainDb.memoriesQueries.reinforceOne(REINFORCE_STEP, survivorId)
+                brainDb.memoriesQueries.deleteAbsorbed(arrayOf(absorbedId))
+            }
         }
     }
 
@@ -419,28 +441,23 @@ class MemoryStore(private val db: Database) {
         }
     }
 
-    suspend fun markProcessed(eventId: String) = db.withConnection { conn ->
-        conn.prepareStatement("UPDATE bus_events SET memory_at = now() WHERE id = ?").use { ps ->
-            ps.setString(1, eventId)
-            ps.executeUpdate()
-        }
+    suspend fun markProcessed(eventId: String) {
+        db.withDriver { it.busEventsQueries.markProcessed(eventId) }
     }
 
-    suspend fun bumpAttempts(eventId: String) = db.withConnection { conn ->
-        conn.prepareStatement("UPDATE bus_events SET memory_attempts = memory_attempts + 1 WHERE id = ?").use { ps ->
-            ps.setString(1, eventId)
-            ps.executeUpdate()
-        }
+    suspend fun bumpAttempts(eventId: String) {
+        db.withDriver { it.busEventsQueries.bumpAttempts(eventId) }
     }
 
-    suspend fun quarantine(transcript: Transcript?, eventId: String, reason: String, raw: String) = db.withConnection { conn ->
-        conn.prepareStatement("INSERT INTO memory_quarantine (turn_id, reason, raw, event_id, session_id) VALUES (?, ?, ?, ?, ?)").use { ps ->
-            ps.setString(1, transcript?.turnId)
-            ps.setString(2, reason.take(MAX_REASON_CHARS))
-            ps.setString(3, raw)
-            ps.setString(4, eventId)
-            ps.setString(5, transcript?.sessionId)
-            ps.executeUpdate()
+    suspend fun quarantine(transcript: Transcript?, eventId: String, reason: String, raw: String) {
+        db.withDriver { brainDb ->
+            brainDb.memoriesQueries.quarantineInsert(
+                transcript?.turnId,
+                reason.take(MAX_REASON_CHARS),
+                raw,
+                eventId,
+                transcript?.sessionId,
+            )
         }
     }
 
@@ -582,86 +599,6 @@ class MemoryStore(private val db: Database) {
         score,
         weight,
     )
-
-    /** The same extraction landing again: (event, kind, content) already there. */
-    private fun findReplay(conn: java.sql.Connection, eventId: String, kind: String, content: String): Long? =
-        conn.prepareStatement(
-            "SELECT id FROM memories WHERE source_event_id = ? AND kind = ? AND md5(content) = md5(?) LIMIT 1",
-        ).use { ps ->
-            ps.setString(1, eventId)
-            ps.setString(2, kind)
-            ps.setString(3, content)
-            ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
-        }
-
-    /**
-     * The OLDEST row at or above [threshold] to [embedding] — same embed
-     * model, any kind, any session (`<=>` is pgvector's cosine distance),
-     * never an invalidated row (a dead claim must not absorb a new landing:
-     * the restatement of the truth would vanish into the row that says it is
-     * false). Oldest, not most-similar, so insert-time merges and the
-     * backfill's oldest-first clusters agree on the survivor.
-     */
-    private fun findDuplicate(
-        conn: java.sql.Connection,
-        embedding: FloatArray,
-        embedModel: String,
-        threshold: Double,
-    ): Long? = conn.prepareStatement(
-        "SELECT id FROM memories WHERE embed_model = ? AND invalid_at IS NULL " +
-            "AND (1 - (embedding <=> ?::vector)) >= ? " +
-            "ORDER BY created_at, id LIMIT 1",
-    ).use { ps ->
-        ps.setString(1, embedModel)
-        ps.setObject(2, PGvector(embedding))
-        ps.setDouble(3, threshold)
-        ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
-    }
-
-    /** The decay system's own reinforcement: salience up, last_accessed to now. */
-    private fun reinforce(conn: java.sql.Connection, id: Long, by: Double) {
-        conn.prepareStatement(
-            "UPDATE memories SET salience = salience + ?, last_accessed = now() WHERE id = ?",
-        ).use { ps ->
-            ps.setDouble(1, by)
-            ps.setLong(2, id)
-            ps.executeUpdate()
-        }
-    }
-
-    /** The stamp, guarded: only a live row (invalid_at IS NULL) takes a stamp. */
-    private fun invalidate(conn: java.sql.Connection, id: Long): Boolean = conn.prepareStatement(
-        "UPDATE memories SET invalid_at = now() WHERE id = ? AND invalid_at IS NULL",
-    ).use { ps ->
-        ps.setLong(1, id)
-        ps.executeUpdate() > 0
-    }
-
-    private fun deleteMemories(conn: java.sql.Connection, ids: List<Long>) {
-        conn.prepareStatement("DELETE FROM memories WHERE id = ANY(?)").use { ps ->
-            ps.setArray(1, conn.createArrayOf("bigint", ids.toTypedArray()))
-            ps.executeUpdate()
-        }
-    }
-
-    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow): Long =
-        conn.prepareStatement(
-            """
-            INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT DO NOTHING
-            RETURNING id
-            """,
-        ).use { ps ->
-            ps.setString(1, transcript.sessionId)
-            ps.setString(2, transcript.turnId)
-            ps.setString(3, row.kind)
-            ps.setString(4, row.content)
-            ps.setString(5, embedModel)
-            ps.setObject(6, PGvector(row.embedding))
-            ps.setString(7, transcript.eventId)
-            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
-        }
 
     private fun readMemories(rs: java.sql.ResultSet): List<Memory> = generateSequence {
         if (!rs.next()) null else Memory(
