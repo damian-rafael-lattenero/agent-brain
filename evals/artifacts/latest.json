@@ -1,5 +1,5 @@
 {
-    "runId": "047a17c9-c899-48b3-a43a-8affc1098c21",
+    "runId": "83ea0439-a76f-4e18-bfb0-b251a98b7625",
     "suite": "memory-core",
     "kind": "memory",
     "axis": "embed",
@@ -11,13 +11,13 @@
     "total": 10,
     "ok": true,
     "metrics": {
-        "p50Ms": 28,
-        "p95Ms": 60,
+        "p50Ms": 27,
+        "p95Ms": 54,
         "promptTokens": 103,
         "completionTokens": 0,
         "costUsd": 0.0,
         "costKnown": true,
-        "durationMs": 1745,
+        "durationMs": 1424,
         "supportChecked": 1,
         "supported": 0,
         "retrieval": {
@@ -32,7 +32,7 @@
         {
             "id": "worker-extracts",
             "ok": true,
-            "durationMs": 60,
+            "durationMs": 54,
             "promptTokens": 12,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -55,7 +55,7 @@
         {
             "id": "extraction-reads",
             "ok": false,
-            "durationMs": 42,
+            "durationMs": 33,
             "promptTokens": 12,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -78,7 +78,7 @@
         {
             "id": "worker-polls",
             "ok": true,
-            "durationMs": 34,
+            "durationMs": 29,
             "promptTokens": 9,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -101,7 +101,7 @@
         {
             "id": "dedup-merges",
             "ok": true,
-            "durationMs": 35,
+            "durationMs": 27,
             "promptTokens": 10,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -124,7 +124,7 @@
         {
             "id": "kafka-rebalance",
             "ok": true,
-            "durationMs": 28,
+            "durationMs": 26,
             "promptTokens": 10,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -147,7 +147,7 @@
         {
             "id": "lemon-pie",
             "ok": true,
-            "durationMs": 27,
+            "durationMs": 26,
             "promptTokens": 9,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -170,7 +170,7 @@
         {
             "id": "lifecycle-forgets",
             "ok": true,
-            "durationMs": 26,
+            "durationMs": 25,
             "promptTokens": 10,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -193,7 +193,7 @@
         {
             "id": "graph-traversal",
             "ok": true,
-            "durationMs": 28,
+            "durationMs": 27,
             "promptTokens": 12,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -239,7 +239,7 @@
         {
             "id": "quarantine-echo",
             "ok": true,
-            "durationMs": 26,
+            "durationMs": 27,
             "promptTokens": 10,
             "completionTokens": 0,
             "tokensEstimated": true,
@@ -260,8 +260,8 @@
             "failure": null
         }
     ],
-    "startedAt": "2026-11-16T03:28:29.725158Z",
-    "durationMs": 1745,
+    "startedAt": "2026-11-16T04:13:35.818367Z",
+    "durationMs": 1424,
     "matrixId": null,
     "chatModel": "qwen2.5:1.5b",
     "rerank": false

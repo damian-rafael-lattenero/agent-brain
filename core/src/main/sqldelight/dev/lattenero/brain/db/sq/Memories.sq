@@ -72,8 +72,11 @@ countMemories:
 SELECT count(*) AS n FROM memories;
 
 -- The retrieval law (MemoryStore.SEARCH), byte-faithful to the raw twin:
--- params CTE + alive exclusion + two ranked legs + RRF fusion. The fork
--- dialect parses `<=>` (LTE GT token sequence) and the FTS functions
+-- params CTE + alive exclusion + two ranked legs + RRF fusion. The alive CTE
+-- is the exclusion law's search face (a live row is neither invalidated nor
+-- forgotten) — its graph twin lives in MemoryEdges.sq's traverse: both
+-- surfaces must agree on who is alive, so recall surfaces never disagree.
+-- The fork dialect parses `<=>` (LTE GT token sequence) and the FTS functions
 -- resolve through the fork's TypeResolver.
 searchMemory:
 WITH params AS (
@@ -181,3 +184,53 @@ UPDATE memories SET salience = salience + :by, last_accessed = now() WHERE id = 
 quarantineInsert:
 INSERT INTO memory_quarantine (turn_id, reason, raw, event_id, session_id)
 VALUES (:turnId, :reason, :raw, :eventId, :sessionId);
+
+-- M3 retrieval laws. nearestNeighbor: the ONE candidate a reconcile verdict
+-- sees — cosine in the band (high edge reads MemoryDedup.SIMILARITY so the
+-- band ends exactly where dedup takes over), same embed model, never self,
+-- never invalidated, never forgotten (B3).
+nearestNeighbor:
+WITH params AS (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor),
+     q AS (SELECT :qv::vector AS v)
+SELECT m.id, m.content, m.created_at, 1 - (m.embedding <=> q.v) AS cosine
+FROM memories m, params p, q
+WHERE m.embed_model = :embedModel
+  AND m.id <> :selfId
+  AND m.invalid_at IS NULL
+  AND (1 - (m.embedding <=> q.v)) >= :low
+  AND (1 - (m.embedding <=> q.v)) < :high
+  AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+ORDER BY m.embedding <=> q.v, m.id
+LIMIT 1;
+
+-- The verdict-pass candidate by id alone; cosine is the caller's business.
+rowAsNeighbor:
+SELECT id, content, created_at FROM memories WHERE id = :id;
+
+-- The stored embedding, for passes that compare neighbors without re-embedding.
+embeddingOf:
+SELECT embedding::text AS embedding_text FROM memories WHERE id = :id;
+
+-- The passes' idempotence guard: does a stamp exist?
+isInvalidated:
+SELECT invalid_at IS NOT NULL AS invalidated FROM memories WHERE id = :id;
+
+-- Every row the dedup backfill reads, oldest first — invalidated rows
+-- excluded (a live claim must never be absorbed by a dead one).
+dedupRows:
+SELECT id, kind, content, embed_model, salience, created_at, embedding::text AS embedding_text
+FROM memories WHERE invalid_at IS NULL ORDER BY created_at, id;
+
+-- Every COOLING row the dream pass reads, oldest first — B3's law as ONE SQL
+-- classification (life-weight in [forget_floor, cooling_floor)), the SAME
+-- expression the status buckets count with. Invalidated rows are not dream
+-- inputs; neither are forgotten (ARCHIVED) ones.
+dreamRows:
+WITH params AS (SELECT :halfLife::int AS half_life, :coolingFloor::float8 AS cooling_floor, :forgetFloor::float8 AS forget_floor)
+SELECT m.id, m.kind, m.content, m.embed_model, m.salience, m.created_at, m.embedding::text AS embedding_text
+FROM memories m, params p
+WHERE m.invalid_at IS NULL
+  AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+  AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) < p.cooling_floor
+ORDER BY m.created_at, m.id
+LIMIT :lim;

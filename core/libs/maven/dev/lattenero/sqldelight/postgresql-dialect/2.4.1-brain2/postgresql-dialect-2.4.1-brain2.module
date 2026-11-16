@@ -3,7 +3,7 @@
   "component": {
     "group": "dev.lattenero.sqldelight",
     "module": "postgresql-dialect",
-    "version": "2.4.1-brain1",
+    "version": "2.4.1-brain2",
     "attributes": {
       "org.gradle.status": "release"
     }
@@ -176,13 +176,13 @@
       ],
       "files": [
         {
-          "name": "postgresql-dialect-2.4.1-brain1.jar",
-          "url": "postgresql-dialect-2.4.1-brain1.jar",
-          "size": 657315,
-          "sha512": "1719c3b3b899511b32d3785d67f28f6abdfa045a0a1b784810ccd812043e77495ab633fa75032c3c9817c1324366c96dbbba3a9a51c2aa039de6c45823e84741",
-          "sha256": "f6444798918765234aef1f457ceb02e820fc6ee68b32c4d542848de0db9b5a9e",
-          "sha1": "dfbf60d4fe94a7c3a2241609d387d23c54bc4a46",
-          "md5": "65ccd8833b9c5fb149057215dc5bfadb"
+          "name": "postgresql-dialect-2.4.1-brain2.jar",
+          "url": "postgresql-dialect-2.4.1-brain2.jar",
+          "size": 660410,
+          "sha512": "817b33d911d49b018653b14d3fd5217a28b90ef4b08c5d802b8b10152fa75a5eba5ffd3059945312fe38e208d0c6bcc7b88b802f524e681e9385cd3d66be79d2",
+          "sha256": "caebc02aefe48093fca338b4c8533e1fbbe9459225e206bee44dfa3fd587a302",
+          "sha1": "0f5ee7b0091c74ebf076755e180173e8290b528e",
+          "md5": "34b591c7bc66ce5ee2883cb13455f3f7"
         }
       ]
     },
@@ -348,13 +348,13 @@
       ],
       "files": [
         {
-          "name": "postgresql-dialect-2.4.1-brain1.jar",
-          "url": "postgresql-dialect-2.4.1-brain1.jar",
-          "size": 657315,
-          "sha512": "1719c3b3b899511b32d3785d67f28f6abdfa045a0a1b784810ccd812043e77495ab633fa75032c3c9817c1324366c96dbbba3a9a51c2aa039de6c45823e84741",
-          "sha256": "f6444798918765234aef1f457ceb02e820fc6ee68b32c4d542848de0db9b5a9e",
-          "sha1": "dfbf60d4fe94a7c3a2241609d387d23c54bc4a46",
-          "md5": "65ccd8833b9c5fb149057215dc5bfadb"
+          "name": "postgresql-dialect-2.4.1-brain2.jar",
+          "url": "postgresql-dialect-2.4.1-brain2.jar",
+          "size": 660410,
+          "sha512": "817b33d911d49b018653b14d3fd5217a28b90ef4b08c5d802b8b10152fa75a5eba5ffd3059945312fe38e208d0c6bcc7b88b802f524e681e9385cd3d66be79d2",
+          "sha256": "caebc02aefe48093fca338b4c8533e1fbbe9459225e206bee44dfa3fd587a302",
+          "sha1": "0f5ee7b0091c74ebf076755e180173e8290b528e",
+          "md5": "34b591c7bc66ce5ee2883cb13455f3f7"
         }
       ]
     },
@@ -372,7 +372,7 @@
           "group": "dev.lattenero.sqldelight",
           "module": "postgresql-dialect",
           "version": {
-            "requires": "2.4.1-brain1"
+            "requires": "2.4.1-brain2"
           },
           "excludes": [
             {
@@ -573,20 +573,20 @@
       ],
       "files": [
         {
-          "name": "postgresql-dialect-2.4.1-brain1-test-fixtures.jar",
-          "url": "postgresql-dialect-2.4.1-brain1-test-fixtures.jar",
-          "size": 47665,
-          "sha512": "3fcfb0ae7b3873acd645b61af5a327c72b09b8ea7293c2cd10aae20a6e3328673c4e4fa9dd8447218d9907ff22bc62460282e35e9a21b359f0572b2ba04cbadb",
-          "sha256": "ac2ee5907f4900de50bc42dd1ae2e72562eb0137de60284d44dfea3cdcbcc8c1",
-          "sha1": "e10564a2733f90fc9bde75c31f5cc8923adb4eb3",
-          "md5": "5a60f81a18e3dc752a4539241d1638d5"
+          "name": "postgresql-dialect-2.4.1-brain2-test-fixtures.jar",
+          "url": "postgresql-dialect-2.4.1-brain2-test-fixtures.jar",
+          "size": 48167,
+          "sha512": "e9db742d5298fa3d2c7f9ce161d49ebf6504a036311eac121fcfd4fe2c1d6d316fa7d1e9bd89a87e8d82511bc4de1399003a9ab7376ee3a6cca1cf3d06ef1286",
+          "sha256": "6d5a5a5e4e54afe45880d87af0495aa110a081ff1cddd2c625658422072a96e7",
+          "sha1": "e0e4e924f1f119d8a364db0c57703cb30633f8bd",
+          "md5": "50978f86f96378bf8b863e4903ddf776"
         }
       ],
       "capabilities": [
         {
           "group": "dev.lattenero.sqldelight",
           "name": "postgresql-test-fixtures",
-          "version": "2.4.1-brain1"
+          "version": "2.4.1-brain2"
         }
       ]
     },
@@ -604,7 +604,7 @@
           "group": "dev.lattenero.sqldelight",
           "module": "postgresql-dialect",
           "version": {
-            "requires": "2.4.1-brain1"
+            "requires": "2.4.1-brain2"
           },
           "excludes": [
             {
@@ -805,20 +805,20 @@
       ],
       "files": [
         {
-          "name": "postgresql-dialect-2.4.1-brain1-test-fixtures.jar",
-          "url": "postgresql-dialect-2.4.1-brain1-test-fixtures.jar",
-          "size": 47665,
-          "sha512": "3fcfb0ae7b3873acd645b61af5a327c72b09b8ea7293c2cd10aae20a6e3328673c4e4fa9dd8447218d9907ff22bc62460282e35e9a21b359f0572b2ba04cbadb",
-          "sha256": "ac2ee5907f4900de50bc42dd1ae2e72562eb0137de60284d44dfea3cdcbcc8c1",
-          "sha1": "e10564a2733f90fc9bde75c31f5cc8923adb4eb3",
-          "md5": "5a60f81a18e3dc752a4539241d1638d5"
+          "name": "postgresql-dialect-2.4.1-brain2-test-fixtures.jar",
+          "url": "postgresql-dialect-2.4.1-brain2-test-fixtures.jar",
+          "size": 48167,
+          "sha512": "e9db742d5298fa3d2c7f9ce161d49ebf6504a036311eac121fcfd4fe2c1d6d316fa7d1e9bd89a87e8d82511bc4de1399003a9ab7376ee3a6cca1cf3d06ef1286",
+          "sha256": "6d5a5a5e4e54afe45880d87af0495aa110a081ff1cddd2c625658422072a96e7",
+          "sha1": "e0e4e924f1f119d8a364db0c57703cb30633f8bd",
+          "md5": "50978f86f96378bf8b863e4903ddf776"
         }
       ],
       "capabilities": [
         {
           "group": "dev.lattenero.sqldelight",
           "name": "postgresql-test-fixtures",
-          "version": "2.4.1-brain1"
+          "version": "2.4.1-brain2"
         }
       ]
     },
@@ -832,13 +832,13 @@
       },
       "files": [
         {
-          "name": "postgresql-dialect-2.4.1-brain1-sources.jar",
-          "url": "postgresql-dialect-2.4.1-brain1-sources.jar",
-          "size": 398431,
-          "sha512": "55fcaa15296fc50b4bbbf59e861baf8f8c236e0f5f3f9c4cad8a5338a92e2453d86d3b3ada99f35e123453e710f60bb75fcc8e0d9f5704ab330176a86410993f",
-          "sha256": "3ea414cc8f71cbdbde3a5ad63d65e5d2f214d89572910ea82506e584130e62af",
-          "sha1": "d5a09db25981a92dc4f5b25854d9ea065253a9e3",
-          "md5": "695f3e6651556a912252f36fe81795c7"
+          "name": "postgresql-dialect-2.4.1-brain2-sources.jar",
+          "url": "postgresql-dialect-2.4.1-brain2-sources.jar",
+          "size": 400592,
+          "sha512": "54f7cb9650c82513b23dd6bdcdf8de9df131d1e2efd518060f84ed5fc71a803fa26b0edf95b736bc7595e0380787ce7a95be8c8581a02cba9c732376bd844a05",
+          "sha256": "6e14cf402d768fe345c6bc2cc8410533a1733fc1e86c5fb375110e5a1a132494",
+          "sha1": "e179cebe023b6195180dc13e93090b48578a87ea",
+          "md5": "239753f3a7e90ac2fd35e2ad1c7a35f5"
         }
       ]
     },
@@ -852,20 +852,20 @@
       },
       "files": [
         {
-          "name": "postgresql-dialect-2.4.1-brain1-test-fixtures-sources.jar",
-          "url": "postgresql-dialect-2.4.1-brain1-test-fixtures-sources.jar",
-          "size": 46831,
-          "sha512": "86478445fc3677e4c230abd0961461af44bbff1bef1783e59475d7ae8acd2c703a78aa5984a4dbd33a1861b96527e350ccb47b738a1516171fdf59b318f566df",
-          "sha256": "b3346eb7e25e52c46cc0baa57c836540a7ca3e09bb5e4b072ddfd0dc3ca48d23",
-          "sha1": "fd25da3100556bb0a4e1831da73957e1100aedeb",
-          "md5": "5faa20370a80a9d18c2135cd0d62f104"
+          "name": "postgresql-dialect-2.4.1-brain2-test-fixtures-sources.jar",
+          "url": "postgresql-dialect-2.4.1-brain2-test-fixtures-sources.jar",
+          "size": 47333,
+          "sha512": "3e0749e5ccab1afc2c786dcf18f96d8678ca390c4827d6ec8bbd5ac00fd0adbfb6f2cf95bb53436d1447a548a4b83dc90175477006151ea96da05792b7c40543",
+          "sha256": "de56d82bed265ddbcb83737b24ee33fd8cbe349f522b8ff8be7caa0267d7c9fd",
+          "sha1": "ddd296358fd98c8d8b6eeeb01b6e53d9ddf5caa6",
+          "md5": "7ce7b282d0b562b4d2dc8c98253da035"
         }
       ],
       "capabilities": [
         {
           "group": "dev.lattenero.sqldelight",
           "name": "postgresql-test-fixtures",
-          "version": "2.4.1-brain1"
+          "version": "2.4.1-brain2"
         }
       ]
     }

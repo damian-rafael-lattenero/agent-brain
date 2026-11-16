@@ -1,9 +1,9 @@
 # eval: memory-core (memory) · nomic-embed-text (ollama)
 
-- run: 047a17c9-c899-48b3-a43a-8affc1098c21
-- started: 2026-11-16T03:28:29.725158Z · 1745 ms
+- run: 83ea0439-a76f-4e18-bfb0-b251a98b7625
+- started: 2026-11-16T04:13:35.818367Z · 1424 ms
 - **9/10 passed (gate 0.9) → PASS**
-- latency p50 28 ms · p95 60 ms · tokens 103 in / 0 out (embedding tokens estimated) · cost 0.000000 USD
+- latency p50 27 ms · p95 54 ms · tokens 103 in / 0 out (embedding tokens estimated) · cost 0.000000 USD
 - citation support@1: 0/1 top hits contain a needle
 - retrieval: MRR 0.950 · recall@1 0.900 · recall@5 1.000 · nDCG@5 0.963
 

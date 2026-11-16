@@ -8,7 +8,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>dev.lattenero.sqldelight</groupId>
   <artifactId>postgresql-dialect</artifactId>
-  <version>2.4.1-brain1</version>
+  <version>2.4.1-brain2</version>
   <name>SQLDelight PostgreSQL Dialect</name>
   <description>The PostgreSQL Dialect for SQLDelight</description>
   <url>https://github.com/sqldelight/sqldelight/</url>
