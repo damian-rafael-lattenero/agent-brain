@@ -57,7 +57,10 @@ sqldelight {
     databases {
         create("BrainDb") {
             packageName.set("dev.lattenero.brain.db.sq")
-            dialect("app.cash.sqldelight:postgresql-dialect:${libs.versions.sqldelight.get()}")
+            // U5 fork dialect (~/Projects/sqldelight, branch damian): parses
+            // pgvector's <=> and FILTER-without-OVER aggregates. Falls back to
+            // upstream coordinates if the fork is not in mavenLocal.
+            dialect("dev.lattenero.sqldelight:postgresql-dialect:2.4.1-brain1")
         }
     }
 }

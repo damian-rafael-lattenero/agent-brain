@@ -7,12 +7,47 @@ CREATE TABLE memory_edges (
   weight DOUBLE PRECISION NOT NULL
 );
 
--- CONFINED-RAW (P0 verdict, see Memories.sq): neighborsInBand and traverse
--- ride pgvector's `<=>` and stay raw JDBC with their measured plan laws.
+neighborsInBand:
+WITH alive AS (
+  SELECT id FROM memories m, (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor) p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+)
+SELECT m.id, 1 - (m.embedding <=> :qv::vector) AS sim
+FROM memories m
+WHERE m.embed_model = :embedModel AND m.id <> :sourceId
+  AND (1 - (m.embedding <=> :qv::vector)) >= :floor
+  AND (1 - (m.embedding <=> :qv::vector)) < :ceiling
+  AND m.id IN (SELECT id FROM alive)
+ORDER BY sim DESC, m.id LIMIT :lim;
 
--- LATERAL evidence statement: the production TEMPORAL_PAIR carries the B3
--- alive CTE (decay math — WALL #2) and therefore stays raw JDBC. This
--- proves the LATERAL + row-constructor shape itself parses.
+-- The traversal law: UNION ALL of two index-driven walks (the OR-join
+-- shape is dead — measured plan law). unnest carries the hit ids.
+traverse:
+WITH params AS (
+  SELECT :qv::vector AS qv, :model::text AS model, :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor
+), alive AS (
+  SELECT id FROM memories m, params p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+), hits AS (SELECT unnest(:hitIds::bigint[]) AS hid), walk AS (
+  SELECT h.hid AS via_id, e.kind, e.weight AS edge_weight, e.dst_id AS other_id
+    FROM hits h JOIN memory_edges e ON e.src_id = h.hid
+  UNION ALL
+  SELECT h.hid, e.kind, e.weight, e.src_id
+    FROM hits h JOIN memory_edges e ON e.dst_id = h.hid
+)
+SELECT w.kind, w.edge_weight, w.via_id, m.id, m.kind AS mkind, m.content,
+       m.session_id, m.created_at, m.salience,
+       m.salience * exp(-ln(2) * extract(epoch FROM (now() - m.created_at)) / (86400.0 * (SELECT half_life FROM params))) AS weight,
+       CASE WHEN m.embed_model = (SELECT model FROM params)
+            THEN 1 - (m.embedding <=> (SELECT qv FROM params)) END AS relevance
+FROM walk w
+JOIN memories m ON m.id = w.other_id
+WHERE m.id <> w.via_id
+  AND m.id IN (SELECT id FROM alive);
+
+-- The temporal chain shape (LATERAL + row constructor).
 temporalPair:
 SELECT cur.id AS cur_id, cur.created_at AS cur_at, prev.id AS prev_id, prev.created_at AS prev_at
 FROM memories cur

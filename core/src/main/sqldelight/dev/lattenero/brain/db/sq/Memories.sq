@@ -63,14 +63,63 @@ ORDER BY n DESC, bucket;
 -- measured 2026-11-15, spike-sqldelight.md). They keep their plan-law
 -- KDocs, ITs and eval gates where they live today.
 
--- WALL #2 (P0 verdict): the B3 forgetting law is pure math OUTSIDE the
--- dialect's hard-coded function list — `power(2.0, ...)` fails with
--- "OVER expected", and the exp/ln rendering (identical to SEARCH's weight
--- column) fails the SAME way: `exp` and `ln` are unknown functions too.
--- lifecycleCounts and dreamRows stay raw JDBC with the law.
+-- The B3 lifecycle buckets: aggregate FILTER without OVER + the decay math.
+lifecycleCounts:
+WITH params AS (
+  SELECT :halfLife::int AS half_life, :coolingFloor::float8 AS cooling_floor, :forgetFloor::float8 AS forget_floor
+), rows AS (
+  SELECT m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at)))
+         / (86400.0 * p.half_life)) AS w
+  FROM memories m, params p
+)
+SELECT
+  count(*) FILTER (WHERE w >= p.cooling_floor) AS active,
+  count(*) FILTER (WHERE w < p.cooling_floor AND w >= p.forget_floor) AS cooling,
+  count(*) FILTER (WHERE w < p.forget_floor) AS archived
+FROM rows, params p;
 
 countMemories:
 SELECT count(*) AS n FROM memories;
 
--- The retrieval law (MemoryStore.SEARCH) is one of the confined-raw
--- statements: its vector leg rides `<=>` (see the CONFINED-RAW LAW above).
+-- The retrieval law (MemoryStore.SEARCH), byte-faithful to the raw twin:
+-- params CTE + alive exclusion + two ranked legs + RRF fusion. The fork
+-- dialect parses `<=>` (LTE GT token sequence) and the FTS functions
+-- resolve through the fork's TypeResolver.
+searchMemory:
+WITH params AS (
+  SELECT :qv::vector AS qv, :model::text AS model, :n::int AS n,
+         websearch_to_tsquery('simple', :text) AS tsq,
+         :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor
+), alive AS (
+  SELECT id FROM memories m, params p
+  WHERE m.embed_model = p.model
+    AND m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+), vec AS (
+  SELECT id, row_number() OVER (ORDER BY dist, id) AS r FROM (
+    SELECT m.id, m.embedding <=> p.qv AS dist FROM memories m, params p
+    WHERE m.embed_model = p.model AND m.id IN (SELECT id FROM alive)
+    ORDER BY dist, m.id LIMIT (SELECT n FROM params)
+  ) top
+), fts AS (
+  SELECT id, row_number() OVER (ORDER BY rank DESC, id) AS r FROM (
+    SELECT m.id, ts_rank_cd(m.content_tsv, p.tsq) AS rank FROM memories m, params p
+    WHERE m.embed_model = p.model AND m.content_tsv @@ p.tsq AND m.id IN (SELECT id FROM alive)
+    ORDER BY rank DESC, m.id LIMIT (SELECT n FROM params)
+  ) top
+), fused AS (
+  SELECT id, SUM(1.0 / (60 + r)) AS rrf
+  FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) legs GROUP BY id
+)
+SELECT m.id, m.kind, m.content, m.session_id, m.turn_id, m.salience, m.created_at,
+       f.rrf AS score,
+       m.salience * exp(-ln(2) * extract(epoch FROM (now() - m.created_at)) / (86400.0 * (SELECT half_life FROM params))) AS weight
+FROM fused f JOIN memories m ON m.id = f.id
+ORDER BY f.rrf DESC, weight DESC, m.id
+LIMIT :k;
+
+findDuplicate:
+SELECT id FROM memories
+WHERE embed_model = :embedModel AND invalid_at IS NULL
+  AND (1 - (embedding <=> :qv::vector)) >= :threshold
+ORDER BY created_at, id LIMIT 1;
