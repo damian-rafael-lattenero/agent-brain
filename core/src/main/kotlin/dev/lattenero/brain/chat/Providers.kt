@@ -28,12 +28,17 @@ class OllamaChatProvider(private val client: HttpClient, baseUrl: String, overri
      *  512 was chosen believing it "covers every extraction" — the 16/11 audit
      *  disproved it: quarantined raws of 1.7-3.0 KB (~600-900 tokens) ended
      *  MID-WORD, i.e. the generator was cut at the cap and the JSON never
-     *  closed. 1536 covers ~5-6 KB of output and still leaves room inside the
-     *  4096 context after a capped transcript (~1.5-2 K prompt tokens); a
-     *  generation cut from here on is visible as `done_reason: length` and the
-     *  extractor quarantines it as truncated, not as bad JSON. */
-    private val numPredict = 1536
-    private val numCtx = 4096
+     *  closed. 1536 covered most replays, but two giant turns still cut at
+     *  1536 (measured 16/11, honestly labelled truncated). The schema's own
+     *  caps allow 3 kinds x 10 items x 300 chars + a 500-char summary =
+     *  ~9.5 KB = ~2.4 K tokens, so the cap must cover the SCHEMA's ceiling,
+     *  not an observed sample: num_predict 2560 with num_ctx 8192 (room for a
+     *  capped 6 K-char transcript prompt plus a full-schema output; the KV
+     *  cache at 8192 on a 1.5 B model is ~1 GB of unified memory). A cut from
+     *  here on is visible as `done_reason: length` and the extractor
+     *  quarantines it as truncated, not as bad JSON. */
+    private val numPredict = 2560
+    private val numCtx = 8192
 
     @Serializable
     private data class Message(val role: String, val content: String)

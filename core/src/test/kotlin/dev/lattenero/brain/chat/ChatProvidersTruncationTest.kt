@@ -63,8 +63,8 @@ class ChatProvidersTruncationTest {
         val sent = Json.parseToJsonElement(requests.single()).jsonObject
         val options = sent["options"]!!.jsonObject
         assertThat(options["num_predict"]!!.jsonPrimitive.content.toInt())
-            .describedAs("a cut extraction cannot reach the quarantine as bad JSON if the cap leaves room")
-            .isGreaterThanOrEqualTo(1_536)
+            .describedAs("the cap must cover the schema's own ceiling (~2.4 K tokens), not an observed sample")
+            .isGreaterThanOrEqualTo(2_560)
     }
 
     @Test
