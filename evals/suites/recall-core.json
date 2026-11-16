@@ -2,7 +2,7 @@
   "name": "recall-core",
   "kind": "recall",
   "gate": 0.9,
-  "description": "The cheap CI gate: 20 questions (10 literal, 10 paraphrased) over the shipped fixture corpus; a case passes when the expected document shows up in the top 5 hybrid hits. 'needles' is informational: they check that the top hit really supports the answer (the honest citation assertion while generation lives in the caller).",
+  "description": "The cheap CI gate: 33 questions (17 literal, 16 paraphrased) over the shipped 23-document fixture corpus; a case passes when the expected document shows up in the top 5 hybrid hits. 'needles' is informational: they check that the top hit really supports the answer (the honest citation assertion while generation lives in the caller).",
   "cases": [
     {
       "type": "recall",
@@ -76,6 +76,55 @@
     },
     {
       "type": "recall",
+      "id": "memory-lifecycle-literal",
+      "question": "how long is a memory's half-life by default?",
+      "uri": "/memory-lifecycle.md",
+      "needles": ["thirty", "30"]
+    },
+    {
+      "type": "recall",
+      "id": "memory-dedup-literal",
+      "question": "what happens to the existing row when I save a near-duplicate memory?",
+      "uri": "/memory-dedup.md",
+      "needles": ["0.90", "cosine"]
+    },
+    {
+      "type": "recall",
+      "id": "dream-reconcile-literal",
+      "question": "what governs whether a contradiction supersedes the older memory?",
+      "uri": "/dream-reconcile.md",
+      "needles": ["judge", "supersede"]
+    },
+    {
+      "type": "recall",
+      "id": "graph-edges-literal",
+      "question": "which edge kinds connect two memories?",
+      "uri": "/graph-edges.md",
+      "needles": ["cooccur", "temporal", "related"]
+    },
+    {
+      "type": "recall",
+      "id": "bus-transport-literal",
+      "question": "which transports can carry bus events into the brain?",
+      "uri": "/bus-transport.md",
+      "needles": ["file", "kafka"]
+    },
+    {
+      "type": "recall",
+      "id": "metrics-inventory-literal",
+      "question": "where are the bus lag and duplicate counters exposed?",
+      "uri": "/metrics-monitoring.md",
+      "needles": ["/metrics", "prometheus"]
+    },
+    {
+      "type": "recall",
+      "id": "extraction-model-literal",
+      "question": "which model extracts memories from the turns?",
+      "uri": "/extraction-model.md",
+      "needles": ["qwen"]
+    },
+    {
+      "type": "recall",
       "id": "tailer-dedupe-paraphrase",
       "question": "what does the database do with an event id it already has?",
       "uri": "/tailer-truncation.md",
@@ -92,7 +141,7 @@
       "type": "recall",
       "id": "kap-slow-embedding-paraphrase",
       "question": "what broke the retry of a slow embedding call?",
-      "uri": "/kap-timeout-retry.md",
+      "uri": "/embedding-incident.md",
       "needles": ["timeout", "cancellation"]
     },
     {
@@ -118,9 +167,10 @@
     },
     {
       "type": "recall",
-      "id": "embedding-model-schema-paraphrase",
+      "id": "extraction-schema-paraphrase",
       "question": "which model answers the extraction under a schema?",
-      "uri": "/embedding-dimensions.md"
+      "uri": "/extraction-model.md",
+      "needles": ["qwen"]
     },
     {
       "type": "recall",
@@ -142,6 +192,48 @@
       "question": "when does the breaker fail fast?",
       "uri": "/circuit-breaker.md",
       "needles": ["while open", "opens after five", "five"]
+    },
+    {
+      "type": "recall",
+      "id": "memory-lifecycle-paraphrase",
+      "question": "why did an old memory stop showing up in search results?",
+      "uri": "/memory-lifecycle.md",
+      "needles": ["forget floor", "0.125", "forgotten"]
+    },
+    {
+      "type": "recall",
+      "id": "memory-dedup-paraphrase",
+      "question": "what happens when I save something I already told it?",
+      "uri": "/memory-dedup.md",
+      "needles": ["reinforc"]
+    },
+    {
+      "type": "recall",
+      "id": "dream-reconcile-paraphrase",
+      "question": "what happens when a new fact contradicts an older one?",
+      "uri": "/dream-reconcile.md",
+      "needles": ["invalidat", "supersede"]
+    },
+    {
+      "type": "recall",
+      "id": "graph-traversal-law-paraphrase",
+      "question": "why was the graph traversal rewritten as a union?",
+      "uri": "/graph-edges.md",
+      "needles": ["86", "union all"]
+    },
+    {
+      "type": "recall",
+      "id": "hnsw-scan-paraphrase",
+      "question": "why does vector search scan every row instead of using the index?",
+      "uri": "/hnsw-vectors.md",
+      "needles": ["semi-join", "exact"]
+    },
+    {
+      "type": "recall",
+      "id": "quarantine-reasons-paraphrase",
+      "question": "why would a turn end up in the quarantine instead of the memory store?",
+      "uri": "/quarantine.md",
+      "needles": ["reason", "template-echo", "invalid"]
     }
   ]
 }

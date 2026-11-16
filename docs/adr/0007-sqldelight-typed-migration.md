@@ -34,8 +34,12 @@ full statement set — retrieval laws included — compile with byte-faithful SQ
    pass-through borrower (`BrainDb(db.pool.asJdbcDriver())`, lazily); generated
    calls ride the same Loom dispatcher via `Database.withDriver`.
    Pinned by `DriverCloseLawsTest`.
-6. **Byte-identical gates**: `recall-core` 20/20 · MRR 0.9125 must not move;
-   EXPLAIN (COSTS OFF) shapes on prod are part of the M3 gate.
+6. **Byte-identical gates**: `recall-core` must not move for a CODE change
+   (the 2026-11-16 corpus-growth run moved the baseline by design: the
+   fixture went 13 → 23 documents and the suite 20 → 33 cases, so the gate
+   is now 33/33 · MRR 0.9848 · recall@1 0.9697 — an intentionally harder
+   corpus scoring better); EXPLAIN (COSTS OFF) shapes on prod are part of
+   the M3 gate.
 
 ## Fork stewardship
 

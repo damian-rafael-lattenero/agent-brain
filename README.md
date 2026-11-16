@@ -70,7 +70,7 @@ make index            # index ~/.zcode/agent-brain/corpus.txt (copy corpus.examp
 make index-repos-dry  # what the repos under ~/Projects would add, without Postgres
 make index-repos      # index those repos incrementally (docs + code)
 make query Q="how does the tailer handle truncation"
-make eval             # the cheap gate: recall-core (20 questions, gate 0.9) → eval_runs + latest.{md,json}
+make eval             # the cheap gate: recall-core (33 questions, gate 0.9) → eval_runs + latest.{md,json}
 make eval-matrix      # compare >=2 models on the same suites: one table + a recommendation per turn
 make eval-latest      # what the ledger says (also GET /eval/latest?matrix=true)
 ```
@@ -207,7 +207,7 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 | Claim | Command |
 |---|---|
 | Tiers 1-3 pass (125 tests, GLM tier skipped without a key) | `make test` |
-| The eval gate: 20/20 recall@5 with the real local model on the shipped fixture corpus, the run persisted in `eval_runs`, the eval database dropped afterwards | `make eval` (`EvalRunnerIT` in the suite) |
+| The eval gate: 33/33 recall@5 (MRR 0.9848) with the real local model on the shipped fixture corpus (23 documents), the run persisted in `eval_runs`, the eval database dropped afterwards | `make eval` (`EvalRunnerIT` in the suite) |
 | The installed `brain-mcp` binary speaks real MCP over stdio: initialize, tools/list (5 tools, flat schemas), every tool answers the envelope with a trace id; the panel is listed under `resources/list` with the MCP Apps mime and `resources/read` returns the expanded page (SDK bundle as data-URI, no placeholder survived); invalid input and a down brain are error envelopes; unknown argv refuses to start | `./gradlew :brain-mcp:test` |
 | No `while(true)` survives in production sources: every long-lived loop is a KAP `repeat(schedule)` policy, the quiet-window drain a `KapStream.pollUntilQuiet` + `Schedule.debounce`, the bridge drain a `repeatUntil`, the plugin parks on `Kap.awaiting` | `grep -rn 'while (true)' core/src/main brain-mcp/src/main` (empty) |
 | detekt 2.0 on the single-JDK-25 build (workers isolated, no daemon dance): both flavours per module — plain + type-resolved — existing findings baselined, any NEW violation fails | `./gradlew detektAll` |
@@ -291,7 +291,7 @@ Claims and the command that proves each one, in a clean clone with colima runnin
 
 | suite | kind | axis | what a case asserts |
 |---|---|---|---|
-| `recall-core` | recall | embed | the expected document is in the top 5 hybrid hits (the shipped CI gate, gate 0.9, 20 questions) |
+| `recall-core` | recall | embed | the expected document is in the top 5 hybrid hits (the shipped CI gate, gate 0.9, 33 questions over 23 documents) |
 | `extraction-core` | extraction | chat | the chat model's schema-validated extraction carries the expected durable items and does not invent them on a trivial turn (gate 0.6, 6 turns) |
 | `grounded-citation` | grounded | chat | the composed answer parses as `{answer, citations}`, cites the expected document and states the expected fact (gate 0.8, 5 questions) |
 
@@ -331,10 +331,11 @@ answer the answer states the fact; extraction has no support column because its 
   memory the bot never gets back, so quality wins over a slower call on the worker (off the reply path).
 - **Answer composition** → `qwen2.5:1.5b`: both models answer 5/5 with a correct citation, and the
   smaller one does it at half the p50 latency, on the turn where latency is user-visible.
-- **Retrieval** → `nomic-embed-text`: both embedding models saturate this 13-document fixture (20/20) and
-  the full-text leg of RRF hides the difference; `all-minilm` is faster (p50 12 vs 18 ms) but is 384-dimensional, so
-  switching would force a re-index and a schema change for no measured gain. Re-run
-  `make eval-matrix-retrieval` when the fixture grows past the point where it discriminates.
+- **Retrieval** → `nomic-embed-text`: both embedding models saturated the fixture as it was at matrix time
+  (13 documents, 20/20) and the full-text leg of RRF hid the difference; `all-minilm` is faster (p50 12 vs 18 ms)
+  but is 384-dimensional, so switching would force a re-index and a schema change for no measured gain. The
+  fixture has since grown to 23 documents / 33 cases — re-run `make eval-matrix-retrieval` to see whether the
+  bigger corpus now discriminates.
 
 The **matrix is explicit, not on every push**: it pulls a second model and runs 22 model calls
 (~70 s locally, more on a CI runner), while the gate is one model and ~1.5 s. `make eval` runs on every

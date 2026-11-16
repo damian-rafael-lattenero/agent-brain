@@ -34,7 +34,7 @@ class EvalSuitesTest {
         )
         assertThat(suites.map { it.gate }).allSatisfy { assertThat(it).isBetween(0.0, 1.0) }
         suites.forEach { suite -> assertThat(suite.cases).isNotEmpty }
-        assertThat(suites.first { it.kind == EvalKind.RECALL }.cases).hasSize(20)
+        assertThat(suites.first { it.kind == EvalKind.RECALL }.cases).hasSize(33)
         assertThat(suites.first { it.kind == EvalKind.CONTRADICTION }.cases).hasSize(8)
         assertThat(suites.first { it.kind == EvalKind.MEMORY }.cases).hasSize(10)
     }
