@@ -2,11 +2,12 @@ package dev.lattenero.brain.eval
 
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
+import dev.lattenero.brain.db.sq.Eval_runs
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import java.sql.Connection
-import java.sql.ResultSet
+import java.util.UUID
 
 /** One persisted run, in the shape the CLI and `/eval/latest` answer with. */
 @Serializable
@@ -76,53 +77,42 @@ class EvalLedger(private val db: Database, private val embedDim: Int) {
 
     /** The most recent runs, newest first; [matrix] answers the rows of the newest matrix instead. */
     suspend fun latest(suite: String? = null, matrix: Boolean = false, limit: Int = DEFAULT_LIMIT): List<StoredRun> {
-        val capped = limit.coerceIn(1, MAX_LIMIT)
-        return db.withConnection { conn ->
+        val capped = limit.coerceIn(1, MAX_LIMIT).toLong()
+        return db.withDriver { brainDb ->
             if (matrix) {
-                val matrixId = newestMatrixId(conn) ?: return@withConnection emptyList()
-                select(conn, "WHERE matrix_id = ?::uuid", "ORDER BY suite, model", matrixId, capped)
+                val matrixId = brainDb.evalRunsQueries.newestMatrixId().executeAsOneOrNull()
+                    ?: return@withDriver emptyList()
+                // ::uuid cast typed the bind as UUID: same value, same SQL semantics.
+                brainDb.evalRunsQueries.latestOfMatrix(UUID.fromString(matrixId), capped).executeAsList().map(::row)
             } else if (suite.isNullOrBlank()) {
-                select(conn, "", "ORDER BY ts DESC", null, capped)
+                brainDb.evalRunsQueries.latestAll(capped).executeAsList().map(::row)
             } else {
-                select(conn, "WHERE suite = ?", "ORDER BY ts DESC", suite, capped)
+                brainDb.evalRunsQueries.latestOfSuite(suite, capped).executeAsList().map(::row)
             }
         }
     }
 
-    private fun newestMatrixId(conn: Connection): String? = conn.createStatement().use { st ->
-        val sql = "SELECT matrix_id FROM eval_runs WHERE matrix_id IS NOT NULL ORDER BY ts DESC LIMIT 1"
-        st.executeQuery(sql).use { rs -> if (rs.next()) rs.getString(1) else null }
-    }
-
-    private fun select(conn: Connection, where: String, order: String, argument: String?, limit: Int): List<StoredRun> {
-        val sql = "SELECT * FROM eval_runs $where $order LIMIT $limit"
-        return conn.prepareStatement(sql).use { ps ->
-            if (argument != null) ps.setString(1, argument)
-            ps.executeQuery().use { rs -> generateSequence { if (rs.next()) row(rs) else null }.toList() }
-        }
-    }
-
-    private fun row(rs: ResultSet): StoredRun = StoredRun(
-        runId = rs.getString("run_id"),
-        matrixId = rs.getString("matrix_id"),
-        suite = rs.getString("suite"),
-        kind = rs.getString("kind"),
-        axis = rs.getString("axis"),
-        model = rs.getString("model"),
-        provider = rs.getString("provider"),
-        passed = rs.getInt("passed"),
-        total = rs.getInt("total"),
-        gate = rs.getDouble("gate"),
-        ok = rs.getBoolean("ok"),
-        p50Ms = rs.getObject("p50_ms")?.let { (it as Number).toInt() },
-        p95Ms = rs.getObject("p95_ms")?.let { (it as Number).toInt() },
-        promptTokens = rs.getLong("tokens_prompt"),
-        completionTokens = rs.getLong("tokens_completion"),
-        costUsd = rs.getDouble("cost_usd"),
-        costKnown = rs.getBoolean("cost_known"),
-        startedAt = rs.getTimestamp("started_at")?.toInstant()?.toString(),
-        ts = rs.getTimestamp("ts")?.toInstant()?.toString(),
-        detail = rs.getString("detail")?.let { runCatching { json.parseToJsonElement(it) }.getOrNull() },
+    private fun row(r: Eval_runs): StoredRun = StoredRun(
+        runId = r.run_id,
+        matrixId = r.matrix_id,
+        suite = r.suite,
+        kind = r.kind,
+        axis = r.axis,
+        model = r.model,
+        provider = r.provider,
+        passed = r.passed,
+        total = r.total,
+        gate = r.gate,
+        ok = r.ok,
+        p50Ms = r.p50_ms,
+        p95Ms = r.p95_ms,
+        promptTokens = r.tokens_prompt,
+        completionTokens = r.tokens_completion,
+        costUsd = r.cost_usd.toDouble(),
+        costKnown = r.cost_known,
+        startedAt = r.started_at?.toInstant()?.toString(),
+        ts = r.ts.toInstant().toString(),
+        detail = runCatching { json.parseToJsonElement(r.detail) }.getOrNull(),
     )
 
     companion object {

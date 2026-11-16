@@ -36,3 +36,16 @@ VALUES (:suite, :model, :provider, :passed, :total, :costUsd, :detail::jsonb,
 -- Fork verdict (U5): with dev.lattenero.sqldelight:postgresql-dialect
 -- 2.4.1-brain1, ALL the retrieval laws compile — see Memories.sq /
 -- MemoryEdges.sq. The old confined-raw walls are gone.
+
+-- The ledger's three read shapes (the dynamic WHERE/ORDER landmine split).
+latestAll:
+SELECT * FROM eval_runs ORDER BY ts DESC LIMIT :lim;
+
+latestOfSuite:
+SELECT * FROM eval_runs WHERE suite = :suite ORDER BY ts DESC LIMIT :lim;
+
+latestOfMatrix:
+SELECT * FROM eval_runs WHERE matrix_id = :matrixId::uuid ORDER BY suite, model LIMIT :lim;
+
+newestMatrixId:
+SELECT matrix_id AS id FROM eval_runs WHERE matrix_id IS NOT NULL ORDER BY ts DESC LIMIT 1;

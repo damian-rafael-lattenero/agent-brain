@@ -127,21 +127,17 @@ class RagStore(private val db: Database) {
 
     /** Three independent queries, three pooled connections, one typed graph. */
     suspend fun stats(): RagStats = kap(::RagStats)
-        .with { documents from count("documents") }
-        .with { chunks from count("chunks") }
+        .with { documents from countDocuments() }
+        .with { chunks from countChunks() }
         .with { bySource from bySource() }
         .evalGraph()
 
-    private suspend fun count(table: String): Long = db.withConnection { conn ->
-        conn.createStatement().use { st -> st.executeQuery("SELECT count(*) FROM $table").use { rs -> rs.next(); rs.getLong(1) } }
-    }
+    private suspend fun countDocuments(): Long = db.withDriver { it.ragQueries.countDocuments().executeAsOne() }
 
-    private suspend fun bySource(): Map<String, Long> = db.withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery("SELECT source, count(*) FROM documents GROUP BY source ORDER BY source").use { rs ->
-                generateSequence { if (rs.next()) rs.getString(1) to rs.getLong(2) else null }.toMap()
-            }
-        }
+    private suspend fun countChunks(): Long = db.withDriver { it.ragQueries.countChunks().executeAsOne() }
+
+    private suspend fun bySource(): Map<String, Long> = db.withDriver { brainDb ->
+        brainDb.ragQueries.documentsBySource().executeAsList().associate { it.source to it.n }
     }
 
     companion object {

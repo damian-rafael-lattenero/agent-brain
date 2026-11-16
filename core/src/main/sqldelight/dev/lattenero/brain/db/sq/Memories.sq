@@ -22,13 +22,13 @@ CREATE TABLE memories (
   invalid_at TIMESTAMPTZ
 );
 
--- The quarantine table only backs the evidence statement below.
+-- The quarantine table only backs quarantine reads/writes.
 CREATE TABLE memory_quarantine (
   id BIGINT PRIMARY KEY,
   turn_id TEXT,
   reason TEXT NOT NULL,
   raw TEXT NOT NULL,
-  ts TIMESTAMPTZ DEFAULT now(),
+  ts TIMESTAMPTZ NOT NULL DEFAULT now(),
   event_id TEXT,
   session_id TEXT
 );
