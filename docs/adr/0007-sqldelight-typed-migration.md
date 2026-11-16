@@ -55,6 +55,29 @@ full statement set — retrieval laws included — compile with byte-faithful SQ
   in their commit messages (comments INSIDE rule braces only; every new
   extension alternative needs a grammar rule + TypeResolver branch; no `pin`
   on operator rules).
+- Upstream watch: `scripts/sqldelight-fork-watch.nu` compares the latest
+  upstream release against the fork's `VERSION_NAME` base (exit 0 = current,
+  10 = a rebase is due, 1 = the query failed) — read-only, safe for a sentinel.
+
+## M5 — the fork on Maven Central (prepared 2026-11-16, owner step pending)
+
+The fork's `damian` branch (`3db85f909`) is wired to publish
+`io.github.damian-rafael-lattenero:postgresql-dialect:2.4.1-brain2` — the
+GitHub-verified namespace the kap artifacts already use — through the
+vanniktech Central Portal tasks upstream already applies, scoped to
+`:dialects:postgresql`. `.github/workflows/publish.yml` carries the publish
+job; it needs the SAME five repository secrets kap's release uses
+(`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY_ID`,
+`SIGNING_PASSWORD`, `GPG_KEY_CONTENTS`) added to
+`damian-rafael-lattenero/sqldelight` — a human step (no Central token nor GPG
+key exists on the dev machine, measured 16/11).
+
+**After the owner adds the secrets and runs the workflow:** switch
+`settings.gradle.kts` (drop the `core/libs/maven` repository + `mavenLocal()`
+fallback), change the two `dev.lattenero.sqldelight` coordinates to
+`io.github.damian-rafael-lattenero`, delete `core/libs/maven`, re-run
+`detektAll test` (the dialect resolution is the only moving part). The
+vendored copy stays the source of truth until the Central artifact exists.
 
 ## Consequences
 
