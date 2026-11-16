@@ -1,14 +1,17 @@
 package dev.lattenero.brain.db
 
+import app.cash.sqldelight.driver.jdbc.asJdbcDriver
 import com.pgvector.PGvector
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import dev.lattenero.brain.config.Config
+import dev.lattenero.brain.db.sq.BrainDb
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.sql.Connection
 import java.util.concurrent.Executors
+import javax.sql.DataSource
 
 /**
  * JDBC is blocking; running it on virtual threads makes the blocking cheap
@@ -43,6 +46,30 @@ class Database(config: Config) : AutoCloseable {
             block(conn)
         }
     }
+
+    /**
+     * The generated SQLDelight path: blocking JDBC like [withConnection], on the
+     * same Loom dispatcher, with NO connection checkout of its own — each
+     * generated statement borrows a pooled connection through the driver. The
+     * pool is the ONLY owner of connections here (ADR-007).
+     */
+    suspend fun <T> withDriver(block: suspend (BrainDb) -> T): T = withContext(Loom.dispatcher) {
+        block(brainDb)
+    }
+
+    /**
+     * The pool itself, exposed for the SQLDelight seam (docs/spike-sqldelight.md):
+     * `pool.asJdbcDriver()` makes the generated queries ride the SAME Hikari
+     * connections as the raw paths — one pool, one database object.
+     */
+    val pool: DataSource get() = dataSource
+
+    /**
+     * The typed facade over the SAME pool. The driver is a pass-through
+     * borrower: it never owns or closes connections (the pool does, in
+     * [close]) — pinned by DriverCloseLawsTest.
+     */
+    private val brainDb: BrainDb by lazy { BrainDb(dataSource.asJdbcDriver()) }
 
     suspend fun ping(): Boolean = withConnection { conn ->
         conn.createStatement().use { st ->

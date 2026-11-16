@@ -2,14 +2,14 @@ package dev.lattenero.brain.memory
 
 import com.pgvector.PGvector
 import dev.lattenero.brain.db.Database
-import dev.lattenero.brain.db.inTransaction
-import dev.lattenero.brain.rag.Rrf
+import dev.lattenero.brain.db.sq.LifecycleCounts as GeneratedLifecycleCounts
+import dev.lattenero.brain.db.toVectorText
 import kap.KapTypeSafe
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.sql.Timestamp
+import java.time.OffsetDateTime
 
 @Serializable
 data class Memory(
@@ -88,98 +88,62 @@ class MemoryStore(private val db: Database) {
      */
     data class NeighborBand(val low: Double, val high: Double, val halfLifeDays: Int)
 
-    suspend fun pendingTurns(limit: Int, maxAttempts: Int): List<PendingTurn> = db.withConnection { conn ->
-        conn.prepareStatement(
-            """
-            SELECT id, sid, turn, source, memory_attempts FROM bus_events
-            WHERE kind = 'turn.completed' AND memory_at IS NULL AND memory_attempts < ?
-            ORDER BY ts LIMIT ?
-            """,
-        ).use { ps ->
-            ps.setInt(1, maxAttempts)
-            ps.setInt(2, limit)
-            ps.executeQuery().use { rs ->
-                generateSequence { if (rs.next()) PendingTurn(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)) else null }.toList()
-            }
+    suspend fun pendingTurns(limit: Int, maxAttempts: Int): List<PendingTurn> = db.withDriver { brainDb ->
+        brainDb.busEventsQueries.pendingTurns(maxAttempts, limit.toLong()).executeAsList().map {
+            PendingTurn(it.id, it.sid.orEmpty(), it.turn.orEmpty(), it.source, it.memory_attempts)
         }
     }
 
     /** Everything the bus knows about one turn, folded into a transcript. */
-    suspend fun transcript(pending: PendingTurn): Transcript = db.withConnection { conn ->
-        conn.prepareStatement("SELECT kind, payload::text FROM bus_events WHERE sid = ? AND turn = ? ORDER BY ts, id").use { ps ->
-            ps.setString(1, pending.sessionId)
-            ps.setString(2, pending.turnId)
-            ps.executeQuery().use { rs ->
-                var prompt = ""
-                var reply = ""
-                var title = ""
-                val tools = LinkedHashSet<String>()
-                while (rs.next()) {
-                    val kind = rs.getString(1)
-                    val payload = json.parseToJsonElement(rs.getString(2)).jsonObject
-                    fun str(key: String) = payload[key]?.jsonPrimitive?.content ?: ""
-                    when (kind) {
-                        "turn.started" -> {
-                            prompt = str("prompt")
-                            title = str("title")
-                        }
-                        "user.prompt" -> prompt = str("prompt")
-                        "tool.call" -> str("tool").takeIf { it.isNotBlank() }?.let { tools += it }
-                        "turn.completed" -> reply = str("reply").ifBlank { str("response") }
-                    }
+    suspend fun transcript(pending: PendingTurn): Transcript = db.withDriver { brainDb ->
+        var prompt = ""
+        var reply = ""
+        var title = ""
+        val tools = LinkedHashSet<String>()
+        for (event in brainDb.busEventsQueries.turnEvents(pending.sessionId, pending.turnId).executeAsList()) {
+            val payload = json.parseToJsonElement(event.payload_text).jsonObject
+            fun str(key: String) = payload[key]?.jsonPrimitive?.content.orEmpty()
+            when (event.kind) {
+                "turn.started" -> {
+                    prompt = str("prompt")
+                    title = str("title")
                 }
-                Transcript(pending.eventId, pending.sessionId, pending.turnId, pending.source, prompt, reply, tools.toList(), title)
+                "user.prompt" -> prompt = str("prompt")
+                "tool.call" -> str("tool").takeIf { it.isNotBlank() }?.let { tools += it }
+                "turn.completed" -> reply = str("reply").ifBlank { str("response") }
             }
         }
+        Transcript(pending.eventId, pending.sessionId, pending.turnId, pending.source, prompt, reply, tools.toList(), title)
     }
 
     /** Processed turns, newest first — the LoRA export's positive-pair source. */
-    suspend fun processedTurns(limit: Int): List<PendingTurn> = db.withConnection { conn ->
-        conn.prepareStatement(
-            "SELECT id, sid, turn, source, COALESCE(memory_attempts, 0) FROM bus_events " +
-                "WHERE kind = 'turn.completed' AND memory_at IS NOT NULL ORDER BY ts DESC LIMIT ?",
-        ).use { ps ->
-            ps.setInt(1, limit)
-            ps.executeQuery().use { rs ->
-                generateSequence { if (rs.next()) PendingTurn(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)) else null }.toList()
-            }
+    suspend fun processedTurns(limit: Int): List<PendingTurn> = db.withDriver { brainDb ->
+        brainDb.busEventsQueries.processedTurns(limit.toLong()).executeAsList().map {
+            PendingTurn(it.id, it.sid.orEmpty(), it.turn.orEmpty(), it.source, it.attempts)
         }
     }
 
     /** The memories one turn produced, in insertion order (the LoRA pair's target). */
-    suspend fun memoriesOfTurn(turnId: String): List<TurnMemory> = db.withConnection { conn ->
-        conn.prepareStatement(
-            "SELECT kind, content FROM memories WHERE turn_id = ? AND invalid_at IS NULL ORDER BY id",
-        ).use { ps ->
-            ps.setString(1, turnId)
-            ps.executeQuery().use { rs ->
-                generateSequence { if (rs.next()) TurnMemory(rs.getString(1), rs.getString(2)) else null }.toList()
-            }
-        }
+    suspend fun memoriesOfTurn(turnId: String): List<TurnMemory> = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.memoriesOfTurn(turnId).executeAsList().map { TurnMemory(it.kind, it.content) }
     }
 
     /** The raw insert: exactly these rows, ON CONFLICT DO NOTHING, no dedup. */
-    suspend fun insertAll(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): Int = db.withConnection { conn ->
-        if (rows.isEmpty()) return@withConnection 0
-        conn.prepareStatement(
-            """
-            INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT DO NOTHING
-            """,
-        ).use { ps ->
-            for (row in rows) {
-                ps.setString(1, transcript.sessionId)
-                ps.setString(2, transcript.turnId)
-                ps.setString(3, row.kind)
-                ps.setString(4, row.content)
-                ps.setString(5, embedModel)
-                ps.setObject(6, PGvector(row.embedding))
-                ps.setString(7, transcript.eventId)
-                ps.addBatch()
-            }
-            ps.executeBatch().count { it > 0 }
+    suspend fun insertAll(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): Int = db.withDriver { brainDb ->
+        if (rows.isEmpty()) return@withDriver 0
+        var landed = 0
+        for (row in rows) {
+            landed += brainDb.memoriesQueries.insertMemoryNoReturn(
+                transcript.sessionId,
+                transcript.turnId,
+                row.kind,
+                row.content,
+                embedModel,
+                row.embedding.toVectorText(),
+                transcript.eventId,
+            ).value.toInt()
         }
+        landed
     }
 
     /**
@@ -195,18 +159,34 @@ class MemoryStore(private val db: Database) {
      */
     suspend fun insertAllDeduped(transcript: Transcript, embedModel: String, rows: List<MemoryRow>): InsertReport {
         if (rows.isEmpty()) return InsertReport(0, emptyList())
-        return db.inTransaction { conn ->
+        return db.withDriver { brainDb ->
             val merged = mutableListOf<Long>()
             val insertedIds = mutableListOf<Long>()
-            for (row in rows) {
-                val replayed = findReplay(conn, transcript.eventId, row.kind, row.content)
-                if (replayed != null) continue
-                val duplicate = findDuplicate(conn, row.embedding, embedModel, MemoryDedup.SIMILARITY)
-                if (duplicate != null) {
-                    reinforce(conn, duplicate, REINFORCE_STEP)
-                    merged += duplicate
-                } else {
-                    insertedIds += insertRow(conn, transcript, embedModel, row)
+            brainDb.transaction {
+                for (row in rows) {
+                    val replayed = brainDb.memoriesQueries.findReplay(transcript.eventId, row.kind, row.content)
+                        .executeAsOneOrNull()
+                    if (replayed == null) {
+                        val duplicate = brainDb.memoriesQueries.findDuplicate(
+                            embedModel,
+                            row.embedding.toVectorText(),
+                            MemoryDedup.SIMILARITY,
+                        ).executeAsOneOrNull()
+                        if (duplicate != null) {
+                            brainDb.memoriesQueries.reinforceOne(REINFORCE_STEP, duplicate)
+                            merged += duplicate
+                        } else {
+                            insertedIds += brainDb.memoriesQueries.insertMemory(
+                                transcript.sessionId,
+                                transcript.turnId,
+                                row.kind,
+                                row.content,
+                                embedModel,
+                                row.embedding.toVectorText(),
+                                transcript.eventId,
+                            ).executeAsOne()
+                        }
+                    }
                 }
             }
             InsertReport(insertedIds.size, merged, insertedIds)
@@ -215,9 +195,12 @@ class MemoryStore(private val db: Database) {
 
     /** Manual saves dedup with the same rule and return the surviving row's id. */
     suspend fun saveManual(kind: String, content: String, embedModel: String, embedding: FloatArray, sessionId: String?): Long {
-        val duplicate = db.withConnection { conn -> findDuplicate(conn, embedding, embedModel, MemoryDedup.SIMILARITY) }
+        val duplicate = db.withDriver { brainDb ->
+            brainDb.memoriesQueries.findDuplicate(embedModel, embedding.toVectorText(), MemoryDedup.SIMILARITY)
+                .executeAsOneOrNull()
+        }
         if (duplicate != null) {
-            db.withConnection { conn -> reinforce(conn, duplicate, REINFORCE_STEP) }
+            db.withDriver { brainDb -> brainDb.memoriesQueries.reinforceOne(REINFORCE_STEP, duplicate) }
             return duplicate
         }
         return saveRaw(MemoryRow(kind, content, embedding), embedModel, sessionId)
@@ -229,17 +212,16 @@ class MemoryStore(private val db: Database) {
      * at insert time would leave nothing to judge. The eval/IT faces use this;
      * the write path never does.
      */
-    suspend fun saveRaw(row: MemoryRow, embedModel: String, sessionId: String?): Long = db.withConnection { conn ->
-        conn.prepareStatement(
-            "INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id) VALUES (?, NULL, ?, ?, ?, ?, NULL) RETURNING id",
-        ).use { ps ->
-            ps.setString(1, sessionId)
-            ps.setString(2, row.kind)
-            ps.setString(3, row.content)
-            ps.setString(4, embedModel)
-            ps.setObject(5, PGvector(row.embedding))
-            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
-        }
+    suspend fun saveRaw(row: MemoryRow, embedModel: String, sessionId: String?): Long = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.insertMemory(
+            sessionId,
+            null,
+            row.kind,
+            row.content,
+            embedModel,
+            row.embedding.toVectorText(),
+            null,
+        ).executeAsOne()
     }
 
     /**
@@ -248,24 +230,17 @@ class MemoryStore(private val db: Database) {
      * backfill is a CLI command, never a migration: a destructive merge must
      * run when the operator asks for it, not at every startup.
      */
-    suspend fun dedupRows(): List<DedupRow> = db.withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery(
-                "SELECT id, kind, content, embed_model, salience, created_at, embedding::text " +
-                    "FROM memories WHERE invalid_at IS NULL ORDER BY created_at, id",
-            ).use { rs ->
-                generateSequence {
-                    if (!rs.next()) null else DedupRow(
-                        id = rs.getLong(1),
-                        kind = rs.getString(2),
-                        content = rs.getString(3),
-                        embedModel = rs.getString(4),
-                        salience = rs.getDouble(5),
-                        createdAt = (rs.getObject(6) as Timestamp).toInstant(),
-                        embedding = PGvector(rs.getString(7)).toArray(),
-                    )
-                }.toList()
-            }
+    suspend fun dedupRows(): List<DedupRow> = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.dedupRows().executeAsList().map {
+            DedupRow(
+                id = it.id,
+                kind = it.kind,
+                content = it.content,
+                embedModel = it.embed_model,
+                salience = it.salience,
+                createdAt = it.created_at.toInstant(),
+                embedding = PGvector(it.embedding_text).toArray(),
+            )
         }
     }
 
@@ -275,10 +250,15 @@ class MemoryStore(private val db: Database) {
      * dedup would have accumulated for them) and the absorbed rows are
      * deleted. Returns the number of rows removed.
      */
-    suspend fun applyDedup(plan: Plan): Int = db.inTransaction { conn ->
-        for (cluster in plan.clusters) {
-            reinforce(conn, cluster.keepId, REINFORCE_STEP * cluster.reinforcements)
-            deleteMemories(conn, cluster.absorbedIds)
+    // Array<Long> boxing is inherent to the generated array bind; cluster
+    // cardinalities are tiny — noise.
+    @Suppress("ArrayPrimitive")
+    suspend fun applyDedup(plan: Plan): Int = db.withDriver { brainDb ->
+        brainDb.transaction {
+            for (cluster in plan.clusters) {
+                brainDb.memoriesQueries.reinforceOne(REINFORCE_STEP * cluster.reinforcements, cluster.keepId)
+                brainDb.memoriesQueries.deleteAbsorbed(cluster.absorbedIds.toTypedArray())
+            }
         }
         plan.removed
     }
@@ -290,8 +270,8 @@ class MemoryStore(private val db: Database) {
      * already invalidated is left alone (idempotent: the first stamp is the
      * only stamp). Returns whether THIS call stamped it.
      */
-    suspend fun invalidate(id: Long): Boolean = db.withConnection { conn ->
-        invalidate(conn, id)
+    suspend fun invalidate(id: Long): Boolean = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.invalidate(id).value > 0
     }
 
     /**
@@ -300,10 +280,15 @@ class MemoryStore(private val db: Database) {
      * have reinforced it, and the absorbed row is deleted (the Same verdict
      * means one memory said twice, so the store holds it once).
      */
-    suspend fun mergeInto(survivorId: Long, absorbedId: Long): Unit = db.inTransaction { conn ->
+    // The generated signature binds arrays as Array<Long> (boxing inherent to
+    // the JDBC array type); cardinalities here are single digits — noise.
+    @Suppress("ArrayPrimitive")
+    suspend fun mergeInto(survivorId: Long, absorbedId: Long): Unit = db.withDriver { brainDb ->
         if (survivorId != absorbedId) {
-            reinforce(conn, survivorId, REINFORCE_STEP)
-            deleteMemories(conn, listOf(absorbedId))
+            brainDb.transaction {
+                brainDb.memoriesQueries.reinforceOne(REINFORCE_STEP, survivorId)
+                brainDb.memoriesQueries.deleteAbsorbed(arrayOf(absorbedId))
+            }
         }
     }
 
@@ -320,78 +305,35 @@ class MemoryStore(private val db: Database) {
         selfId: Long,
         embedModel: String,
         band: NeighborBand,
-    ): NeighborRow? = db.withConnection { conn ->
-        conn.prepareStatement(
-            """
-            WITH params AS (SELECT ?::int AS half_life, ?::float8 AS forget_floor),
-                 q AS (SELECT ?::vector AS v)
-            SELECT m.id, m.content, m.created_at, 1 - (m.embedding <=> q.v) AS cosine
-            FROM memories m, params p, q
-            WHERE m.embed_model = ?
-              AND m.id <> ?
-              AND m.invalid_at IS NULL
-              AND (1 - (m.embedding <=> q.v)) >= ?
-              AND (1 - (m.embedding <=> q.v)) < ?
-              AND $LIFE_WEIGHT_SQL >= p.forget_floor
-            ORDER BY m.embedding <=> q.v, m.id
-            LIMIT 1
-            """.trimIndent(),
-        ).use { ps ->
-            ps.setInt(1, band.halfLifeDays)
-            ps.setDouble(2, Lifecycle.FORGET_FLOOR)
-            ps.setObject(3, PGvector(embedding))
-            ps.setString(4, embedModel)
-            ps.setLong(5, selfId)
-            ps.setDouble(6, band.low)
-            ps.setDouble(7, band.high)
-            ps.executeQuery().use { rs ->
-                if (!rs.next()) {
-                    null
-                } else {
-                    NeighborRow(
-                        id = rs.getLong(1),
-                        content = rs.getString(2),
-                        createdAt = (rs.getObject(3) as Timestamp).toInstant(),
-                        cosine = rs.getDouble(4),
-                    )
-                }
-            }
+    ): NeighborRow? = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.nearestNeighbor(
+            band.halfLifeDays,
+            Lifecycle.FORGET_FLOOR,
+            embedding.toVectorText(),
+            embedModel,
+            selfId,
+            band.low,
+            band.high,
+        ).executeAsOneOrNull()?.let {
+            NeighborRow(id = it.id, content = it.content, createdAt = it.created_at.toInstant(), cosine = it.cosine)
         }
     }
 
     /** The row as a verdict-pass candidate ([NeighborRow]); cosine is the caller's business here. */
-    suspend fun rowAsNeighbor(id: Long): NeighborRow? = db.withConnection { conn ->
-        conn.prepareStatement("SELECT id, content, created_at FROM memories WHERE id = ?").use { ps ->
-            ps.setLong(1, id)
-            ps.executeQuery().use { rs ->
-                if (!rs.next()) {
-                    null
-                } else {
-                    NeighborRow(
-                        id = rs.getLong(1),
-                        content = rs.getString(2),
-                        createdAt = (rs.getObject(3) as Timestamp).toInstant(),
-                        cosine = 0.0,
-                    )
-                }
-            }
+    suspend fun rowAsNeighbor(id: Long): NeighborRow? = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.rowAsNeighbor(id).executeAsOneOrNull()?.let {
+            NeighborRow(id = it.id, content = it.content, createdAt = it.created_at.toInstant(), cosine = 0.0)
         }
     }
 
     /** The row's stored embedding, for passes that must compare neighbors without re-embedding. */
-    suspend fun embeddingOf(id: Long): FloatArray? = db.withConnection { conn ->
-        conn.prepareStatement("SELECT embedding::text FROM memories WHERE id = ?").use { ps ->
-            ps.setLong(1, id)
-            ps.executeQuery().use { rs -> if (rs.next()) PGvector(rs.getString(1)).toArray() else null }
-        }
+    suspend fun embeddingOf(id: Long): FloatArray? = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.embeddingOf(id).executeAsOneOrNull()?.let { PGvector(it).toArray() }
     }
 
     /** Whether the row is invalidated (a stamp exists) — the passes' idempotence guard. */
-    suspend fun isInvalidated(id: Long): Boolean = db.withConnection { conn ->
-        conn.prepareStatement("SELECT invalid_at IS NOT NULL FROM memories WHERE id = ?").use { ps ->
-            ps.setLong(1, id)
-            ps.executeQuery().use { rs -> if (rs.next()) rs.getBoolean(1) else false }
-        }
+    suspend fun isInvalidated(id: Long): Boolean = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.isInvalidated(id).executeAsOneOrNull() ?: false
     }
 
     /**
@@ -401,77 +343,51 @@ class MemoryStore(private val db: Database) {
      * dream inputs (a dead claim has nothing to judge), and neither are
      * forgotten (ARCHIVED) ones — the dream works on cooling memory only.
      */
-    suspend fun dreamRows(halfLifeDays: Int, limit: Int): List<DedupRow> = db.withConnection { conn ->
-        conn.prepareStatement(
-            """
-            WITH params AS (SELECT ?::int AS half_life, ?::float8 AS cooling_floor, ?::float8 AS forget_floor)
-            SELECT m.id, m.kind, m.content, m.embed_model, m.salience, m.created_at, m.embedding::text
-            FROM memories m, params p
-            WHERE m.invalid_at IS NULL
-              AND $LIFE_WEIGHT_SQL >= p.forget_floor
-              AND $LIFE_WEIGHT_SQL < p.cooling_floor
-            ORDER BY m.created_at, m.id
-            LIMIT ?
-            """.trimIndent(),
-        ).use { ps ->
-            ps.setInt(1, halfLifeDays)
-            ps.setDouble(2, Lifecycle.COOLING_FLOOR)
-            ps.setDouble(3, Lifecycle.FORGET_FLOOR)
-            ps.setInt(4, limit)
-            ps.executeQuery().use { rs ->
-                generateSequence {
-                    if (!rs.next()) {
-                        null
-                    } else {
-                        DedupRow(
-                            id = rs.getLong(1),
-                            kind = rs.getString(2),
-                            content = rs.getString(3),
-                            embedModel = rs.getString(4),
-                            salience = rs.getDouble(5),
-                            createdAt = (rs.getObject(6) as Timestamp).toInstant(),
-                            embedding = PGvector(rs.getString(7)).toArray(),
-                        )
-                    }
-                }.toList()
-            }
+    suspend fun dreamRows(halfLifeDays: Int, limit: Int): List<DedupRow> = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.dreamRows(
+            halfLifeDays,
+            Lifecycle.COOLING_FLOOR,
+            Lifecycle.FORGET_FLOOR,
+            limit.toLong(),
+        ).executeAsList().map {
+            DedupRow(
+                id = it.id,
+                kind = it.kind,
+                content = it.content,
+                embedModel = it.embed_model,
+                salience = it.salience,
+                createdAt = it.created_at.toInstant(),
+                embedding = PGvector(it.embedding_text).toArray(),
+            )
         }
     }
 
-    suspend fun byId(id: Long): Memory? = db.withConnection { conn ->
-        conn.prepareStatement(
-            """
-            SELECT id, kind, content, session_id, turn_id, salience, created_at, NULL::float8 AS score, NULL::float8 AS weight
-            FROM memories WHERE id = ?
-            """,
-        ).use { ps ->
-            ps.setLong(1, id)
-            ps.executeQuery().use { rs -> readMemories(rs).singleOrNull() }
+    suspend fun byId(id: Long): Memory? = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.byId(id).executeAsOneOrNull()?.let {
+            MemoryFields(
+                it.id, it.kind, it.content, it.session_id, it.turn_id,
+                it.salience, it.created_at, it.score, it.weight,
+            ).toMemory()
         }
     }
 
-    suspend fun markProcessed(eventId: String) = db.withConnection { conn ->
-        conn.prepareStatement("UPDATE bus_events SET memory_at = now() WHERE id = ?").use { ps ->
-            ps.setString(1, eventId)
-            ps.executeUpdate()
-        }
+    suspend fun markProcessed(eventId: String) {
+        db.withDriver { it.busEventsQueries.markProcessed(eventId) }
     }
 
-    suspend fun bumpAttempts(eventId: String) = db.withConnection { conn ->
-        conn.prepareStatement("UPDATE bus_events SET memory_attempts = memory_attempts + 1 WHERE id = ?").use { ps ->
-            ps.setString(1, eventId)
-            ps.executeUpdate()
-        }
+    suspend fun bumpAttempts(eventId: String) {
+        db.withDriver { it.busEventsQueries.bumpAttempts(eventId) }
     }
 
-    suspend fun quarantine(transcript: Transcript?, eventId: String, reason: String, raw: String) = db.withConnection { conn ->
-        conn.prepareStatement("INSERT INTO memory_quarantine (turn_id, reason, raw, event_id, session_id) VALUES (?, ?, ?, ?, ?)").use { ps ->
-            ps.setString(1, transcript?.turnId)
-            ps.setString(2, reason.take(MAX_REASON_CHARS))
-            ps.setString(3, raw)
-            ps.setString(4, eventId)
-            ps.setString(5, transcript?.sessionId)
-            ps.executeUpdate()
+    suspend fun quarantine(transcript: Transcript?, eventId: String, reason: String, raw: String) {
+        db.withDriver { brainDb ->
+            brainDb.memoriesQueries.quarantineInsert(
+                transcript?.turnId,
+                reason.take(MAX_REASON_CHARS),
+                raw,
+                eventId,
+                transcript?.sessionId,
+            )
         }
     }
 
@@ -494,64 +410,64 @@ class MemoryStore(private val db: Database) {
         embedModel: String,
         k: Int,
         lifecycle: Lifecycle.Params,
-    ): List<Memory> = db.withConnection { conn ->
-        val hits = conn.prepareStatement(SEARCH).use { ps ->
-            ps.setObject(1, PGvector(queryEmbedding))
-            ps.setString(2, embedModel)
-            ps.setInt(3, maxOf(k * CANDIDATE_FACTOR, MIN_CANDIDATES))
-            ps.setString(4, queryText)
-            ps.setInt(5, lifecycle.halfLifeDays)
-            ps.setDouble(6, lifecycle.forgetFloor)
-            ps.setInt(7, k)
-            ps.executeQuery().use { rs -> readMemories(rs) }
+    ): List<Memory> = db.withDriver { brainDb ->
+        val hits = brainDb.memoriesQueries.searchMemory(
+            queryEmbedding.toVectorText(),
+            embedModel,
+            maxOf(k * CANDIDATE_FACTOR, MIN_CANDIDATES),
+            queryText,
+            lifecycle.halfLifeDays,
+            lifecycle.forgetFloor,
+            k.toLong(),
+        ).executeAsList().map {
+            MemoryFields(
+                it.id, it.kind, it.content, it.session_id, it.turn_id,
+                it.salience, it.created_at, it.score?.toDouble(), it.weight,
+            ).toMemory()
         }
         if (hits.isNotEmpty()) {
-            conn.prepareStatement(
-                "UPDATE memories SET salience = salience + ?, last_accessed = now() WHERE id = ANY(?)",
-            ).use { ps ->
-                ps.setDouble(1, SEARCH_REINFORCE_STEP)
-                ps.setArray(2, conn.createArrayOf("bigint", hits.map { it.id }.toTypedArray()))
-                ps.executeUpdate()
-            }
+            brainDb.memoriesQueries.reinforceSearch(SEARCH_REINFORCE_STEP, hits.map { it.id }.toTypedArray())
         }
         hits
     }
 
-    suspend fun recent(limit: Int, kind: String? = null): List<Memory> = db.withConnection { conn ->
-        val sql = "SELECT id, kind, content, session_id, turn_id, salience, created_at, NULL::float8 AS score, NULL::float8 AS weight FROM memories " +
-            (if (kind != null) "WHERE kind = ? " else "") + "ORDER BY created_at DESC, id DESC LIMIT ?"
-        conn.prepareStatement(sql).use { ps ->
-            var i = 1
-            if (kind != null) ps.setString(i++, kind)
-            ps.setInt(i, limit)
-            ps.executeQuery().use { rs -> readMemories(rs) }
-        }
-    }
-
-    suspend fun quarantined(limit: Int): List<QuarantineRow> = db.withConnection { conn ->
-        conn.prepareStatement("SELECT id, event_id, session_id, turn_id, reason, raw, ts FROM memory_quarantine ORDER BY ts DESC, id DESC LIMIT ?").use { ps ->
-            ps.setInt(1, limit)
-            ps.executeQuery().use { rs ->
-                generateSequence {
-                    if (!rs.next()) null else QuarantineRow(
-                        rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
-                        rs.getString(6), rs.getTimestamp(7).toInstant().toString(),
-                    )
-                }.toList()
+    suspend fun recent(limit: Int, kind: String? = null): List<Memory> = db.withDriver { brainDb ->
+        if (kind == null) {
+            brainDb.memoriesQueries.recent(limit.toLong()).executeAsList().map {
+                MemoryFields(
+                    it.id, it.kind, it.content, it.session_id, it.turn_id,
+                    it.salience, it.created_at, it.score, it.weight,
+                ).toMemory()
+            }
+        } else {
+            brainDb.memoriesQueries.recentOfKind(kind, limit.toLong()).executeAsList().map {
+                MemoryFields(
+                    it.id, it.kind, it.content, it.session_id, it.turn_id,
+                    it.salience, it.created_at, it.score, it.weight,
+                ).toMemory()
             }
         }
     }
 
-    suspend fun countPending(): Long = scalar("SELECT count(*) FROM bus_events WHERE kind = 'turn.completed' AND memory_at IS NULL")
+    suspend fun quarantined(limit: Int): List<QuarantineRow> = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.quarantined(limit.toLong()).executeAsList().map {
+            QuarantineRow(
+                it.id, it.event_id, it.session_id, it.turn_id,
+                it.reason, it.raw, it.ts.toInstant().toString(),
+            )
+        }
+    }
 
-    suspend fun countProcessed(): Long = scalar("SELECT count(*) FROM bus_events WHERE kind = 'turn.completed' AND memory_at IS NOT NULL")
+    suspend fun countPending(): Long = db.withDriver { it.busEventsQueries.countPending().executeAsOne() }
 
-    suspend fun countMemories(): Long = scalar("SELECT count(*) FROM memories")
+    suspend fun countProcessed(): Long = db.withDriver { it.busEventsQueries.countProcessed().executeAsOne() }
+
+    suspend fun countMemories(): Long = db.withDriver { it.memoriesQueries.countMemories().executeAsOne() }
 
     /** Rows a verdict of Supersede stamped: the status bucket for invalidated claims. */
-    suspend fun countSuperseded(): Long = scalar("SELECT count(*) FROM memories WHERE invalid_at IS NOT NULL")
+    suspend fun countSuperseded(): Long = db.withDriver { it.memoriesQueries.countSuperseded().executeAsOne() }
 
-    suspend fun countQuarantined(): Long = scalar("SELECT count(*) FROM memory_quarantine")
+    suspend fun countQuarantined(): Long = db.withDriver { it.memoriesQueries.countQuarantined().executeAsOne() }
 
     /**
      * Quarantine reasons, BUCKETED (unit 0's placeholder-rate surface): the raw
@@ -560,19 +476,8 @@ class MemoryStore(private val db: Database) {
      * the vocabulary: template-echo (the degraded-extractor marker), invalid,
      * gave-up, anything else its first word.
      */
-    suspend fun quarantineReasons(): Map<String, Long> = db.withConnection { conn ->
-        conn.prepareStatement(
-            "SELECT CASE " +
-                "WHEN reason LIKE 'template-echo%' THEN 'template-echo' " +
-                "WHEN reason LIKE 'gave up%' THEN 'gave-up' " +
-                "WHEN reason LIKE 'invalid extraction%' THEN 'invalid-extraction' " +
-                "ELSE split_part(reason, ':', 1) END AS bucket, count(*) " +
-                "FROM memory_quarantine GROUP BY bucket ORDER BY count(*) DESC, bucket",
-        ).use { ps ->
-            ps.executeQuery().use { rs ->
-                generateSequence { if (!rs.next()) null else rs.getString(1) to rs.getLong(2) }.toMap()
-            }
-        }
+    suspend fun quarantineReasons(): Map<String, Long> = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.quarantineBucketed().executeAsList().associate { it.bucket to it.n }
     }
 
     /**
@@ -581,30 +486,13 @@ class MemoryStore(private val db: Database) {
      * retriever can never disagree about who is forgotten. The half-life days
      * come from the caller's knob (the same one the ranking decay uses).
      */
-    suspend fun lifecycleCounts(halfLifeDays: Int): LifecycleCounts = db.withConnection { conn ->
-        conn.prepareStatement(
-            """
-            WITH params AS (SELECT ?::int AS half_life, ?::float8 AS cooling_floor, ?::float8 AS forget_floor),
-            rows AS (
-              SELECT m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at)))
-                     / (86400.0 * p.half_life)) AS w
-              FROM memories m, params p
-            )
-            SELECT
-              count(*) FILTER (WHERE w >= p.cooling_floor) AS active,
-              count(*) FILTER (WHERE w < p.cooling_floor AND w >= p.forget_floor) AS cooling,
-              count(*) FILTER (WHERE w < p.forget_floor) AS archived
-            FROM rows, params p
-            """,
-        ).use { ps ->
-            ps.setInt(1, halfLifeDays)
-            ps.setDouble(2, Lifecycle.COOLING_FLOOR)
-            ps.setDouble(3, Lifecycle.FORGET_FLOOR)
-            ps.executeQuery().use { rs ->
-                rs.next()
-                LifecycleCounts(rs.getLong(1), rs.getLong(2), rs.getLong(3))
-            }
-        }
+    suspend fun lifecycleCounts(halfLifeDays: Int): LifecycleCounts = db.withDriver { brainDb ->
+        val counts: GeneratedLifecycleCounts = brainDb.memoriesQueries.lifecycleCounts(
+            halfLifeDays,
+            Lifecycle.COOLING_FLOOR,
+            Lifecycle.FORGET_FLOOR,
+        ).executeAsOne()
+        LifecycleCounts(counts.active, counts.cooling, counts.archived)
     }
 
     suspend fun countByKind(): Map<String, Long> = db.withConnection { conn ->
@@ -615,110 +503,34 @@ class MemoryStore(private val db: Database) {
         }
     }
 
-    private suspend fun scalar(sql: String): Long = db.withConnection { conn ->
-        conn.createStatement().use { st -> st.executeQuery(sql).use { rs -> rs.next(); rs.getLong(1) } }
-    }
+    /** The generated rows' common face (Recent/RecentOfKind/ById/SearchMemory). */
+    private data class MemoryFields(
+        val id: Long,
+        val kind: String,
+        val content: String,
+        val sessionId: String?,
+        val turnId: String?,
+        val salience: Double,
+        val createdAt: OffsetDateTime,
+        val score: Double?,
+        val weight: Double?,
+    )
 
-    /** The same extraction landing again: (event, kind, content) already there. */
-    private fun findReplay(conn: java.sql.Connection, eventId: String, kind: String, content: String): Long? =
-        conn.prepareStatement(
-            "SELECT id FROM memories WHERE source_event_id = ? AND kind = ? AND md5(content) = md5(?) LIMIT 1",
-        ).use { ps ->
-            ps.setString(1, eventId)
-            ps.setString(2, kind)
-            ps.setString(3, content)
-            ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
-        }
-
-    /**
-     * The OLDEST row at or above [threshold] to [embedding] — same embed
-     * model, any kind, any session (`<=>` is pgvector's cosine distance),
-     * never an invalidated row (a dead claim must not absorb a new landing:
-     * the restatement of the truth would vanish into the row that says it is
-     * false). Oldest, not most-similar, so insert-time merges and the
-     * backfill's oldest-first clusters agree on the survivor.
-     */
-    private fun findDuplicate(
-        conn: java.sql.Connection,
-        embedding: FloatArray,
-        embedModel: String,
-        threshold: Double,
-    ): Long? = conn.prepareStatement(
-        "SELECT id FROM memories WHERE embed_model = ? AND invalid_at IS NULL " +
-            "AND (1 - (embedding <=> ?::vector)) >= ? " +
-            "ORDER BY created_at, id LIMIT 1",
-    ).use { ps ->
-        ps.setString(1, embedModel)
-        ps.setObject(2, PGvector(embedding))
-        ps.setDouble(3, threshold)
-        ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
-    }
-
-    /** The decay system's own reinforcement: salience up, last_accessed to now. */
-    private fun reinforce(conn: java.sql.Connection, id: Long, by: Double) {
-        conn.prepareStatement(
-            "UPDATE memories SET salience = salience + ?, last_accessed = now() WHERE id = ?",
-        ).use { ps ->
-            ps.setDouble(1, by)
-            ps.setLong(2, id)
-            ps.executeUpdate()
-        }
-    }
-
-    /** The stamp, guarded: only a live row (invalid_at IS NULL) takes a stamp. */
-    private fun invalidate(conn: java.sql.Connection, id: Long): Boolean = conn.prepareStatement(
-        "UPDATE memories SET invalid_at = now() WHERE id = ? AND invalid_at IS NULL",
-    ).use { ps ->
-        ps.setLong(1, id)
-        ps.executeUpdate() > 0
-    }
-
-    private fun deleteMemories(conn: java.sql.Connection, ids: List<Long>) {
-        conn.prepareStatement("DELETE FROM memories WHERE id = ANY(?)").use { ps ->
-            ps.setArray(1, conn.createArrayOf("bigint", ids.toTypedArray()))
-            ps.executeUpdate()
-        }
-    }
-
-    private fun insertRow(conn: java.sql.Connection, transcript: Transcript, embedModel: String, row: MemoryRow): Long =
-        conn.prepareStatement(
-            """
-            INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT DO NOTHING
-            RETURNING id
-            """,
-        ).use { ps ->
-            ps.setString(1, transcript.sessionId)
-            ps.setString(2, transcript.turnId)
-            ps.setString(3, row.kind)
-            ps.setString(4, row.content)
-            ps.setString(5, embedModel)
-            ps.setObject(6, PGvector(row.embedding))
-            ps.setString(7, transcript.eventId)
-            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
-        }
-
-    private fun readMemories(rs: java.sql.ResultSet): List<Memory> = generateSequence {
-        if (!rs.next()) null else Memory(
-            id = rs.getLong("id"),
-            kind = rs.getString("kind"),
-            content = rs.getString("content"),
-            sessionId = rs.getString("session_id"),
-            turnId = rs.getString("turn_id"),
-            salience = rs.getDouble("salience"),
-            createdAt = (rs.getObject("created_at") as Timestamp).toInstant().toString(),
-            score = rs.getObject("score")?.let { (it as Number).toDouble() },
-            weight = rs.getObject("weight")?.let { (it as Number).toDouble() },
-        )
-    }.toList()
+    private fun MemoryFields.toMemory() = Memory(
+        id,
+        kind,
+        content,
+        sessionId,
+        turnId,
+        salience,
+        createdAt.toInstant().toString(),
+        score,
+        weight,
+    )
 
     companion object {
         const val CANDIDATE_FACTOR = 4
         const val MIN_CANDIDATES = 50
-
-        /** The fusion constant lives in the pure core ([Rrf]); the SQL below is its executable twin. */
-        const val RRF_K = Rrf.K
         const val MAX_REASON_CHARS = 500
 
         /** Each absorbed duplicate reinforces the survivor by this much salience. */
@@ -732,52 +544,5 @@ class MemoryStore(private val db: Database) {
          */
         const val SEARCH_REINFORCE_STEP = 0.1
         private val json = Json { ignoreUnknownKeys = true }
-
-        // The SQL twin of Lifecycle's usefulness clock: salience decayed over the
-        // LAST ACCESS (created_at at birth). One expression, three consumers: the
-        // legs' forgetting exclusion, the status buckets, the lifecycle count.
-        // `p.half_life` comes from the params CTE the caller joins in.
-        const val LIFE_WEIGHT_SQL =
-            "(m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at)))" +
-                " / (86400.0 * p.half_life)))"
-
-        // Parameters: 1 query vector, 2 embed model, 3 candidates per leg, 4 query text,
-        // 5 half-life days, 6 forget floor, 7 k.
-        val SEARCH = """
-            WITH params AS (
-              SELECT ?::vector AS qv, ?::text AS model, ?::int AS n, websearch_to_tsquery('simple', ?) AS tsq,
-                     ?::int AS half_life, ?::float8 AS forget_floor
-            ), alive AS (
-              -- The exclusion law's search face: a live row is neither
-              -- invalidated nor forgotten. The graph twin is
-              -- MemoryGraphStore.ALIVE_CTE (and TRAVERSAL's inline copy) —
-              -- both surfaces must agree on who is alive.
-              SELECT id FROM memories m, params p
-              WHERE m.embed_model = p.model
-                AND m.invalid_at IS NULL
-                AND $LIFE_WEIGHT_SQL >= p.forget_floor
-            ), vec AS (
-              SELECT id, row_number() OVER (ORDER BY dist, id) AS r FROM (
-                SELECT m.id, m.embedding <=> p.qv AS dist FROM memories m, params p
-                WHERE m.embed_model = p.model AND m.id IN (SELECT id FROM alive)
-                ORDER BY dist, m.id LIMIT (SELECT n FROM params)
-              ) top
-            ), fts AS (
-              SELECT id, row_number() OVER (ORDER BY rank DESC, id) AS r FROM (
-                SELECT m.id, ts_rank_cd(m.content_tsv, p.tsq) AS rank FROM memories m, params p
-                WHERE m.embed_model = p.model AND m.content_tsv @@ p.tsq AND m.id IN (SELECT id FROM alive)
-                ORDER BY rank DESC, m.id LIMIT (SELECT n FROM params)
-              ) top
-            ), fused AS (
-              SELECT id, SUM(1.0 / ($RRF_K + r)) AS rrf
-              FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) legs GROUP BY id
-            )
-            SELECT m.id, m.kind, m.content, m.session_id, m.turn_id, m.salience, m.created_at,
-                   f.rrf AS score,
-                   m.salience * exp(-ln(2) * extract(epoch FROM (now() - m.created_at)) / (86400.0 * (SELECT half_life FROM params))) AS weight
-            FROM fused f JOIN memories m ON m.id = f.id
-            ORDER BY f.rrf DESC, weight DESC, m.id
-            LIMIT ?
-        """
     }
 }

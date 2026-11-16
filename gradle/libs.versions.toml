@@ -6,6 +6,11 @@ ktor = "3.6.0"
 hikaricp = "7.1.0"
 postgresql = "42.7.14"
 pgvector = "0.1.6"
+# Compile-time checked SQL: generated queries live in src/main/sqldelight, the
+# PostgreSQL dialect parses them at build time, jdbc-driver rides the SAME
+# Hikari pool as the raw paths. 2.4.x carries TSQUERY, :: casts, LATERAL and
+# UNNEST — the spike decides whether pgvector's <=> parses (spike-sqldelight.md).
+sqldelight = "2.4.1"
 kafka = "4.4.0"
 logback = "1.6.6"
 mcp-kotlin-sdk = "0.16.0"
@@ -35,6 +40,7 @@ ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+sqldelight-jdbc-driver = { module = "app.cash.sqldelight:jdbc-driver", version.ref = "sqldelight" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 pgvector = { module = "com.pgvector:pgvector", version.ref = "pgvector" }
@@ -69,3 +75,4 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 detekt = { id = "dev.detekt", version.ref = "detekt" }
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }

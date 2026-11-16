@@ -1,0 +1,51 @@
+-- TYPING-ONLY declaration (see Memories.sq): runtime DDL is Migrator's.
+-- payload stands in as TEXT; statements cast ::jsonb / ::text explicitly.
+CREATE TABLE bus_events (
+  id            TEXT PRIMARY KEY,
+  ts            TIMESTAMPTZ NOT NULL,
+  kind          TEXT NOT NULL,
+  sid           TEXT,
+  turn          TEXT,
+  source        TEXT NOT NULL,
+  payload       TEXT NOT NULL,
+  consumed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  memory_at     TIMESTAMPTZ,
+  memory_attempts INTEGER NOT NULL DEFAULT 0
+);
+
+-- The memory worker's queue: pending turns, oldest first.
+pendingTurns:
+SELECT id, sid, turn, source, memory_attempts FROM bus_events
+WHERE kind = 'turn.completed' AND memory_at IS NULL AND memory_attempts < :maxAttempts
+ORDER BY ts LIMIT :lim;
+
+-- Everything the bus knows about one turn, folded into a transcript.
+turnEvents:
+SELECT kind, payload::text AS payload_text FROM bus_events
+WHERE sid = :sid AND turn = :turn ORDER BY ts, id;
+
+-- Processed turns, newest first (the LoRA export's positive-pair source).
+processedTurns:
+SELECT id, sid, turn, source, COALESCE(memory_attempts, 0) AS attempts FROM bus_events
+WHERE kind = 'turn.completed' AND memory_at IS NOT NULL ORDER BY ts DESC LIMIT :lim;
+
+markProcessed:
+UPDATE bus_events SET memory_at = now() WHERE id = :eventId;
+
+bumpAttempts:
+UPDATE bus_events SET memory_attempts = memory_attempts + 1 WHERE id = :eventId;
+
+countPending:
+SELECT count(*) AS n FROM bus_events WHERE kind = 'turn.completed' AND memory_at IS NULL;
+
+countProcessed:
+SELECT count(*) AS n FROM bus_events WHERE kind = 'turn.completed' AND memory_at IS NOT NULL;
+
+-- The bus ingest: idempotent by producer id (replays leave the table identical).
+ingestEvents:
+INSERT INTO bus_events (id, ts, kind, sid, turn, source, payload)
+VALUES (:id, :ts::timestamptz, :kind, :sid, :turn, :source, :payload::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+countBusEvents:
+SELECT count(*) AS n FROM bus_events;
