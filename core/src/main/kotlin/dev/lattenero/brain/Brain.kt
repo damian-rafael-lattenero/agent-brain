@@ -34,7 +34,7 @@ import kap.zip
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.HttpClient
 
-const val VERSION = "0.1.0"
+const val VERSION = "0.2.0"
 
 /**
  * The composition root: every long-lived object is built here, once, from

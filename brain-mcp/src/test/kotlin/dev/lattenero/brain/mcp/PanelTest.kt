@@ -46,7 +46,9 @@ class PanelTest {
     fun `the manifest points the host at the resource the server registers`() {
         assertThat(manifest).exists()
         val root = Json.parseToJsonElement(manifest.readText()).jsonObject
-        assertThat(root["version"]!!.jsonPrimitive.content).isEqualTo("0.2.0")
+        // The manifest ships the binary it describes: its version must BE the
+        // server's (serverInfo.version / GET /health report the same const).
+        assertThat(root["version"]!!.jsonPrimitive.content).isEqualTo(dev.lattenero.brain.VERSION)
         val surfaces = root["ui"]!!.jsonObject["surfaces"]!!.jsonArray
         assertThat(surfaces).hasSize(1)
         val surface = surfaces[0].jsonObject
