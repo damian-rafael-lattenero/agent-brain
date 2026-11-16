@@ -331,11 +331,11 @@ answer the answer states the fact; extraction has no support column because its 
   memory the bot never gets back, so quality wins over a slower call on the worker (off the reply path).
 - **Answer composition** → `qwen2.5:1.5b`: both models answer 5/5 with a correct citation, and the
   smaller one does it at half the p50 latency, on the turn where latency is user-visible.
-- **Retrieval** → `nomic-embed-text`: both embedding models saturated the fixture as it was at matrix time
-  (13 documents, 20/20) and the full-text leg of RRF hid the difference; `all-minilm` is faster (p50 12 vs 18 ms)
-  but is 384-dimensional, so switching would force a re-index and a schema change for no measured gain. The
-  fixture has since grown to 23 documents / 33 cases — re-run `make eval-matrix-retrieval` to see whether the
-  bigger corpus now discriminates.
+- **Retrieval** → `nomic-embed-text`, now MEASURED on the grown fixture (16/11, matrix `e630b408`): the
+  23-document corpus discriminates where the 13-document one saturated — nomic MRR **0.985** / nDCG@5 0.989 /
+  needle support 32/33 vs `all-minilm` 0.909 / 0.932 / 29/33 (both 33/33 recall@5; all-minilm is faster,
+  p50 23 vs 33 ms, but the matrix's latency tie-break must not outrank a 0.076 MRR gap on the query path).
+  Switching would also force a re-index and an embed-dim schema change (384 vs 768) for a measured LOSS.
 
 The **matrix is explicit, not on every push**: it pulls a second model and runs 22 model calls
 (~70 s locally, more on a CI runner), while the gate is one model and ~1.5 s. `make eval` runs on every
