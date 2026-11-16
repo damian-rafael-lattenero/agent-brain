@@ -14,14 +14,13 @@ dependencyResolutionManagement {
         // retired with it, and G5's Central-only resolution is back for good.
         mavenCentral()
         // The pgvector-capable postgres dialect fork (U5, ~/Projects/sqldelight
-        // branch damian), VENDORED as a tiny maven-layout repo so CI resolves it
-        // with zero auth (GitHub Packages would need a cross-repo PAT). The
-        // coordinates never collide with upstream app.cash.sqldelight.
-        // Refresh procedure (ADR-007): publishToMavenLocal in the fork
-        // (-PsignAllPublications=false), copy jar+pom+module here, bump brainN.
-        maven { url = uri("core/libs/maven") }
+        // branch damian) resolves from Maven Central since M5 (16/11):
+        // io.github.damian-rafael-lattenero:postgresql-dialect — published by
+        // the fork's own workflow (five repo secrets, ADR-007). The vendored
+        // core/libs/maven copy is gone.
         // Dev loop only: an unpublished fork rebuild lands instantly from
-        // mavenLocal when present; CI silently skips it.
+        // mavenLocal when present (publishToMavenLocal
+        // -PsignAllPublications=false); CI silently skips it.
         mavenLocal()
     }
 }

@@ -58,10 +58,11 @@ sqldelight {
         create("BrainDb") {
             packageName.set("dev.lattenero.brain.db.sq")
             // U5 fork dialect (~/Projects/sqldelight, branch damian): parses
-            // pgvector's <=>, FILTER-without-OVER aggregates and the
-            // SELECT-level WINDOW clause. Falls back to upstream coordinates
-            // if the fork is not in mavenLocal.
-            dialect("dev.lattenero.sqldelight:postgresql-dialect:2.4.1-brain2")
+            // pgvector's <=>, FILTER-without-OVER aggregates, the SELECT-level
+            // WINDOW clause and CASE nullability. M5 (16/11): the fork lives
+            // on Maven Central under the GitHub-verified kap namespace, so the
+            // build resolves it like any dependency — no vendored copy.
+            dialect("io.github.damian-rafael-lattenero:postgresql-dialect:2.4.1-brain2")
         }
     }
 }
