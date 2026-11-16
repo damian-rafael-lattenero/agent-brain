@@ -2,6 +2,7 @@ package dev.lattenero.brain.bus
 
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.inTransaction
+import java.time.OffsetDateTime
 import kap.Kap
 import kap.Ref
 import kap.evalGraph
@@ -48,29 +49,27 @@ class PgBusIngest private constructor(private val db: Database, val stats: Inges
 
     suspend fun handle(events: List<BusEvent>) {
         if (events.isEmpty()) return
-        val inserted = db.inTransaction { conn ->
-            conn.prepareStatement(INSERT).use { ps ->
+        val inserted = db.withDriver { brainDb ->
+            var landed = 0
+            brainDb.transaction {
                 for (event in events) {
-                    ps.setString(1, event.id)
-                    ps.setString(2, event.ts)
-                    ps.setString(3, event.kind.wire)
-                    ps.setString(4, event.sid)
-                    ps.setString(5, event.turn)
-                    ps.setString(6, event.source.wire)
-                    ps.setString(7, event.payload.toString())
-                    ps.addBatch()
+                    landed += brainDb.busEventsQueries.ingestEvents(
+                        event.id,
+                        OffsetDateTime.parse(event.ts),
+                        event.kind.wire,
+                        event.sid,
+                        event.turn,
+                        event.source.wire,
+                        event.payload.toString(),
+                    ).value.toInt()
                 }
-                ps.executeBatch()
-            }.count { it > 0 }
+            }
+            landed
         }
         events.last().let { stats.accept(events.size, inserted, it.ts, it.kind.wire) }
     }
 
-    suspend fun count(): Long = db.withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery("SELECT count(*) FROM bus_events").use { rs -> rs.next(); rs.getLong(1) }
-        }
-    }
+    suspend fun count(): Long = db.withDriver { it.busEventsQueries.countBusEvents().executeAsOne() }
 
     companion object {
         const val INSERT = """

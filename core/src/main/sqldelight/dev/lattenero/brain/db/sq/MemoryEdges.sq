@@ -1,0 +1,114 @@
+-- TYPING-ONLY declaration (see Memories.sq). Cross-file references to the
+-- memories table are legal: one schema, several files.
+CREATE TABLE memory_edges (
+  src_id BIGINT NOT NULL,
+  dst_id BIGINT NOT NULL,
+  kind TEXT NOT NULL,
+  weight DOUBLE PRECISION NOT NULL
+);
+
+neighborsInBand:
+WITH alive AS (
+  SELECT id FROM memories m, (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor) p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+)
+SELECT m.id, 1 - (m.embedding <=> :qv::vector) AS sim
+FROM memories m
+WHERE m.embed_model = :embedModel AND m.id <> :sourceId
+  AND (1 - (m.embedding <=> :qv::vector)) >= :floor
+  AND (1 - (m.embedding <=> :qv::vector)) < :ceiling
+  AND m.id IN (SELECT id FROM alive)
+ORDER BY sim DESC, m.id LIMIT :lim;
+
+-- The traversal law: UNION ALL of two index-driven walks (unnest carries the
+-- hit ids).
+--
+-- PLAN LAW (measured 2026-11-15, live store: 3,419 memories / 24,971 edges):
+-- a symmetric-edge join written as `ON e.src_id = hid OR e.dst_id = hid` CANNOT
+-- use an index — the planner inverted the join (alive x edges first, unnest of
+-- the hits LAST), built 85.7M intermediate rows and removed 257M by filter:
+-- 86,346 ms for 40 result rows. The same fetch as a UNION ALL of two
+-- index-driven walks (src-direction + dst-direction) plans as two Bitmap
+-- Index Scans: 38 ms — the same 40 rows, 2,263x faster. `src <> dst` is a
+-- DB CHECK, so an (edge, hit) pair matches exactly ONE direction: UNION ALL
+-- cannot duplicate. The hit side needs no alive check — hits arrive from
+-- MemoryStore.search, which already excludes forgotten and invalidated rows.
+--
+-- Exclusion-law twinship: the alive CTE below is the same expression the
+-- search legs exclude with — a row excluded from search leaves the graph too,
+-- so recall surfaces can never disagree.
+traverse:
+WITH params AS (
+  SELECT :qv::vector AS qv, :model::text AS model, :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor
+), alive AS (
+  SELECT id FROM memories m, params p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+), hits AS (SELECT unnest(:hitIds::bigint[]) AS hid), walk AS (
+  SELECT h.hid AS via_id, e.kind, e.weight AS edge_weight, e.dst_id AS other_id
+    FROM hits h JOIN memory_edges e ON e.src_id = h.hid
+  UNION ALL
+  SELECT h.hid, e.kind, e.weight, e.src_id
+    FROM hits h JOIN memory_edges e ON e.dst_id = h.hid
+)
+SELECT w.kind, w.edge_weight, w.via_id, m.id, m.kind AS mkind, m.content,
+       m.session_id, m.created_at, m.salience,
+       m.salience * exp(-ln(2) * extract(epoch FROM (now() - m.created_at)) / (86400.0 * (SELECT half_life FROM params))) AS weight,
+       CASE WHEN m.embed_model = (SELECT model FROM params)
+            THEN 1 - (m.embedding <=> (SELECT qv FROM params)) END AS relevance
+FROM walk w
+JOIN memories m ON m.id = w.other_id
+WHERE m.id <> w.via_id
+  AND m.id IN (SELECT id FROM alive);
+
+-- The temporal chain's REAL shape: the B3 alive CTE (decay math, carried by
+-- the fork) + LATERAL + row constructor.
+temporalPair:
+WITH alive AS (
+  SELECT id FROM memories m, (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor) p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+),
+cur AS (SELECT id, session_id, created_at FROM memories WHERE id = :curId)
+SELECT cur.id AS cur_id, cur.created_at AS cur_at, prev.id AS prev_id, prev.created_at AS prev_at
+FROM cur
+LEFT JOIN LATERAL (
+  SELECT m.id, m.created_at FROM memories m
+  WHERE m.session_id IS NOT NULL AND m.session_id = cur.session_id
+    AND m.id <> cur.id
+    AND (m.created_at, m.id) < (cur.created_at, cur.id)
+    AND m.id IN (SELECT id FROM alive)
+  ORDER BY m.created_at DESC, m.id DESC LIMIT 1
+) prev ON TRUE;
+
+-- The alive memories of one turn (session and turn present) — the cooccur domain.
+turnAlive:
+WITH alive AS (
+  SELECT id FROM memories m, (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor) p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+)
+SELECT id FROM memories WHERE session_id = :sid AND turn_id = :turn
+  AND id IN (SELECT id FROM alive) ORDER BY id;
+
+-- The rows the builders need, by id (a missing id is already gone: CASCADE).
+graphRows:
+SELECT id, session_id, embed_model, embedding::text AS embedding_text FROM memories WHERE id = ANY(:ids::bigint[]);
+
+-- M0 law probes: array binds ride TEXT literals ({1,2}::bigint[]) — the one
+-- bind shape the spike IT had not proven.
+hitsByIds:
+SELECT id FROM memories
+WHERE id IN (SELECT unnest(:ids::bigint[]))
+ORDER BY id;
+
+memoriesAny:
+SELECT id FROM memories
+WHERE id = ANY(:ids::bigint[])
+ORDER BY id;
+
+insertEdge:
+INSERT INTO memory_edges (src_id, dst_id, kind, weight)
+VALUES (:srcId, :dstId, :kind, :weight)
+ON CONFLICT (src_id, dst_id, kind) DO NOTHING;

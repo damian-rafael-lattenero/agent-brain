@@ -1,0 +1,74 @@
+-- M3: the one-shot edge backfill over EXISTING rows (agent-brain
+-- backfill-edges), as set statements. The SAME laws as the insert-time
+-- builder, in SQL: the related band's ceiling is MemoryDedup.SIMILARITY and
+-- forgotten rows are excluded on BOTH ends of every candidate pair.
+-- Idempotent via ON CONFLICT DO NOTHING: a second run lands nothing new.
+-- The kind wire literals and the temporal window seconds are the constants
+-- the raw statements interpolated (EdgeKind.wire, MemoryEdges.
+
+backfillCount:
+SELECT count(*) AS n FROM memories;
+
+-- Related backfill, one batch: the top band neighbors per memory, alive on
+-- both ends.
+backfillRelated:
+INSERT INTO memory_edges (src_id, dst_id, kind, weight)
+WITH batch AS (SELECT id FROM memories ORDER BY id LIMIT :lim OFFSET :offset),
+alive AS (
+  SELECT id FROM memories m, (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor) p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+),
+ranked AS (
+  SELECT m.id AS src, n.id AS dst, 1 - (m.embedding <=> n.embedding) AS sim,
+         row_number() OVER (PARTITION BY m.id ORDER BY 1 - (m.embedding <=> n.embedding) DESC, n.id) AS rn
+  FROM memories m JOIN memories n ON n.embed_model = m.embed_model AND n.id <> m.id
+  WHERE m.id IN (SELECT id FROM batch)
+    AND m.id IN (SELECT id FROM alive) AND n.id IN (SELECT id FROM alive)
+    AND (1 - (m.embedding <=> n.embedding)) >= :floor
+    AND (1 - (m.embedding <=> n.embedding)) < :ceiling
+)
+SELECT src, dst, 'related', sim FROM ranked WHERE rn <= :cap
+ON CONFLICT (src_id, dst_id, kind) DO NOTHING;
+
+-- Cooccur backfill: same (session, turn) alive memories, pairwise, once per
+-- unordered pair.
+backfillCoocur:
+INSERT INTO memory_edges (src_id, dst_id, kind, weight)
+WITH alive AS (
+  SELECT id FROM memories m, (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor) p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+),
+pairs AS (
+  SELECT a.id AS src, b.id AS dst
+  FROM memories a JOIN memories b
+    ON a.session_id IS NOT NULL AND a.session_id = b.session_id
+   AND a.turn_id IS NOT NULL AND a.turn_id = b.turn_id
+   AND a.id < b.id
+  WHERE a.id IN (SELECT id FROM alive) AND b.id IN (SELECT id FROM alive)
+)
+SELECT src, dst, 'cooccur', 1.0 FROM pairs
+ON CONFLICT (src_id, dst_id, kind) DO NOTHING;
+
+-- Temporal backfill: each session's alive rows in (created_at, id) order,
+-- consecutive pairs within the window chain once. The named WINDOW clause is
+-- the one shape upstream might reject — the fork carries it if so.
+backfillTemporal:
+INSERT INTO memory_edges (src_id, dst_id, kind, weight)
+WITH alive AS (
+  SELECT id FROM memories m, (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor) p
+  WHERE m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+),
+ordered AS (
+  SELECT id, created_at,
+         lag(id) OVER w AS prev_id, lag(created_at) OVER w AS prev_at
+  FROM memories
+  WHERE session_id IS NOT NULL AND id IN (SELECT id FROM alive)
+  WINDOW w AS (PARTITION BY session_id ORDER BY created_at, id)
+)
+SELECT prev_id, id, 'temporal', 1.0 FROM ordered
+WHERE prev_id IS NOT NULL AND prev_id IN (SELECT id FROM alive)
+  AND extract(epoch FROM (created_at - prev_at)) <= 600.0
+ON CONFLICT (src_id, dst_id, kind) DO NOTHING;

@@ -3,6 +3,7 @@ package dev.lattenero.brain.rag
 import com.pgvector.PGvector
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.inTransaction
+import dev.lattenero.brain.db.toVectorText
 import kap.KapTypeSafe
 import kap.evalGraph
 import kotlinx.serialization.Serializable
@@ -41,107 +42,73 @@ class RagStore(private val db: Database) {
     }
 
     /** Inserts or updates by uri; unchanged content (same sha) is left alone and reported as such. */
-    suspend fun upsertDocument(source: String, uri: String, title: String, content: String, sha: String): Upsert = db.withConnection { conn ->
-        val existing = conn.prepareStatement("SELECT id, content_sha FROM documents WHERE uri = ?").use { ps ->
-            ps.setString(1, uri)
-            ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) to rs.getString(2) else null }
-        }
-        if (existing != null && existing.second == sha) return@withConnection Upsert.Unchanged(existing.first)
-        val id = conn.prepareStatement(
-            """
-            INSERT INTO documents (source, uri, title, content, content_sha)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (uri) DO UPDATE SET source = EXCLUDED.source, title = EXCLUDED.title,
-              content = EXCLUDED.content, content_sha = EXCLUDED.content_sha, updated_at = now()
-            RETURNING id
-            """,
-        ).use { ps ->
-            ps.setString(1, source)
-            ps.setString(2, uri)
-            ps.setString(3, title)
-            ps.setString(4, content)
-            ps.setString(5, sha)
-            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
-        }
+    suspend fun upsertDocument(source: String, uri: String, title: String, content: String, sha: String): Upsert = db.withDriver { brainDb ->
+        val existing = brainDb.ragQueries.existingDoc(uri).executeAsOneOrNull()
+        if (existing != null && existing.content_sha == sha) return@withDriver Upsert.Unchanged(existing.id)
+        val id = brainDb.ragQueries.upsertDocument(source, uri, title, content, sha).executeAsOne()
         Upsert.Changed(id, inserted = existing == null)
     }
 
     /** Replaces every chunk of a document in one transaction. */
-    suspend fun replaceChunks(docId: Long, embedModel: String, rows: List<ChunkRow>): Int = db.inTransaction { conn ->
-        conn.prepareStatement("DELETE FROM chunks WHERE doc_id = ?").use { ps ->
-            ps.setLong(1, docId)
-            ps.executeUpdate()
-        }
-        conn.prepareStatement(
-            "INSERT INTO chunks (doc_id, ordinal, heading, content, embed_model, embedding) VALUES (?, ?, ?, ?, ?, ?)",
-        ).use { ps ->
+    suspend fun replaceChunks(docId: Long, embedModel: String, rows: List<ChunkRow>): Int = db.withDriver { brainDb ->
+        brainDb.transaction {
+            brainDb.ragQueries.deleteChunksByDoc(docId)
             for (row in rows) {
-                ps.setLong(1, docId)
-                ps.setInt(2, row.ordinal)
-                ps.setString(3, row.heading)
-                ps.setString(4, row.content)
-                ps.setString(5, embedModel)
-                ps.setObject(6, PGvector(row.embedding))
-                ps.addBatch()
+                brainDb.ragQueries.insertChunk(
+                    docId,
+                    row.ordinal,
+                    row.heading,
+                    row.content,
+                    embedModel,
+                    row.embedding.toVectorText(),
+                )
             }
-            ps.executeBatch()
         }
         rows.size
     }
 
-    suspend fun deleteDocumentsNotIn(source: String, keptUris: Collection<String>): Int = db.withConnection { conn ->
-        conn.prepareStatement("DELETE FROM documents WHERE source = ? AND NOT (uri = ANY(?))").use { ps ->
-            ps.setString(1, source)
-            ps.setArray(2, conn.createArrayOf("text", keptUris.toTypedArray()))
-            ps.executeUpdate()
+    suspend fun deleteDocumentsNotIn(source: String, keptUris: Collection<String>): Int =
+        db.withDriver { brainDb ->
+            brainDb.ragQueries.deleteDocumentsNotIn(source, keptUris.toTypedArray()).value.toInt()
         }
-    }
 
-    suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int = DEFAULT_K): List<Hit> = db.withConnection { conn ->
+    suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int = DEFAULT_K): List<Hit> = db.withDriver { brainDb ->
         val candidates = maxOf(k * CANDIDATE_FACTOR, MIN_CANDIDATES)
-        conn.prepareStatement(SEARCH).use { ps ->
-            val vector = PGvector(queryEmbedding)
-            ps.setObject(1, vector)
-            ps.setString(2, embedModel)
-            ps.setInt(3, candidates)
-            ps.setString(4, queryText)
-            ps.setInt(5, k)
-            ps.executeQuery().use { rs ->
-                generateSequence {
-                    if (!rs.next()) null else Hit(
-                        chunkId = rs.getLong("id"),
-                        docId = rs.getLong("doc_id"),
-                        uri = rs.getString("uri"),
-                        title = rs.getString("title"),
-                        heading = rs.getString("heading"),
-                        ordinal = rs.getInt("ordinal"),
-                        content = rs.getString("content"),
-                        score = rs.getDouble("score"),
-                        vectorRank = rs.getObject("vec_rank")?.let { (it as Number).toInt() },
-                        textRank = rs.getObject("fts_rank")?.let { (it as Number).toInt() },
-                    )
-                }.toList()
-            }
+        brainDb.ragQueries.searchRag(
+            queryEmbedding.toVectorText(),
+            embedModel,
+            candidates,
+            queryText,
+            k.toLong(),
+        ).executeAsList().map {
+            Hit(
+                chunkId = it.id,
+                docId = it.doc_id,
+                uri = it.uri,
+                title = it.title,
+                heading = it.heading,
+                ordinal = it.ordinal,
+                content = it.content,
+                score = it.score?.toDouble() ?: 0.0,
+                vectorRank = it.vec_rank?.toInt(),
+                textRank = it.fts_rank?.toInt(),
+            )
         }
     }
 
     /** Three independent queries, three pooled connections, one typed graph. */
     suspend fun stats(): RagStats = kap(::RagStats)
-        .with { documents from count("documents") }
-        .with { chunks from count("chunks") }
+        .with { documents from countDocuments() }
+        .with { chunks from countChunks() }
         .with { bySource from bySource() }
         .evalGraph()
 
-    private suspend fun count(table: String): Long = db.withConnection { conn ->
-        conn.createStatement().use { st -> st.executeQuery("SELECT count(*) FROM $table").use { rs -> rs.next(); rs.getLong(1) } }
-    }
+    private suspend fun countDocuments(): Long = db.withDriver { it.ragQueries.countDocuments().executeAsOne() }
 
-    private suspend fun bySource(): Map<String, Long> = db.withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery("SELECT source, count(*) FROM documents GROUP BY source ORDER BY source").use { rs ->
-                generateSequence { if (rs.next()) rs.getString(1) to rs.getLong(2) else null }.toMap()
-            }
-        }
+    private suspend fun countChunks(): Long = db.withDriver { it.ragQueries.countChunks().executeAsOne() }
+
+    private suspend fun bySource(): Map<String, Long> = db.withDriver { brainDb ->
+        brainDb.ragQueries.documentsBySource().executeAsList().associate { it.source to it.n }
     }
 
     companion object {

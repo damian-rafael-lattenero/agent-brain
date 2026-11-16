@@ -1,0 +1,236 @@
+-- TYPING-ONLY declarations: the runtime schema is owned by db/Migrator
+-- (advisory-locked plain .sql files, __EMBED_DIM__ rendering). These blocks
+-- exist so the compiler can type the queries below; they are never executed.
+-- pgvector columns stand in as TEXT: statements bind/return the `[1,2,3]`
+-- text form explicitly (::vector casts in the statements).
+CREATE TABLE memories (
+  id BIGINT PRIMARY KEY,
+  session_id TEXT,
+  turn_id TEXT,
+  kind TEXT NOT NULL,
+  content TEXT NOT NULL,
+  embed_model TEXT NOT NULL,
+  embedding TEXT NOT NULL,
+  salience REAL NOT NULL DEFAULT 1.0,
+  last_accessed TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  source_event_id TEXT,
+  -- nullable stand-in for the REAL generated column (tsvector GENERATED
+  -- ALWAYS ... STORED): a typing-only declaration cannot express generation,
+  -- and the insert below must be allowed to omit it.
+  content_tsv TEXT,
+  invalid_at TIMESTAMPTZ
+);
+
+-- The quarantine table only backs quarantine reads/writes.
+CREATE TABLE memory_quarantine (
+  id BIGINT PRIMARY KEY,
+  turn_id TEXT,
+  reason TEXT NOT NULL,
+  raw TEXT NOT NULL,
+  ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+  event_id TEXT,
+  session_id TEXT
+);
+
+insertMemory:
+INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
+VALUES (:sessionId, :turnId, :kind, :content, :embedModel, :embedding::vector, :sourceEventId)
+ON CONFLICT DO NOTHING
+RETURNING id;
+
+quarantineBucketed:
+SELECT
+  CASE
+    WHEN reason LIKE 'template-echo%' THEN 'template-echo'
+    WHEN reason LIKE 'gave up%' THEN 'gave-up'
+    WHEN reason LIKE 'invalid extraction%' THEN 'invalid-extraction'
+    ELSE split_part(reason, ':', 1)
+  END AS bucket,
+  count(*) AS n
+FROM memory_quarantine
+GROUP BY bucket
+ORDER BY n DESC, bucket;
+
+-- The B3 lifecycle buckets: aggregate FILTER without OVER + the decay math
+-- (both carried by the fork dialect — the U5 walls are dead).
+lifecycleCounts:
+WITH params AS (
+  SELECT :halfLife::int AS half_life, :coolingFloor::float8 AS cooling_floor, :forgetFloor::float8 AS forget_floor
+), rows AS (
+  SELECT m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at)))
+         / (86400.0 * p.half_life)) AS w
+  FROM memories m, params p
+)
+SELECT
+  count(*) FILTER (WHERE w >= p.cooling_floor) AS active,
+  count(*) FILTER (WHERE w < p.cooling_floor AND w >= p.forget_floor) AS cooling,
+  count(*) FILTER (WHERE w < p.forget_floor) AS archived
+FROM rows, params p;
+
+countMemories:
+SELECT count(*) AS n FROM memories;
+
+-- The retrieval law (MemoryStore.SEARCH), byte-faithful to the raw twin:
+-- params CTE + alive exclusion + two ranked legs + RRF fusion. The alive CTE
+-- is the exclusion law's search face (a live row is neither invalidated nor
+-- forgotten) — its graph twin lives in MemoryEdges.sq's traverse: both
+-- surfaces must agree on who is alive, so recall surfaces never disagree.
+-- The fork dialect parses `<=>` (LTE GT token sequence) and the FTS functions
+-- resolve through the fork's TypeResolver.
+searchMemory:
+WITH params AS (
+  SELECT :qv::vector AS qv, :model::text AS model, :n::int AS n,
+         websearch_to_tsquery('simple', :text) AS tsq,
+         :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor
+), alive AS (
+  SELECT id FROM memories m, params p
+  WHERE m.embed_model = p.model
+    AND m.invalid_at IS NULL
+    AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+), vec AS (
+  SELECT id, row_number() OVER (ORDER BY dist, id) AS r FROM (
+    SELECT m.id, m.embedding <=> p.qv AS dist FROM memories m, params p
+    WHERE m.embed_model = p.model AND m.id IN (SELECT id FROM alive)
+    ORDER BY dist, m.id LIMIT (SELECT n FROM params)
+  ) top
+), fts AS (
+  SELECT id, row_number() OVER (ORDER BY rank DESC, id) AS r FROM (
+    SELECT m.id, ts_rank_cd(m.content_tsv, p.tsq) AS rank FROM memories m, params p
+    WHERE m.embed_model = p.model AND m.content_tsv @@ p.tsq AND m.id IN (SELECT id FROM alive)
+    ORDER BY rank DESC, m.id LIMIT (SELECT n FROM params)
+  ) top
+), fused AS (
+  SELECT id, SUM(1.0 / (60 + r)) AS rrf
+  FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) legs GROUP BY id
+)
+SELECT m.id, m.kind, m.content, m.session_id, m.turn_id, m.salience, m.created_at,
+       f.rrf AS score,
+       m.salience * exp(-ln(2) * extract(epoch FROM (now() - m.created_at)) / (86400.0 * (SELECT half_life FROM params))) AS weight
+FROM fused f JOIN memories m ON m.id = f.id
+ORDER BY f.rrf DESC, weight DESC, m.id
+LIMIT :k;
+
+-- findReplay law: the same extraction landing again — (event, kind, content)
+-- already there — is absorbed silently (a crash between insert and mark
+-- re-runs the turn: that is idempotence, never a salience bump).
+findReplay:
+SELECT id FROM memories
+WHERE source_event_id = :eventId AND kind = :kind AND md5(content) = md5(:content)
+LIMIT 1;
+
+-- findDuplicate law: the OLDEST row at or above the threshold to the new
+-- embedding — same embed model (ADR-004), any kind, any session, never an
+-- invalidated row (a dead claim must not absorb a new landing). Oldest, not
+-- most-similar, so insert-time merges and the backfill's oldest-first
+-- clusters agree on the survivor.
+findDuplicate:
+SELECT id FROM memories
+WHERE embed_model = :embedModel AND invalid_at IS NULL
+  AND (1 - (embedding <=> :qv::vector)) >= :threshold
+ORDER BY created_at, id LIMIT 1;
+
+countSuperseded:
+SELECT count(*) AS n FROM memories WHERE invalid_at IS NOT NULL;
+
+countQuarantined:
+SELECT count(*) AS n FROM memory_quarantine;
+
+-- The memories one turn produced, in insertion order (the LoRA pair's target).
+memoriesOfTurn:
+SELECT kind, content FROM memories WHERE turn_id = :turnId AND invalid_at IS NULL ORDER BY id;
+
+byId:
+SELECT id, kind, content, session_id, turn_id, salience, created_at,
+       NULL::float8 AS score, NULL::float8 AS weight
+FROM memories WHERE id = :id;
+
+-- recent: the optional kind filter becomes two named queries (landmine fix).
+recent:
+SELECT id, kind, content, session_id, turn_id, salience, created_at,
+       NULL::float8 AS score, NULL::float8 AS weight
+FROM memories ORDER BY created_at DESC, id DESC LIMIT :lim;
+
+recentOfKind:
+SELECT id, kind, content, session_id, turn_id, salience, created_at,
+       NULL::float8 AS score, NULL::float8 AS weight
+FROM memories WHERE kind = :kind ORDER BY created_at DESC, id DESC LIMIT :lim;
+
+quarantined:
+SELECT id, event_id, session_id, turn_id, reason, raw, ts FROM memory_quarantine
+ORDER BY ts DESC, id DESC LIMIT :lim;
+
+-- M2 writes. The deduped batch insert (no RETURNING: the batch reports counts).
+insertMemoryNoReturn:
+INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id)
+VALUES (:sessionId, :turnId, :kind, :content, :embedModel, :embedding::vector, :sourceEventId)
+ON CONFLICT DO NOTHING;
+
+-- The verdict stamps, guarded.
+invalidate:
+UPDATE memories SET invalid_at = now() WHERE id = :id AND invalid_at IS NULL;
+
+-- Absorbed rows die (the dedup merge's loser deletion).
+deleteAbsorbed:
+DELETE FROM memories WHERE id = ANY(:ids::bigint[]);
+
+-- Access reinforcement: search hits and dedup merges.
+reinforceOne:
+UPDATE memories SET salience = salience + :by, last_accessed = now() WHERE id = :id;
+
+reinforceSearch:
+UPDATE memories SET salience = salience + :by, last_accessed = now() WHERE id = ANY(:ids::bigint[]);
+
+quarantineInsert:
+INSERT INTO memory_quarantine (turn_id, reason, raw, event_id, session_id)
+VALUES (:turnId, :reason, :raw, :eventId, :sessionId);
+
+-- M3 retrieval laws. nearestNeighbor: the ONE candidate a reconcile verdict
+-- sees — cosine in the band (high edge reads MemoryDedup.SIMILARITY so the
+-- band ends exactly where dedup takes over), same embed model, never self,
+-- never invalidated, never forgotten (B3).
+nearestNeighbor:
+WITH params AS (SELECT :halfLife::int AS half_life, :forgetFloor::float8 AS forget_floor),
+     q AS (SELECT :qv::vector AS v)
+SELECT m.id, m.content, m.created_at, 1 - (m.embedding <=> q.v) AS cosine
+FROM memories m, params p, q
+WHERE m.embed_model = :embedModel
+  AND m.id <> :selfId
+  AND m.invalid_at IS NULL
+  AND (1 - (m.embedding <=> q.v)) >= :low
+  AND (1 - (m.embedding <=> q.v)) < :high
+  AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+ORDER BY m.embedding <=> q.v, m.id
+LIMIT 1;
+
+-- The verdict-pass candidate by id alone; cosine is the caller's business.
+rowAsNeighbor:
+SELECT id, content, created_at FROM memories WHERE id = :id;
+
+-- The stored embedding, for passes that compare neighbors without re-embedding.
+embeddingOf:
+SELECT embedding::text AS embedding_text FROM memories WHERE id = :id;
+
+-- The passes' idempotence guard: does a stamp exist?
+isInvalidated:
+SELECT invalid_at IS NOT NULL AS invalidated FROM memories WHERE id = :id;
+
+-- Every row the dedup backfill reads, oldest first — invalidated rows
+-- excluded (a live claim must never be absorbed by a dead one).
+dedupRows:
+SELECT id, kind, content, embed_model, salience, created_at, embedding::text AS embedding_text
+FROM memories WHERE invalid_at IS NULL ORDER BY created_at, id;
+
+-- Every COOLING row the dream pass reads, oldest first — B3's law as ONE SQL
+-- classification (life-weight in [forget_floor, cooling_floor)), the SAME
+-- expression the status buckets count with. Invalidated rows are not dream
+-- inputs; neither are forgotten (ARCHIVED) ones.
+dreamRows:
+WITH params AS (SELECT :halfLife::int AS half_life, :coolingFloor::float8 AS cooling_floor, :forgetFloor::float8 AS forget_floor)
+SELECT m.id, m.kind, m.content, m.embed_model, m.salience, m.created_at, m.embedding::text AS embedding_text
+FROM memories m, params p
+WHERE m.invalid_at IS NULL
+  AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) >= p.forget_floor
+  AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) < p.cooling_floor
+ORDER BY m.created_at, m.id
+LIMIT :lim;
