@@ -41,6 +41,9 @@ interface EmbeddingProvider : AutoCloseable {
 }
 
 abstract class BaseProvider : EmbeddingProvider {
+    /** One embed request's payload: the provider embeds a batch per call (nested alias — only this class names it). */
+    typealias EmbedBatch = List<String>
+
     final override suspend fun embed(texts: List<String>): List<FloatArray> {
         if (texts.isEmpty()) return emptyList()
         val vectors = embedAll(texts)
@@ -70,7 +73,7 @@ abstract class BaseProvider : EmbeddingProvider {
     companion object {
         const val PROBE = "agent-brain readiness probe"
 
-        fun batches(texts: List<String>, size: Int): List<List<String>> {
+        fun batches(texts: List<String>, size: Int): List<EmbedBatch> {
             require(size > 0) { "batch size must be positive" }
             return texts.chunked(size)
         }
