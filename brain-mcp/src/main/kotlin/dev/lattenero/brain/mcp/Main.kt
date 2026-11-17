@@ -204,6 +204,10 @@ fun main(argv: Array<String>) {
     parsed.abConfig?.let { System.setProperty("AB_CONFIG_OVERRIDE", it) }
     val config = try {
         loadConfig()
+    } catch (e: CancellationException) {
+        // a cancellation at startup is not ours to answer "cannot configure" —
+        // let it crash honestly (fleet audit 17/11, the CE-arm law)
+        throw e
     } catch (e: Exception) {
         System.err.println("brain-mcp: cannot configure the brain: ${e.message}")
         exitProcess(1)
@@ -218,6 +222,8 @@ fun main(argv: Array<String>) {
 private fun stdio(config: Config) {
     try {
         runBlocking { Brain.resource(config).use { brain -> serveStdio(brain) } }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         System.err.println("brain-mcp: cannot start: ${e.message}")
         exitProcess(1)
@@ -287,6 +293,8 @@ private fun http(config: Config, host: String, port: Int) {
     val client = HttpClients.create(config.httpTimeoutS)
     val server = try {
         runBlocking { McpHttp.start(config, host, port, token, client) }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         client.close()
         System.err.println("brain-mcp: cannot start the HTTP transport on $host:$port: ${e.message}")

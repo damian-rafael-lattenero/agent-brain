@@ -1,5 +1,7 @@
 package dev.lattenero.brain.memory
 
+import kotlinx.coroutines.CancellationException
+
 /**
  * What one edge-building pass did, as a value: the counts per kind, or the
  * failure. [EdgeOutcome.Failed] is the honest degrade made visible — the
@@ -70,9 +72,16 @@ class EdgeBuilder(private val graph: MemoryGraphStore, private val halfLifeDays:
         return MemoryEdges.temporalChain(listOf(pair.prev, pair.cur))
     }
 
-    /** The degrade seam: any failure of the pass becomes [EdgeOutcome.Failed], never an exception. */
-    private suspend fun guard(block: suspend () -> EdgeOutcome): EdgeOutcome = runCatching { block() }.fold(
-        onSuccess = { it },
-        onFailure = { e -> EdgeOutcome.Failed("${e::class.simpleName}: ${e.message}") },
-    )
+    /** The degrade seam: any failure of the pass becomes [EdgeOutcome.Failed], never an exception.
+     *  Cancellation is NOT ours to swallow: it propagates untouched (fleet audit 17/11 —
+     *  runCatching over suspend laundered CE into Failed; the CE-arm ladder is the law).
+     *  The final Throwable arm is the doctrine's own Convert-to-value shape. */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun guard(block: suspend () -> EdgeOutcome): EdgeOutcome = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        EdgeOutcome.Failed("${e::class.simpleName}: ${e.message}")
+    }
 }
