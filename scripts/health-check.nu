@@ -56,7 +56,7 @@ export def checks []: nothing -> list<record> {
             layer: "brain"
             check: "serve /health ok (8765)"
             f: {||
-                let h: record = (http get http://127.0.0.1:8765/health)
+                let h: record = (http get -m 5sec http://127.0.0.1:8765/health)
                 {ok: ($h.status == "ok"), detail: $"status ($h.status)", hint: "launchctl kickstart -k gui/501/com.zcode.agent-brain (log ~/Library/Logs/agent-brain.log)"}
             }
         }
@@ -67,7 +67,7 @@ export def checks []: nothing -> list<record> {
             layer: "ollama"
             check: "embeddings + chat vivo"
             f: {||
-                let t: record = (http get http://127.0.0.1:11434/api/tags)
+                let t: record = (http get -m 5sec http://127.0.0.1:11434/api/tags)
                 let chat_body: string = ({model: "qwen2.5:1.5b", stream: false, messages: [{role: "user", content: "say ok"}], options: {temperature: 0, num_predict: 8}} | to json -r)
                 let t0: datetime = (date now)
                 let probe: record = (try {

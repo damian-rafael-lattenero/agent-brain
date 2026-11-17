@@ -44,7 +44,7 @@ def tg-send [text: string]: nothing -> nothing {
     if ($token | is-empty) or ($chat | is-empty) { return }
     let payload: string = ({chat_id: ($chat | into string), text: $text} | to json)
     let curlCfg: string = $"url = \"https://api.telegram.org/bot($token)/sendMessage\"\n"
-    $curlCfg | curl -sS --config - --header "Content-Type: application/json" --data $payload -o /dev/null
+    $curlCfg | curl -sS --config - --header "Content-Type: application/json" --data $payload --max-time 8 -o /dev/null
 }
 
 # One pass over every layer; returns the rows with their verdicts.
@@ -95,10 +95,16 @@ def main [--dry-run(-d), --status(-s)]: nothing -> nothing {
         $newUps | each {|l|
             tg-send $"🧠✅ brain-sentinel — capa RECUPERADA: ($l)"
         }
-        # the dead man's switch: ping ONLY on a fully green pass
+        # the dead man's switch: ping ONLY on a fully green pass. A failed ping
+        # must NEVER kill the pass before the state save (audit 17/11: lost
+        # transitions -> re-alerts) — log honestly and continue.
         if ($bad | is-empty) {
             let hb: string = (try { open --raw $HEARTBEAT | str trim } catch { "" })
-            if not ($hb | is-empty) { http get $hb | ignore }
+            if not ($hb | is-empty) {
+                try { http get -m 5sec $hb | ignore } catch {|err|
+                    print $"($stamp) heartbeat ping failed: ($err.msg)"
+                }
+            }
         }
         {down: $nowDown} | to json | save --force $STATE
     }
