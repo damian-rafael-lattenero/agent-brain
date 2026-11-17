@@ -5,9 +5,11 @@ import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.rag.EmbedPipeline
 import kap.CircuitBreakerOpenException
 import kap.Kap
+import kap.Meter
 import kap.Process
 import kap.RestartPolicy
 import kap.Schedule
+import kap.Tags
 import kap.attempt
 import kap.evalGraph
 import kap.map
@@ -147,6 +149,9 @@ data class WorkerParams(
  * as a value), not supervision — the old `break` was exactly the
  * exception-as-control-flow R4 bans.
  */
+// The constructor IS the dependency surface (store, providers, policy, edges,
+// meter); a config object would hide the wiring the composition root owns.
+@Suppress("LongParameterList")
 class MemoryWorker(
     private val store: MemoryStore,
     private val extractor: MemoryExtractor,
@@ -154,7 +159,15 @@ class MemoryWorker(
     private val reconciler: MemoryReconciler? = null,
     private val params: WorkerParams = WorkerParams(),
     private val edges: EdgeBuilder? = null,
+    /** The cycle counters ride the kap Meter SPI; [Meter.Noop] is the strict OFF. */
+    private val meter: Meter = Meter.Noop,
 ) {
+    // The turn outcome is a dimension, not a family per shape.
+    private val processedTags = Tags.of("outcome" to "processed")
+    private val deferredTags = Tags.of("outcome" to "deferred")
+    private val quarantinedTags = Tags.of("outcome" to "quarantined")
+    private val emptyTags = Tags.of("outcome" to "empty")
+
     suspend fun processOnce(): WorkerReport {
         val pending = store.pendingTurns(params.batch, params.maxAttempts)
         val settled: List<Result<Either<ExtractionFailure, TurnOutcome>>> =
@@ -168,12 +181,25 @@ class MemoryWorker(
             deferred = 0,
             emptyTurns = 0,
         )
-        return settled.fold(start) { report, result ->
+        val report = settled.fold(start) { acc, result ->
             when (val either = result.getOrThrow()) {
-                is Either.Left -> report.binned(either.value)
-                is Either.Right -> report.completed(either.value)
+                is Either.Left -> acc.binned(either.value)
+                is Either.Right -> acc.completed(either.value)
             }
         }
+        record(report)
+        return report
+    }
+
+    /** One cycle's facts as counters: only what a DB row or a log line never shows. */
+    private fun record(report: WorkerReport) {
+        meter.increment("brain.worker.cycles")
+        repeat(report.processed) { meter.increment("brain.worker.turns", processedTags) }
+        repeat(report.deferred) { meter.increment("brain.worker.turns", deferredTags) }
+        repeat(report.quarantined) { meter.increment("brain.worker.turns", quarantinedTags) }
+        repeat(report.emptyTurns) { meter.increment("brain.worker.turns", emptyTags) }
+        repeat(report.memories) { meter.increment("brain.worker.memories") }
+        repeat(report.merged) { meter.increment("brain.worker.merged") }
     }
 
     /**

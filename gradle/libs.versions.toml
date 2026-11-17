@@ -28,6 +28,8 @@ junit = "6.1.3"
 assertj = "3.27.7"
 awaitility = "4.3.0"
 kotest = "6.2.6"
+# The Meter SPI's exporter side: previa version alignment with kap-micrometer 5.4.0 (1.17.x).
+micrometer = "1.17.2"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -56,6 +58,8 @@ kap-ksp = { module = "io.github.damian-rafael-lattenero:kap-ksp", version.ref = 
 kap-ksp-annotations = { module = "io.github.damian-rafael-lattenero:kap-ksp-annotations", version.ref = "kap" }
 kap-arrow = { module = "io.github.damian-rafael-lattenero:kap-arrow", version.ref = "kap" }
 kap-stream = { module = "io.github.damian-rafael-lattenero:kap-stream", version.ref = "kap" }
+kap-micrometer = { module = "io.github.damian-rafael-lattenero:kap-micrometer", version.ref = "kap" }
+micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
 ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
 kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
