@@ -11,7 +11,8 @@
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 
 def main []: nothing -> nothing {
-    print $"== rag-nightly ($(date now | format date '%Y-%m-%d %H:%M')) =="
+    let stamp: string = (date now | format date '%Y-%m-%d %H:%M')
+    print $"== rag-nightly ($stamp) =="
 
     let index: record = (do { ^$BIN index-repos } | complete)
     print $"index-repos: exit ($index.exit_code)"
