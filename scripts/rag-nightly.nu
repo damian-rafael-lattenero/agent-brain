@@ -4,11 +4,26 @@
 # leave the score in the ledger (and the log). A night that indexes without
 # measuring cannot say whether the RAG got better or worse.
 #
-# The index agent (com.zcode.agent-brain-index) runs this; a failure in the
-# eval leg does not fail the night — the ledger row is the record, the log
-# line is the alarm.
+# The index agent (com.zcode.agent-brain-index) runs this. The score ALWAYS
+# rides Telegram (one honest line — the daily quality heartbeat); a score
+# below the suite's gate speaks LOUD with the misses. A failure in the eval
+# leg does not fail the night — the ledger row is the record, the message is
+# the alarm.
+
+use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce announce-loud]
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
+
+# The eval report's score as a tagged value: {passed, total, gate, ok, misses}
+def read-score [stdout: string]: nothing -> record {
+    let parsed: record = ($stdout | from json)
+    let passed: int = ($parsed.passed? | default 0)
+    let total: int = ($parsed.cases? | default [] | length)
+    let gate: float = ($parsed.gate? | default 1.0)
+    let misses: list<string> = ($parsed.cases? | default [] | where {|c| not ($c.ok? | default false) } | get id? | default [])
+    let ok: bool = ($total > 0) and (($passed / $total) >= $gate)
+    {passed: $passed, total: $total, gate: $gate, ok: $ok, misses: $misses}
+}
 
 def main []: nothing -> nothing {
     let stamp: string = (date now | format date '%Y-%m-%d %H:%M')
@@ -23,9 +38,18 @@ def main []: nothing -> nothing {
 
     let eval: record = (do { ^$BIN eval --suite real-questions } | complete)
     print $"eval real-questions: exit ($eval.exit_code)"
-    let score: string = ($eval.stdout | lines | where {|l| $l =~ '"passed"' } | first | default '{"passed": "?"}' | str trim)
-    print $"score: ($score)"
     if $eval.exit_code != 0 {
         print ($eval.stderr | str substring 0..400)
+        announce-loud $"🌙 <b>RAG nightly FALLÓ</b> — el eval no corrió: ($eval.stderr | str substring 0..200)"
+        return
+    }
+
+    let score: record = (read-score $eval.stdout)
+    print $"score: ($score.passed)/($score.total) gate ($score.gate) ok=($score.ok)"
+    if $score.ok {
+        announce $"🌙 RAG nightly: ($score.passed)/($score.total) ✅ (gate ($score.gate))"
+    } else {
+        let misses: string = ($score.misses | str join ", ")
+        announce-loud $"🌙 <b>RAG nightly BAJÓ del gate</b> — ($score.passed)/($score.total) con gate ($score.gate). Misses: ($misses)"
     }
 }
