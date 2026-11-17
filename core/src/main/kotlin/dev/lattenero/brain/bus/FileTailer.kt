@@ -13,6 +13,7 @@ import kap.Schedule
 import kap.evalGraph
 import kap.process
 import kotlinx.coroutines.flow.collect
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -36,7 +37,7 @@ class OffsetStore(private val path: Path) {
         if (!Files.exists(path)) return 0
         return try {
             Json.decodeFromString<State>(Files.readString(path)).offset.coerceAtLeast(0)
-        } catch (e: Exception) {
+        } catch (e: SerializationException) {
             log.warn("offset file unreadable, starting from 0: {} ({})", path, e.message)
             0
         }
@@ -100,8 +101,11 @@ class FileTailer private constructor(
      * The live byte cursor. Single-writer: only the coroutine inside [poll]
      * advances it (sequential by stream/process construction); a second
      * poll() caller would interleave writes and corrupt the at-least-once
-     * floor the offset file guarantees (ADR-003).
+     * floor the offset file guarantees (ADR-003). The RMW is confined to that
+     * single writer by construction — the rule's concurrent-update scenario
+     * cannot exist here, hence the suppression with the ADR as the reason.
      */
+    @Suppress("VolatileReadModifyWrite")
     @Volatile
     var offset: Long = offsets.load()
         private set

@@ -48,8 +48,14 @@ val detektModules = listOf("core", "brain-mcp")
 subprojects {
     if (name in detektModules) {
         apply(plugin = "dev.detekt")
+        dependencies {
+            // The doctrine's own rules (CE-arm, ManualWaitLoop, VolatileRMW) run on
+            // this repo — the audit 17/11 P2: built+published, never self-applied.
+            "detektPlugins"("io.github.damian-rafael-lattenero:kap-detekt-rules:5.4.0")
+        }
         configure<DetektExtension> {
             buildUponDefaultConfig = true
+            config.setFrom(rootProject.files("config/detekt/kap-rules.yml"))
             val baselineFile = file("detekt-baseline.xml")
             if (baselineFile.exists()) baseline.set(baselineFile)
             source.setFrom(listOf("src/main/kotlin").filter { file(it).exists() })

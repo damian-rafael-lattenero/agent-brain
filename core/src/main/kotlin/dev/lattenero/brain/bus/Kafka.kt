@@ -17,6 +17,7 @@ import kap.process
 import kap.recover
 import kap.repeat
 import kap.repeatUntil
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.AdminClientConfig
@@ -70,6 +71,9 @@ object KafkaTopics {
         }
         AdminClient.create(props).use { it.listTopics().names().get() }
         true
+    } catch (e: CancellationException) {
+        // the calling thread was cancelled — not a reachability answer
+        throw e
     } catch (e: Exception) {
         false
     }
@@ -338,6 +342,11 @@ class KafkaBusConsumer private constructor(
         }
     }
 
+    // Runs inside withContext(Dispatchers.IO + NonCancellable): the caller's
+    // cancellation is already absorbed at this border, and the close must never
+    // throw — a CancellationException here is the consumer's own close
+    // complaint, not structured cancellation to propagate.
+    @Suppress("CancellationArmBeforeCatchAll")
     private fun closeQuietly(consumer: KafkaConsumer<String, String>) {
         try {
             consumer.close(org.apache.kafka.clients.consumer.CloseOptions.timeout(Duration.ofSeconds(CLOSE_TIMEOUT_S)))

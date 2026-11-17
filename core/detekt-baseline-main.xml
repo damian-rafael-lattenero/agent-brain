@@ -2,20 +2,103 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
+    <ID>ArrayPrimitive:MemoriesQueries.kt:MemoriesQueries$Array&lt;Long&gt;?</ID>
+    <ID>ArrayPrimitive:MemoryEdgesQueries.kt:MemoryEdgesQueries$Array&lt;Long&gt;?</ID>
+    <ID>ArrayPrimitive:MemoryEdgesQueries.kt:MemoryEdgesQueries.GraphRowsQuery$Array&lt;Long&gt;?</ID>
+    <ID>ArrayPrimitive:MemoryEdgesQueries.kt:MemoryEdgesQueries.HitsByIdsQuery$Array&lt;Long&gt;?</ID>
+    <ID>ArrayPrimitive:MemoryEdgesQueries.kt:MemoryEdgesQueries.MemoriesAnyQuery$Array&lt;Long&gt;?</ID>
+    <ID>ArrayPrimitive:MemoryEdgesQueries.kt:MemoryEdgesQueries.TraverseQuery$Array&lt;Long&gt;?</ID>
+    <ID>ClassNaming:Bus_events.kt:Bus_events</ID>
+    <ID>ClassNaming:Eval_runs.kt:Eval_runs</ID>
+    <ID>ClassNaming:Memory_edges.kt:Memory_edges</ID>
+    <ID>ClassNaming:Memory_quarantine.kt:Memory_quarantine</ID>
     <ID>ConstructorParameterNaming:BusPipelineProbeKapBuilder.kt:BusPipelineProbeKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
     <ID>ConstructorParameterNaming:BusPipelineProbeKapBuilderValidated.kt:BusPipelineProbeValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:Bus_events.kt:Bus_events$public val consumed_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:Bus_events.kt:Bus_events$public val memory_at: OffsetDateTime?</ID>
+    <ID>ConstructorParameterNaming:Bus_events.kt:Bus_events$public val memory_attempts: Int</ID>
+    <ID>ConstructorParameterNaming:ById.kt:ById$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:ById.kt:ById$public val session_id: String?</ID>
+    <ID>ConstructorParameterNaming:ById.kt:ById$public val turn_id: String?</ID>
     <ID>ConstructorParameterNaming:ChecksKapBuilder.kt:ChecksKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
     <ID>ConstructorParameterNaming:ChecksKapBuilderValidated.kt:ChecksValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:Chunks.kt:Chunks$public val content_tsv: String?</ID>
+    <ID>ConstructorParameterNaming:Chunks.kt:Chunks$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:Chunks.kt:Chunks$public val doc_id: Long</ID>
+    <ID>ConstructorParameterNaming:Chunks.kt:Chunks$public val embed_model: String</ID>
+    <ID>ConstructorParameterNaming:DedupRows.kt:DedupRows$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:DedupRows.kt:DedupRows$public val embed_model: String</ID>
+    <ID>ConstructorParameterNaming:DedupRows.kt:DedupRows$public val embedding_text: String</ID>
+    <ID>ConstructorParameterNaming:Documents.kt:Documents$public val content_sha: String</ID>
+    <ID>ConstructorParameterNaming:Documents.kt:Documents$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:Documents.kt:Documents$public val updated_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:DreamRows.kt:DreamRows$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:DreamRows.kt:DreamRows$public val embed_model: String</ID>
+    <ID>ConstructorParameterNaming:DreamRows.kt:DreamRows$public val embedding_text: String</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val cost_known: Boolean</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val cost_usd: BigDecimal</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val duration_ms: Int?</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val matrix_id: String?</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val p50_ms: Int?</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val p95_ms: Int?</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val run_id: String?</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val started_at: OffsetDateTime?</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val tokens_completion: Long</ID>
+    <ID>ConstructorParameterNaming:Eval_runs.kt:Eval_runs$public val tokens_prompt: Long</ID>
+    <ID>ConstructorParameterNaming:ExistingDoc.kt:ExistingDoc$public val content_sha: String</ID>
+    <ID>ConstructorParameterNaming:GraphRows.kt:GraphRows$public val embed_model: String</ID>
+    <ID>ConstructorParameterNaming:GraphRows.kt:GraphRows$public val embedding_text: String</ID>
+    <ID>ConstructorParameterNaming:GraphRows.kt:GraphRows$public val session_id: String?</ID>
     <ID>ConstructorParameterNaming:IndexerRunKapBuilder.kt:IndexerRunKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
     <ID>ConstructorParameterNaming:IndexerRunKapBuilderValidated.kt:IndexerRunValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:Memories.kt:Memories$public val content_tsv: String?</ID>
+    <ID>ConstructorParameterNaming:Memories.kt:Memories$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:Memories.kt:Memories$public val embed_model: String</ID>
+    <ID>ConstructorParameterNaming:Memories.kt:Memories$public val invalid_at: OffsetDateTime?</ID>
+    <ID>ConstructorParameterNaming:Memories.kt:Memories$public val last_accessed: OffsetDateTime?</ID>
+    <ID>ConstructorParameterNaming:Memories.kt:Memories$public val session_id: String?</ID>
+    <ID>ConstructorParameterNaming:Memories.kt:Memories$public val source_event_id: String?</ID>
+    <ID>ConstructorParameterNaming:Memories.kt:Memories$public val turn_id: String?</ID>
     <ID>ConstructorParameterNaming:MemoryStatusKapBuilder.kt:MemoryStatusKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
     <ID>ConstructorParameterNaming:MemoryStatusKapBuilderValidated.kt:MemoryStatusValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:Memory_edges.kt:Memory_edges$public val dst_id: Long</ID>
+    <ID>ConstructorParameterNaming:Memory_edges.kt:Memory_edges$public val src_id: Long</ID>
+    <ID>ConstructorParameterNaming:Memory_quarantine.kt:Memory_quarantine$public val event_id: String?</ID>
+    <ID>ConstructorParameterNaming:Memory_quarantine.kt:Memory_quarantine$public val session_id: String?</ID>
+    <ID>ConstructorParameterNaming:Memory_quarantine.kt:Memory_quarantine$public val turn_id: String?</ID>
+    <ID>ConstructorParameterNaming:NearestNeighbor.kt:NearestNeighbor$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:PendingTurns.kt:PendingTurns$public val memory_attempts: Int</ID>
     <ID>ConstructorParameterNaming:Providers.kt:GlmChatProvider.Usage$val completion_tokens: Int? = null</ID>
     <ID>ConstructorParameterNaming:Providers.kt:GlmChatProvider.Usage$val prompt_tokens: Int? = null</ID>
     <ID>ConstructorParameterNaming:Providers.kt:OllamaChatProvider.Response$val eval_count: Int? = null</ID>
     <ID>ConstructorParameterNaming:Providers.kt:OllamaChatProvider.Response$val prompt_eval_count: Int? = null</ID>
+    <ID>ConstructorParameterNaming:Quarantined.kt:Quarantined$public val event_id: String?</ID>
+    <ID>ConstructorParameterNaming:Quarantined.kt:Quarantined$public val session_id: String?</ID>
+    <ID>ConstructorParameterNaming:Quarantined.kt:Quarantined$public val turn_id: String?</ID>
     <ID>ConstructorParameterNaming:RagStatsKapBuilder.kt:RagStatsKap$@PublishedApi internal val _kap: Kap&lt;F&gt;</ID>
     <ID>ConstructorParameterNaming:RagStatsKapBuilderValidated.kt:RagStatsValidatedKap$@PublishedApi internal val _kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, F&gt;&gt;</ID>
+    <ID>ConstructorParameterNaming:Recent.kt:Recent$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:Recent.kt:Recent$public val session_id: String?</ID>
+    <ID>ConstructorParameterNaming:Recent.kt:Recent$public val turn_id: String?</ID>
+    <ID>ConstructorParameterNaming:RecentOfKind.kt:RecentOfKind$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:RecentOfKind.kt:RecentOfKind$public val session_id: String?</ID>
+    <ID>ConstructorParameterNaming:RecentOfKind.kt:RecentOfKind$public val turn_id: String?</ID>
+    <ID>ConstructorParameterNaming:RowAsNeighbor.kt:RowAsNeighbor$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:SearchMemory.kt:SearchMemory$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:SearchMemory.kt:SearchMemory$public val session_id: String?</ID>
+    <ID>ConstructorParameterNaming:SearchMemory.kt:SearchMemory$public val turn_id: String?</ID>
+    <ID>ConstructorParameterNaming:SearchRag.kt:SearchRag$public val doc_id: Long</ID>
+    <ID>ConstructorParameterNaming:SearchRag.kt:SearchRag$public val fts_rank: Long?</ID>
+    <ID>ConstructorParameterNaming:SearchRag.kt:SearchRag$public val vec_rank: Long?</ID>
+    <ID>ConstructorParameterNaming:TemporalPair.kt:TemporalPair$public val cur_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:TemporalPair.kt:TemporalPair$public val cur_id: Long</ID>
+    <ID>ConstructorParameterNaming:TemporalPair.kt:TemporalPair$public val prev_at: OffsetDateTime?</ID>
+    <ID>ConstructorParameterNaming:TemporalPair.kt:TemporalPair$public val prev_id: Long?</ID>
+    <ID>ConstructorParameterNaming:Traverse.kt:Traverse$public val created_at: OffsetDateTime</ID>
+    <ID>ConstructorParameterNaming:Traverse.kt:Traverse$public val edge_weight: Double</ID>
+    <ID>ConstructorParameterNaming:Traverse.kt:Traverse$public val session_id: String?</ID>
+    <ID>ConstructorParameterNaming:Traverse.kt:Traverse$public val via_id: Long</ID>
+    <ID>ConstructorParameterNaming:TurnEvents.kt:TurnEvents$public val payload_text: String</ID>
     <ID>CyclomaticComplexMethod:Main.kt:fun run: Int</ID>
     <ID>CyclomaticComplexMethod:Main.kt:private fun memory: Int</ID>
     <ID>CyclomaticComplexMethod:Server.kt:fun Application.brainModule</ID>
@@ -24,33 +107,151 @@
     <ID>InjectDispatcher:Kafka.kt:KafkaBridge$IO</ID>
     <ID>InjectDispatcher:Kafka.kt:KafkaBusConsumer$IO</ID>
     <ID>InjectDispatcher:Main.kt:Default</ID>
-    <ID>InstanceOfCheckForException:MemoryWorker.kt:MemoryWorker$e is CircuitBreakerOpenException</ID>
+    <ID>LongMethod:BrainDbImpl.kt:BrainDbImpl.Schema$override fun create: QueryResult.Value&lt;Unit&gt;</ID>
     <ID>LongMethod:Server.kt:fun Application.brainModule</ID>
+    <ID>LongParameterList:BusEventsQueries.kt:BusEventsQueries$public fun ingestEvents: QueryResult&lt;Long&gt;</ID>
+    <ID>LongParameterList:EdgeBackfillQueries.kt:EdgeBackfillQueries$public fun backfillRelated: QueryResult&lt;Long&gt;</ID>
     <ID>LongParameterList:EmbedPipeline.kt:EmbedPipeline</ID>
+    <ID>LongParameterList:EvalRunsQueries.kt:EvalRunsQueries$public fun insertEvalRun: QueryResult&lt;Long&gt;</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries$public fun &lt;T : Any&gt; nearestNeighbor: Query&lt;T&gt;</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries$public fun &lt;T : Any&gt; searchMemory: Query&lt;T&gt;</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries$public fun insertMemory: ExecutableQuery&lt;Long&gt;</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries$public fun insertMemoryNoReturn: QueryResult&lt;Long&gt;</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries$public fun nearestNeighbor: Query&lt;NearestNeighbor&gt;</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries$public fun searchMemory: Query&lt;SearchMemory&gt;</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries.InsertMemoryQuery</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries.NearestNeighborQuery</ID>
+    <ID>LongParameterList:MemoriesQueries.kt:MemoriesQueries.SearchMemoryQuery</ID>
+    <ID>LongParameterList:MemoryEdgesQueries.kt:MemoryEdgesQueries$public fun &lt;T : Any&gt; neighborsInBand: Query&lt;T&gt;</ID>
+    <ID>LongParameterList:MemoryEdgesQueries.kt:MemoryEdgesQueries$public fun &lt;T : Any&gt; traverse: Query&lt;T&gt;</ID>
+    <ID>LongParameterList:MemoryEdgesQueries.kt:MemoryEdgesQueries$public fun neighborsInBand: Query&lt;NeighborsInBand&gt;</ID>
+    <ID>LongParameterList:MemoryEdgesQueries.kt:MemoryEdgesQueries.NeighborsInBandQuery</ID>
+    <ID>LongParameterList:RagQueries.kt:RagQueries$public fun &lt;T : Any&gt; searchRag: Query&lt;T&gt;</ID>
+    <ID>LongParameterList:RagQueries.kt:RagQueries$public fun insertChunk: QueryResult&lt;Long&gt;</ID>
     <ID>LongParameterList:Server.kt:BrainServer$fun start: EmbeddedServer&lt;*, *&gt;</ID>
     <ID>LongParameterList:Server.kt:fun Application.brainModule</ID>
     <ID>LoopWithTooManyJumpStatements:Chunker.kt:Chunker$for</ID>
-    <ID>LoopWithTooManyJumpStatements:MemoryWorker.kt:MemoryWorker$for</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries$12_696_246</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries$1_107_829_983</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries$1_398_603_139</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries$1_493_243_780</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries$3</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries$4</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries$712_067_807</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries$747_334_808</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries.PendingTurnsQuery$1_406_288_353</ID>
+    <ID>MagicNumber:BusEventsQueries.kt:BusEventsQueries.ProcessedTurnsQuery$1_049_460_424</ID>
     <ID>MagicNumber:Chunker.kt:Chunker$6</ID>
-    <ID>MagicNumber:EvalRunner.kt:EvalRunner$3</ID>
-    <ID>MagicNumber:EvalRunner.kt:EvalRunner$4</ID>
-    <ID>MagicNumber:EvalRunner.kt:EvalRunner$5</ID>
-    <ID>MagicNumber:EvalRunner.kt:EvalRunner$6</ID>
+    <ID>MagicNumber:EdgeBackfillQueries.kt:EdgeBackfillQueries$1_015_372_293</ID>
+    <ID>MagicNumber:EdgeBackfillQueries.kt:EdgeBackfillQueries$1_353_269_911</ID>
+    <ID>MagicNumber:EdgeBackfillQueries.kt:EdgeBackfillQueries$644_768_904</ID>
+    <ID>MagicNumber:EdgeBackfillQueries.kt:EdgeBackfillQueries$998_116_547</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$10</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$11</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$12</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$13</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$14</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$15</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$16</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$17</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$18</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$19</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$1_136_315_299</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$20</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$21</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$283_329_893</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$3</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$4</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$5</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$6</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$7</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$8</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries$9</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries.LatestAllQuery$1_691_827_935</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries.LatestOfMatrixQuery$284_558_088</ID>
+    <ID>MagicNumber:EvalRunsQueries.kt:EvalRunsQueries.LatestOfSuiteQuery$1_105_325_793</ID>
     <ID>MagicNumber:FakeProvider.kt:FakeProvider$0xff</ID>
     <ID>MagicNumber:FakeProvider.kt:FakeProvider$8</ID>
     <ID>MagicNumber:HttpClients.kt:HttpClients$1_000L</ID>
     <ID>MagicNumber:Main.kt:200</ID>
-    <ID>MagicNumber:MemoryStore.kt:MemoryStore$3</ID>
-    <ID>MagicNumber:MemoryStore.kt:MemoryStore$4</ID>
-    <ID>MagicNumber:MemoryStore.kt:MemoryStore$5</ID>
-    <ID>MagicNumber:MemoryStore.kt:MemoryStore$6</ID>
-    <ID>MagicNumber:MemoryStore.kt:MemoryStore$7</ID>
-    <ID>MagicNumber:RagStore.kt:RagStore$3</ID>
-    <ID>MagicNumber:RagStore.kt:RagStore$4</ID>
-    <ID>MagicNumber:RagStore.kt:RagStore$5</ID>
-    <ID>MagicNumber:RagStore.kt:RagStore$6</ID>
-    <ID>MaxLineLength:Brain.kt:Brain$breaker = CircuitBreaker(maxFailures = config.embedBreakerFailures, resetTimeout = config.embedBreakerResetS.seconds)</ID>
-    <ID>MaxLineLength:Brain.kt:Brain$class</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$178_207_947</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$1_045_496_027</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$1_064_715_622</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$1_281_094_173</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$1_302_608_901</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$1_806_482_379</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$2_015_299_865</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$3</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$365_492_143</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$381_402_503</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$4</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$487_016_017</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$5</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$6</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$7</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$8</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries$995_618_561</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.ByIdQuery$1_716_303_034</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.DreamRowsQuery$212_753_800</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.DreamRowsQuery$4</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.EmbeddingOfQuery$1_895_801_446</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.FindDuplicateQuery$1_928_858_206</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.FindDuplicateQuery$3</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.FindReplayQuery$3</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.InsertMemoryQuery$168_294_542</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.InsertMemoryQuery$7</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.IsInvalidatedQuery$1_878_407_669</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.LifecycleCountsQuery$1_949_528_742</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.LifecycleCountsQuery$3</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.NearestNeighborQuery$7</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.NearestNeighborQuery$803_425_924</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.QuarantinedQuery$1_361_427_970</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.RecentOfKindQuery$847_837_114</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.RecentQuery$340_601_039</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.RowAsNeighborQuery$1_083_467_318</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.SearchMemoryQuery$465_474_499</ID>
+    <ID>MagicNumber:MemoriesQueries.kt:MemoriesQueries.SearchMemoryQuery$8</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$10</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$1_712_072_494</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$3</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$4</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$5</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$6</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$7</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$8</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries$9</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.GraphRowsQuery$1_675_747_317</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.HitsByIdsQuery$2_040_960_837</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.MemoriesAnyQuery$440_787_247</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.NeighborsInBandQuery$10</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.NeighborsInBandQuery$2_039_397_153</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.TemporalPairQuery$3</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.TemporalPairQuery$955_176_664</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.TraverseQuery$1_964_408_110</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.TraverseQuery$5</ID>
+    <ID>MagicNumber:MemoryEdgesQueries.kt:MemoryEdgesQueries.TurnAliveQuery$4</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$1_208_617_611</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$1_248_173_480</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$1_874_436_011</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$286_964_042</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$3</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$4</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$441_267_439</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$5</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$503_748_106</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$6</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$7</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$8</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries$9</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries.ExistingDocQuery$77_204_686</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries.SearchRagQuery$5</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries.SearchRagQuery$55_710_385</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries.UpsertDocumentQuery$1_660_261_719</ID>
+    <ID>MagicNumber:RagQueries.kt:RagQueries.UpsertDocumentQuery$5</ID>
+    <ID>MaxLineLength:BrainDb.kt:BrainDb.Companion$public fun allTableNames: List&lt;String&gt;</ID>
+    <ID>MaxLineLength:BusEventsQueries.kt:BusEventsQueries$public</ID>
+    <ID>MaxLineLength:BusEventsQueries.kt:BusEventsQueries$public fun pendingTurns: Query&lt;PendingTurns&gt;</ID>
+    <ID>MaxLineLength:BusEventsQueries.kt:BusEventsQueries$val</ID>
     <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:BusPipelineProbeKap$class</ID>
     <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:BusPipelineProbeKap(Kap.of({ p0: BusPipelineProbeFileBytes -&gt; { p1: BusPipelineProbeDbEvents -&gt; f(p0.value, p1.value) } }))</ID>
     <ID>MaxLineLength:BusPipelineProbeKapBuilder.kt:fun</ID>
@@ -77,19 +278,16 @@
     <ID>MaxLineLength:Config.kt:Config.Companion$is Boolean -&gt; value.booleanOrNull ?: throw ConfigException("$name expects true or false in config.json, got $value")</ID>
     <ID>MaxLineLength:Corpus.kt:Corpus$val root = if (firstWild &lt; 0) Paths.get(glob).parent else Paths.get(parts.take(firstWild).joinToString("/").ifEmpty { "/" })</ID>
     <ID>MaxLineLength:Corpus.kt:Corpus.Companion$val PRUNED_DIRS = setOf(".git", "node_modules", "build", ".gradle", ".venv", "venv", "__pycache__", ".idea", "dist", "target", ".kotlin")</ID>
-    <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$.</ID>
+    <ID>MaxLineLength:EdgeBackfillQueries.kt:EdgeBackfillQueries$public</ID>
     <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$log.warn("embed batch retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)</ID>
-    <ID>MaxLineLength:EmbedPipeline.kt:EmbedPipeline$val breaker: CircuitBreaker = CircuitBreaker(maxFailures = DEFAULT_BREAKER_FAILURES, resetTimeout = DEFAULT_BREAKER_RESET)</ID>
     <ID>MaxLineLength:EmbeddingProvider.kt:EmbeddingProviders$"glm" -&gt; GlmProvider(client, config.glmBaseUrl, config.glmModel, config.embedDim, config.embedBatch, config.glmApiKey)</ID>
-    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$// macOS hands out /var/folders (a symlink of /private/var/...): normalize or the glob never matches the walked paths.</ID>
-    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$check(indexed.failed.isEmpty() &amp;&amp; indexed.indexed &gt; 0) { "eval: the fixture corpus did not index (${indexed.failed})" }</ID>
-    <ID>MaxLineLength:EvalRunner.kt:EvalRunner$loader.getResourceAsStream("eval/corpus/index.txt")!!.bufferedReader().readLines().filter { it.endsWith(".md") }</ID>
-    <ID>MaxLineLength:EvalRunner.kt:EvalRunner.Companion$appendLine("- **${report.passed}/${report.total} passed (gate ${report.gate}) → ${if (report.ok) "PASS" else "FAIL"}**")</ID>
-    <ID>MaxLineLength:EvalRunner.kt:EvalRunner.Companion$appendLine("| ${row.question.replace("|", "\\|")} | ${row.expectedUri.substringAfterLast('/')} | ${row.rank ?: "-"} | ${(row.topUri ?: "-").substringAfterLast('/')} |")</ID>
+    <ID>MaxLineLength:EvalRunsQueries.kt:EvalRunsQueries$public</ID>
+    <ID>MaxLineLength:EvalRunsQueries.kt:EvalRunsQueries.LatestAllQuery$override</ID>
+    <ID>MaxLineLength:EvalRunsQueries.kt:EvalRunsQueries.LatestOfMatrixQuery$override</ID>
+    <ID>MaxLineLength:EvalRunsQueries.kt:EvalRunsQueries.LatestOfSuiteQuery$override</ID>
     <ID>MaxLineLength:FileTailer.kt:FileTailer$private</ID>
     <ID>MaxLineLength:FileTailer.kt:FileTailer$return readBytes(minOf(size - offset, (maxLineBytes * 2).toLong()).toInt()).takeIf { it.lastIndexOf(NEWLINE) &gt;= 0 }</ID>
     <ID>MaxLineLength:Indexer.kt:Indexer$.</ID>
-    <ID>MaxLineLength:Indexer.kt:Indexer$phases = tracer.phases.mapValues { (_, p) -&gt; PhaseStat(p.count.get(), p.failures.get(), p.totalMillis.get()) }</ID>
     <ID>MaxLineLength:Indexer.kt:Indexer$suspend</ID>
     <ID>MaxLineLength:IndexerRunKapBuilder.kt:IndexerRunKap$class</ID>
     <ID>MaxLineLength:IndexerRunKapBuilder.kt:IndexerRunOutcomes</ID>
@@ -103,33 +301,32 @@
     <ID>MaxLineLength:IndexerRunKapBuilderValidated.kt:val fn: (IndexerRunOutcomes) -&gt; (IndexerRunPruned) -&gt; dev.lattenero.brain.rag.Indexer.Run = { p0: IndexerRunOutcomes -&gt; { p1: IndexerRunPruned -&gt; f(p0.value, p1.value) } }</ID>
     <ID>MaxLineLength:IndexerRunKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (IndexerRunOutcomes) -&gt; (IndexerRunPruned) -&gt; dev.lattenero.brain.rag.Indexer.Run&gt;&gt; = Kap.of(Either.Right(fn))</ID>
     <ID>MaxLineLength:Kafka.kt:KafkaBridge$producer.send(ProducerRecord(topic, event.sid.ifEmpty { null }, json.encodeToString(BusEvent.serializer(), event)))</ID>
-    <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$class</ID>
     <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$log.warn("malformed record skipped at {}-{}@{}: {}", record.topic(), record.partition(), record.offset(), parsed.reason)</ID>
-    <ID>MaxLineLength:Kafka.kt:KafkaBusConsumer$stats.lastOffsets = records.partitions().associate { tp -&gt; tp.partition() to records.records(tp).last().offset() }</ID>
-    <ID>MaxLineLength:Main.kt:"quarantine" -&gt; printJson(responseJson.encodeToJsonElement(ListSerializer(QuarantineRow.serializer()), runBlocking { brain.memory.quarantined(MemorySearchRequest(query = "").k) }))</ID>
-    <ID>MaxLineLength:Main.kt:"status" -&gt; printJson(responseJson.encodeToJsonElement(MemoryStatus.serializer(), runBlocking { brain.memory.status() }))</ID>
-    <ID>MaxLineLength:Main.kt:java.nio.file.Files.copy(EvalRunner::class.java.classLoader.getResourceAsStream("eval/questions.json")!!, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING)</ID>
-    <ID>MaxLineLength:Main.kt:java.nio.file.Files.writeString(artifactDir.resolve("eval-${report.startedAt.replace(":", "")}.md"), EvalRunner.markdown(report))</ID>
     <ID>MaxLineLength:Main.kt:printJson(buildJsonObject { put("produced", produced); put("offset", bridge.tailer.offset); put("topic", config.kafkaTopic) })</ID>
-    <ID>MaxLineLength:Main.kt:runBlocking { brain.bus.tailer.run(kotlin.time.Duration.parse("${config.busPollMs}ms")) { brain.bus.ingest.handle(it) } }</ID>
-    <ID>MaxLineLength:MemoryExtractor.kt:Extraction$preferences.map { KIND_PREFERENCE to it }</ID>
-    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$.</ID>
+    <ID>MaxLineLength:MemoriesQueries.kt:MemoriesQueries$)</ID>
+    <ID>MaxLineLength:MemoriesQueries.kt:MemoriesQueries$public</ID>
+    <ID>MaxLineLength:MemoriesQueries.kt:MemoriesQueries$val</ID>
+    <ID>MaxLineLength:MemoriesQueries.kt:MemoriesQueries.EmbeddingOfQuery$override</ID>
+    <ID>MaxLineLength:MemoriesQueries.kt:MemoriesQueries.IsInvalidatedQuery$override</ID>
+    <ID>MaxLineLength:MemoriesQueries.kt:MemoriesQueries.MemoriesOfTurnQuery$override</ID>
+    <ID>MaxLineLength:MemoriesQueries.kt:MemoriesQueries.RowAsNeighborQuery$override</ID>
+    <ID>MaxLineLength:MemoryEdgesQueries.kt:MemoryEdgesQueries$)</ID>
+    <ID>MaxLineLength:MemoryEdgesQueries.kt:MemoryEdgesQueries.GraphRowsQuery$override</ID>
     <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$log.warn("extraction retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)</ID>
-    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor$val breaker: CircuitBreaker = CircuitBreaker(maxFailures = DEFAULT_BREAKER_FAILURES, resetTimeout = DEFAULT_BREAKER_RESET)</ID>
     <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$"facts: verifiable statements about the user, their projects, tools or environment that will still be true next week. "</ID>
     <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$const</ID>
     <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$put("required", buildJsonArray { listOf("facts", "decisions", "preferences", "summary").forEach { add(JsonPrimitive(it)) } })</ID>
-    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$return Extraction(list("facts"), list("decisions"), list("preferences"), summary, raw, result.promptTokens, result.completionTokens)</ID>
-    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$summaryElement is JsonPrimitive &amp;&amp; summaryElement.isString -&gt; summaryElement.content.trim().take(MAX_SUMMARY_CHARS)</ID>
-    <ID>MaxLineLength:MemoryExtractor.kt:MemoryExtractor.Companion$}</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:MemoryStatusKap$class</ID>
-    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:MemoryStatusKap(Kap.of({ p0: MemoryStatusPendingTurns -&gt; { p1: MemoryStatusProcessedTurns -&gt; { p2: MemoryStatusMemories -&gt; { p3: MemoryStatusByKind -&gt; { p4: MemoryStatusQuarantined -&gt; { p5: MemoryStatusBreaker -&gt; { p6: MemoryStatusChatModel -&gt; { p7: MemoryStatusEmbedModel -&gt; f(p0.value, p1.value, p2.value, p3.value, p4.value, p5.value, p6.value, p7.value) } } } } } } } }))</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:MemoryStatusKap(Kap.of({ p0: MemoryStatusPendingTurns -&gt; { p1: MemoryStatusProcessedTurns -&gt; { p2: MemoryStatusMemories -&gt; { p3: MemoryStatusActive -&gt; { p4: MemoryStatusCooling -&gt; { p5: MemoryStatusArchived -&gt; { p6: MemoryStatusSuperseded -&gt; { p7: MemoryStatusByKind -&gt; { p8: MemoryStatusQuarantined -&gt; { p9: MemoryStatusBreaker -&gt; { p10: MemoryStatusChatModel -&gt; { p11: MemoryStatusEmbedModel -&gt; { p12: MemoryStatusEdgesByKind -&gt; f(p0.value, p1.value, p2.value, p3.value, p4.value, p5.value, p6.value, p7.value, p8.value, p9.value, p10.value, p11.value, p12.value) } } } } } } } } } } } } }))</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:fun</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusArchivedTag.from: Kap&lt;MemoryStatusArchived&gt;</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusBreakerTag.from: Kap&lt;MemoryStatusBreaker&gt;</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusByKindTag.from: Kap&lt;MemoryStatusByKind&gt;</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusByKindTag.from: MemoryStatusByKind</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusChatModelTag.from: Kap&lt;MemoryStatusChatModel&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusEdgesByKindTag.from: Kap&lt;MemoryStatusEdgesByKind&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusEdgesByKindTag.from: MemoryStatusEdgesByKind</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusEmbedModelTag.from: Kap&lt;MemoryStatusEmbedModel&gt;</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusMemoriesTag.from: Kap&lt;MemoryStatusMemories&gt;</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusPendingTurnsTag.from: Kap&lt;MemoryStatusPendingTurns&gt;</ID>
@@ -137,43 +334,22 @@
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusProcessedTurnsTag.from: Kap&lt;MemoryStatusProcessedTurns&gt;</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusProcessedTurnsTag.from: MemoryStatusProcessedTurns</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusQuarantinedTag.from: Kap&lt;MemoryStatusQuarantined&gt;</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilder.kt:infix fun MemoryStatusSupersededTag.from: Kap&lt;MemoryStatusSuperseded&gt;</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:MemoryStatusValidatedKap$class</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:fun</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:infix</ID>
     <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:inline</ID>
-    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:val fn: (MemoryStatusPendingTurns) -&gt; (MemoryStatusProcessedTurns) -&gt; (MemoryStatusMemories) -&gt; (MemoryStatusByKind) -&gt; (MemoryStatusQuarantined) -&gt; (MemoryStatusBreaker) -&gt; (MemoryStatusChatModel) -&gt; (MemoryStatusEmbedModel) -&gt; dev.lattenero.brain.memory.MemoryStatus = { p0: MemoryStatusPendingTurns -&gt; { p1: MemoryStatusProcessedTurns -&gt; { p2: MemoryStatusMemories -&gt; { p3: MemoryStatusByKind -&gt; { p4: MemoryStatusQuarantined -&gt; { p5: MemoryStatusBreaker -&gt; { p6: MemoryStatusChatModel -&gt; { p7: MemoryStatusEmbedModel -&gt; f(p0.value, p1.value, p2.value, p3.value, p4.value, p5.value, p6.value, p7.value) } } } } } } } }</ID>
-    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (MemoryStatusPendingTurns) -&gt; (MemoryStatusProcessedTurns) -&gt; (MemoryStatusMemories) -&gt; (MemoryStatusByKind) -&gt; (MemoryStatusQuarantined) -&gt; (MemoryStatusBreaker) -&gt; (MemoryStatusChatModel) -&gt; (MemoryStatusEmbedModel) -&gt; dev.lattenero.brain.memory.MemoryStatus&gt;&gt; = Kap.of(Either.Right(fn))</ID>
-    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$"INSERT INTO memories (session_id, turn_id, kind, content, embed_model, embedding, source_event_id) VALUES (?, NULL, ?, ?, ?, ?, NULL) RETURNING id"</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:val fn: (MemoryStatusPendingTurns) -&gt; (MemoryStatusProcessedTurns) -&gt; (MemoryStatusMemories) -&gt; (MemoryStatusActive) -&gt; (MemoryStatusCooling) -&gt; (MemoryStatusArchived) -&gt; (MemoryStatusSuperseded) -&gt; (MemoryStatusByKind) -&gt; (MemoryStatusQuarantined) -&gt; (MemoryStatusBreaker) -&gt; (MemoryStatusChatModel) -&gt; (MemoryStatusEmbedModel) -&gt; (MemoryStatusEdgesByKind) -&gt; dev.lattenero.brain.memory.MemoryStatus = { p0: MemoryStatusPendingTurns -&gt; { p1: MemoryStatusProcessedTurns -&gt; { p2: MemoryStatusMemories -&gt; { p3: MemoryStatusActive -&gt; { p4: MemoryStatusCooling -&gt; { p5: MemoryStatusArchived -&gt; { p6: MemoryStatusSuperseded -&gt; { p7: MemoryStatusByKind -&gt; { p8: MemoryStatusQuarantined -&gt; { p9: MemoryStatusBreaker -&gt; { p10: MemoryStatusChatModel -&gt; { p11: MemoryStatusEmbedModel -&gt; { p12: MemoryStatusEdgesByKind -&gt; f(p0.value, p1.value, p2.value, p3.value, p4.value, p5.value, p6.value, p7.value, p8.value, p9.value, p10.value, p11.value, p12.value) } } } } } } } } } } } } }</ID>
+    <ID>MaxLineLength:MemoryStatusKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (MemoryStatusPendingTurns) -&gt; (MemoryStatusProcessedTurns) -&gt; (MemoryStatusMemories) -&gt; (MemoryStatusActive) -&gt; (MemoryStatusCooling) -&gt; (MemoryStatusArchived) -&gt; (MemoryStatusSuperseded) -&gt; (MemoryStatusByKind) -&gt; (MemoryStatusQuarantined) -&gt; (MemoryStatusBreaker) -&gt; (MemoryStatusChatModel) -&gt; (MemoryStatusEmbedModel) -&gt; (MemoryStatusEdgesByKind) -&gt; dev.lattenero.brain.memory.MemoryStatus&gt;&gt; = Kap.of(Either.Right(fn))</ID>
     <ID>MaxLineLength:MemoryStore.kt:MemoryStore$PendingTurn</ID>
     <ID>MaxLineLength:MemoryStore.kt:MemoryStore$Transcript(pending.eventId, pending.sessionId, pending.turnId, pending.source, prompt, reply, tools.toList(), title)</ID>
-    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("INSERT INTO memory_quarantine (turn_id, reason, raw, event_id, session_id) VALUES (?, ?, ?, ?, ?)")</ID>
-    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("SELECT id, event_id, session_id, turn_id, reason, raw, ts FROM memory_quarantine ORDER BY ts DESC, id DESC LIMIT ?")</ID>
-    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$conn.prepareStatement("SELECT kind, payload::text FROM bus_events WHERE sid = ? AND turn = ? ORDER BY ts, id")</ID>
-    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$generateSequence { if (rs.next()) PendingTurn(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)) else null }.toList()</ID>
     <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend</ID>
-    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend fun countPending: Long</ID>
-    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$suspend fun countProcessed: Long</ID>
-    <ID>MaxLineLength:MemoryStore.kt:MemoryStore$val</ID>
     <ID>MaxLineLength:MemoryStore.kt:QuarantineRow$data</ID>
-    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$return MemorySearchResponse(text, provider.model, store.search(vector, text, provider.model, request.k, halfLifeDays))</ID>
-    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$return store.recent(1).firstOrNull { it.id == id } ?: Memory(id, request.kind, content, request.sessionId, null, 1.0, "")</ID>
-    <ID>MaxLineLength:MemoryWorker.kt:MemoryService$val id = store.saveManual(request.kind, content.take(MemoryExtractor.MAX_ITEM_CHARS), provider.model, vector, request.sessionId)</ID>
-    <ID>MaxLineLength:MemoryWorker.kt:MemoryService.Companion$val KINDS = setOf(Extraction.KIND_FACT, Extraction.KIND_DECISION, Extraction.KIND_PREFERENCE, Extraction.KIND_SUMMARY)</ID>
-    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$log.warn("memory extraction deferred for {} (attempt {}): {}", turn.eventId, turn.attempts + 1, reason)</ID>
-    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$store.quarantine(transcript, turn.eventId, "gave up after ${turn.attempts + 1} attempts: $reason", "")</ID>
-    <ID>MaxLineLength:MemoryWorker.kt:MemoryWorker$val rows = items.zip(vectors) { (kind, content), vector -&gt; MemoryStore.MemoryRow(kind, content, vector) }</ID>
-    <ID>MaxLineLength:MemoryWorker.kt:WorkerReport$data</ID>
-    <ID>MaxLineLength:Providers.kt:FakeChatProvider$class</ID>
     <ID>MaxLineLength:Providers.kt:FakeChatProvider.Companion$fun strings: JsonElement</ID>
-    <ID>MaxLineLength:Providers.kt:GlmChatProvider$HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -&gt; throw ChatException("glm rejected the key (HTTP ${response.status.value}): ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
     <ID>MaxLineLength:Providers.kt:GlmChatProvider$add(buildJsonObject { put("role", "system"); put("content", system + "\nThe JSON must match this schema: " + schema) })</ID>
-    <ID>MaxLineLength:Providers.kt:GlmChatProvider$class</ID>
-    <ID>MaxLineLength:Providers.kt:GlmChatProvider$else -&gt; throw ChatException("glm $url -&gt; HTTP ${response.status.value}: ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
-    <ID>MaxLineLength:Providers.kt:GlmChatProvider$val content = parsed.choices.firstOrNull()?.message?.content ?: throw ChatException("glm answered without choices")</ID>
-    <ID>MaxLineLength:Providers.kt:OllamaChatProvider$HttpStatusCode.NotFound -&gt; throw ChatException("ollama model '$model' is not pulled (ollama pull $model): ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
-    <ID>MaxLineLength:Providers.kt:OllamaChatProvider$else -&gt; throw ChatException("ollama $url -&gt; HTTP ${response.status.value}: ${response.bodyAsText().take(ERROR_TAIL)}")</ID>
     <ID>MaxLineLength:Providers.kt:OllamaChatProvider$val content = parsed.message?.content ?: throw ChatException("ollama chat answered without a message: ${parsed.error ?: "?"}")</ID>
-    <ID>MaxLineLength:Providers.kt:OllamaChatProvider.Response$private</ID>
+    <ID>MaxLineLength:RagQueries.kt:RagQueries$public</ID>
+    <ID>MaxLineLength:RagQueries.kt:RagQueries.ExistingDocQuery$override</ID>
     <ID>MaxLineLength:RagStatsKapBuilder.kt:RagStatsKap$class</ID>
     <ID>MaxLineLength:RagStatsKapBuilder.kt:RagStatsKap(Kap.of({ p0: RagStatsDocuments -&gt; { p1: RagStatsChunks -&gt; { p2: RagStatsBySource -&gt; f(p0.value, p1.value, p2.value) } } }))</ID>
     <ID>MaxLineLength:RagStatsKapBuilder.kt:fun</ID>
@@ -185,45 +361,26 @@
     <ID>MaxLineLength:RagStatsKapBuilderValidated.kt:infix</ID>
     <ID>MaxLineLength:RagStatsKapBuilderValidated.kt:val fn: (RagStatsDocuments) -&gt; (RagStatsChunks) -&gt; (RagStatsBySource) -&gt; dev.lattenero.brain.rag.RagStats = { p0: RagStatsDocuments -&gt; { p1: RagStatsChunks -&gt; { p2: RagStatsBySource -&gt; f(p0.value, p1.value, p2.value) } } }</ID>
     <ID>MaxLineLength:RagStatsKapBuilderValidated.kt:val kap: Kap&lt;Either&lt;NonEmptyList&lt;E&gt;, (RagStatsDocuments) -&gt; (RagStatsChunks) -&gt; (RagStatsBySource) -&gt; dev.lattenero.brain.rag.RagStats&gt;&gt; = Kap.of(Either.Right(fn))</ID>
-    <ID>MaxLineLength:RagStore.kt:RagStore$"INSERT INTO chunks (doc_id, ordinal, heading, content, embed_model, embedding) VALUES (?, ?, ?, ?, ?, ?)"</ID>
-    <ID>MaxLineLength:RagStore.kt:RagStore$conn.createStatement().use { st -&gt; st.executeQuery("SELECT count(*) FROM $table").use { rs -&gt; rs.next(); rs.getLong(1) } }</ID>
     <ID>MaxLineLength:RagStore.kt:RagStore$suspend</ID>
-    <ID>MaxLineLength:Server.kt:BrainServer$fun</ID>
-    <ID>MaxLineLength:Server.kt:fun</ID>
     <ID>MaxLineLength:Server.kt:if (globs.isEmpty()) return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("no globs given and ${config.corpusFile} is empty or missing"))</ID>
-    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"globs\": [string]}: ${e.message}"))</ID>
-    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"kind\": string, \"content\": string}: ${e.message}"))</ID>
-    <ID>MaxLineLength:Server.kt:return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("body must be {\"query\": string, \"k\"?: int}: ${e.message}"))</ID>
     <ID>ReturnCount:BusEvent.kt:BusEvents$fun parse: Parsed</ID>
     <ID>ReturnCount:Config.kt:Config.Companion$internal fun resolve: Any</ID>
     <ID>ReturnCount:FileTailer.kt:FileTailer$private fun readChunk: Chunk?</ID>
     <ID>ReturnCount:FileTailer.kt:FileTailer$private tailrec fun growWindow: ByteArray?</ID>
     <ID>ReturnCount:FileTailer.kt:FileTailer$suspend fun poll: Int</ID>
-    <ID>ReturnCount:Main.kt:private fun index: Int</ID>
-    <ID>ReturnCount:Main.kt:private fun memory: Int</ID>
     <ID>SwallowedException:Config.kt:Config.Companion$e: IOException</ID>
     <ID>SwallowedException:Config.kt:Config.Companion$e: SerializationException</ID>
     <ID>SwallowedException:Corpus.kt:Corpus$e: java.nio.charset.MalformedInputException</ID>
     <ID>SwallowedException:Kafka.kt:KafkaTopics$e: Exception</ID>
-    <ID>SwallowedException:MemoryExtractor.kt:MemoryExtractor.Companion$e: SerializationException</ID>
     <ID>ThrowsCount:Config.kt:Config.Companion$private fun readFile: Map&lt;String, JsonPrimitive&gt;</ID>
     <ID>ThrowsCount:EmbeddingProvider.kt:BaseProvider$final override suspend fun embed: List&lt;FloatArray&gt;</ID>
-    <ID>ThrowsCount:GlmProvider.kt:GlmProvider$private suspend fun call: List&lt;FloatArray&gt;</ID>
-    <ID>ThrowsCount:MemoryExtractor.kt:MemoryExtractor.Companion$fun list: List&lt;String&gt;</ID>
-    <ID>ThrowsCount:MemoryExtractor.kt:MemoryExtractor.Companion$fun parse: Extraction</ID>
-    <ID>ThrowsCount:OllamaProvider.kt:OllamaProvider$private suspend fun call: List&lt;FloatArray&gt;</ID>
-    <ID>ThrowsCount:Providers.kt:GlmChatProvider$override suspend fun completeJson: ChatResult</ID>
-    <ID>ThrowsCount:Providers.kt:OllamaChatProvider$override suspend fun completeJson: ChatResult</ID>
     <ID>TooGenericExceptionCaught:EmbeddingProvider.kt:BaseProvider$e: Exception</ID>
     <ID>TooGenericExceptionCaught:EvalRunner.kt:EvalRunner$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:FileTailer.kt:OffsetStore$e: Exception</ID>
     <ID>TooGenericExceptionCaught:Kafka.kt:KafkaBusConsumer$e: Exception</ID>
     <ID>TooGenericExceptionCaught:Kafka.kt:KafkaTopics$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:MemoryWorker.kt:MemoryWorker$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:PgBusIngest.kt:PgBusIngest$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:RagStore.kt:RagStore$e: Exception</ID>
     <ID>TooGenericExceptionCaught:Server.kt:Readiness$e: Exception</ID>
     <ID>TooGenericExceptionCaught:Server.kt:e: Exception</ID>
+    <ID>TooManyFunctions:BusEventsQueries.kt:BusEventsQueries : TransacterImpl</ID>
     <ID>TooManyFunctions:BusPipelineProbeKapBuilder.kt:dev.lattenero.brain.bus.BusPipelineProbeKapBuilder.kt</ID>
     <ID>TooManyFunctions:BusPipelineProbeKapBuilderValidated.kt:dev.lattenero.brain.bus.BusPipelineProbeKapBuilderValidated.kt</ID>
     <ID>TooManyFunctions:ChecksKapBuilder.kt:dev.lattenero.brain.http.ChecksKapBuilder.kt</ID>
@@ -231,13 +388,78 @@
     <ID>TooManyFunctions:IndexerRunKapBuilder.kt:dev.lattenero.brain.rag.IndexerRunKapBuilder.kt</ID>
     <ID>TooManyFunctions:IndexerRunKapBuilderValidated.kt:dev.lattenero.brain.rag.IndexerRunKapBuilderValidated.kt</ID>
     <ID>TooManyFunctions:Main.kt:dev.lattenero.brain.Main.kt</ID>
+    <ID>TooManyFunctions:MemoriesQueries.kt:MemoriesQueries : TransacterImpl</ID>
+    <ID>TooManyFunctions:MemoryEdgesQueries.kt:MemoryEdgesQueries : TransacterImpl</ID>
     <ID>TooManyFunctions:MemoryStatusKapBuilder.kt:dev.lattenero.brain.memory.MemoryStatusKapBuilder.kt</ID>
     <ID>TooManyFunctions:MemoryStatusKapBuilderValidated.kt:dev.lattenero.brain.memory.MemoryStatusKapBuilderValidated.kt</ID>
     <ID>TooManyFunctions:MemoryStore.kt:MemoryStore</ID>
+    <ID>TooManyFunctions:RagQueries.kt:RagQueries : TransacterImpl</ID>
     <ID>TooManyFunctions:RagStatsKapBuilder.kt:dev.lattenero.brain.rag.RagStatsKapBuilder.kt</ID>
     <ID>TooManyFunctions:RagStatsKapBuilderValidated.kt:dev.lattenero.brain.rag.RagStatsKapBuilderValidated.kt</ID>
-    <ID>UnsafeCallOnNullableType:BusPipeline.kt:BusPipeline$kafka!!</ID>
+    <ID>UnsafeCallOnNullableType:BusEventsQueries.kt:BusEventsQueries$cursor.getInt(4)!!</ID>
+    <ID>UnsafeCallOnNullableType:BusEventsQueries.kt:BusEventsQueries$cursor.getLong(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:BusEventsQueries.kt:BusEventsQueries$cursor.getString(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:BusEventsQueries.kt:BusEventsQueries$cursor.getString(1)!!</ID>
+    <ID>UnsafeCallOnNullableType:BusEventsQueries.kt:BusEventsQueries$cursor.getString(3)!!</ID>
+    <ID>UnsafeCallOnNullableType:EdgeBackfillQueries.kt:EdgeBackfillQueries$cursor.getLong(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getBigDecimal(6)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getBoolean(14)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getBoolean(17)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getDouble(13)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getInt(4)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getInt(5)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getLong(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getLong(15)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getLong(16)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getObject&lt;OffsetDateTime&gt;(8)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getString(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getString(1)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getString(11)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getString(12)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getString(2)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getString(3)!!</ID>
+    <ID>UnsafeCallOnNullableType:EvalRunsQueries.kt:EvalRunsQueries$cursor.getString(7)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getBoolean(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getDouble(3)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getDouble(4)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getDouble(5)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getDouble(8)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getLong(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getLong(1)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getLong(2)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getObject&lt;OffsetDateTime&gt;(2)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getObject&lt;OffsetDateTime&gt;(5)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getObject&lt;OffsetDateTime&gt;(6)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getString(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getString(1)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getString(2)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getString(3)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getString(4)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getString(5)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoriesQueries.kt:MemoriesQueries$cursor.getString(6)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getDouble(1)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getDouble(8)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getDouble(9)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getLong(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getLong(2)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getLong(3)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getObject&lt;OffsetDateTime&gt;(1)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getObject&lt;OffsetDateTime&gt;(7)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getString(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getString(2)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getString(3)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getString(4)!!</ID>
+    <ID>UnsafeCallOnNullableType:MemoryEdgesQueries.kt:MemoryEdgesQueries$cursor.getString(5)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getInt(5)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getLong(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getLong(1)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getString(0)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getString(1)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getString(2)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getString(3)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getString(4)!!</ID>
+    <ID>UnsafeCallOnNullableType:RagQueries.kt:RagQueries$cursor.getString(6)!!</ID>
     <ID>UseOrEmpty:Config.kt:Config.Companion$env["GLM_API_KEY"] ?: env["ZAI_API_KEY"] ?: ""</ID>
-    <ID>UseOrEmpty:MemoryStore.kt:MemoryStore$payload[key]?.jsonPrimitive?.content ?: ""</ID>
+    <ID>VolatileReadModifyWrite:FileTailer.kt:FileTailer$offset += consumedBytes</ID>
   </CurrentIssues>
 </SmellBaseline>

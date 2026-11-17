@@ -1,0 +1,11 @@
+# Activates the KAP doctrine ruleset (kap-detekt-rules from Maven Central) on
+# top of detekt's defaults. Custom rulesets are inactive unless listed here.
+# Mold copied from kap (config/detekt/kap-rules.yml), fleet audit wave 2.
+kap:
+  active: true
+  CancellationArmBeforeCatchAll:
+    active: true
+  ManualWaitLoop:
+    active: true
+  VolatileReadModifyWrite:
+    active: true
