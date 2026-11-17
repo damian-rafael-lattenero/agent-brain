@@ -39,6 +39,12 @@ import kotlin.time.Duration as KDuration
 
 private val log = LoggerFactory.getLogger("agent-brain.kafka")
 
+// The no-opaque-types law: a bare Int/Long here is a partition number and a
+// committed offset — the aliases say so at every signature that carries them.
+typealias Partition = Int
+typealias Offset = Long
+typealias PartitionOffsets = Map<Partition, Offset>
+
 /** Topic creation is idempotent; Redpanda would auto-create, but partitions are a decision, not a default. */
 object KafkaTopics {
     fun ensure(config: Config, topic: String = config.kafkaTopic) {
@@ -165,7 +171,7 @@ data class KafkaCounters(
     val records: Long = 0,
     val malformed: Long = 0,
     val commits: Long = 0,
-    val lastOffsets: Map<Int, Long> = emptyMap(),
+    val lastOffsets: PartitionOffsets = emptyMap(),
 )
 
 /**
@@ -175,7 +181,7 @@ data class KafkaCounters(
  * plain until kap Ref") — one atomic update per committed batch.
  */
 class KafkaStats private constructor(private val state: Ref<KafkaCounters>) {
-    suspend fun accept(recordsCount: Int, malformed: Int, offsets: Map<Int, Long>) {
+    suspend fun accept(recordsCount: Int, malformed: Int, offsets: PartitionOffsets) {
         state.update {
             it.copy(
                 records = it.records + recordsCount,
