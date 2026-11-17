@@ -75,11 +75,15 @@ class EvalRunnerIT {
         assertThat(suites.map { it.name }).containsExactlyElementsOf(EvalSuite.SHIPPED)
         val corpus = javaClass.classLoader.getResourceAsStream("eval/corpus/index.txt")!!.bufferedReader()
             .use { reader -> reader.readLines().filter { it.endsWith(".md") }.toSet() }
-        val recall = suites.single { it.kind == EvalKind.RECALL }
-        assertThat(recall.cases).hasSize(33)
-        recall.cases.filterIsInstance<RecallCase>().forEach { case ->
-            assertThat(case.uri.substringAfterLast('/')).isIn(corpus)
+        // EVERY recall suite must target the shipped corpus (the
+        // real-questions suite joined recall-core; both are usage-gates over
+        // the same docs), and the curated gate keeps its exact size.
+        suites.filter { it.kind == EvalKind.RECALL }.forEach { recall ->
+            recall.cases.filterIsInstance<RecallCase>().forEach { case ->
+                assertThat(case.uri.substringAfterLast('/')).isIn(corpus)
+            }
         }
+        assertThat(suites.first { it.name == "recall-core" }.cases).hasSize(33)
         suites.single { it.kind == EvalKind.GROUNDED }.cases.filterIsInstance<GroundedCase>().forEach { case ->
             assertThat(case.uri.substringAfterLast('/')).isIn(corpus)
             assertThat(case.needles).isNotEmpty

@@ -47,8 +47,7 @@ class RagService(
         val text = request.query.trim()
         if (text.isEmpty()) throw RagQueryException("query must not be empty")
         if (request.k !in 1..MAX_K) throw RagQueryException("k must be between 1 and $MAX_K")
-        val vector = provider.embed(listOf(text)).single()
-        val fused = store.search(vector, text, provider.model, request.k)
+        val fused = searchFused(text, request.k)
         val (hits, reranked) = if (request.rerank) rerank(text, fused) else fused to false
         return QueryResponse(
             query = text,
@@ -60,6 +59,42 @@ class RagService(
     }
 
     suspend fun stats(): RagStats = store.stats()
+
+    /**
+     * The retrieval stage with the bilingual second leg: the original query
+     * always runs; when the chat restates it in English (the corpus's
+     * language) the restatement runs too and the two ranked lists fuse with
+     * the same [Rrf] the SQL uses. One leg when there is no restatement (an
+     * English query restates to itself), no chat wired, or the chat fails —
+     * retrieval never degrades because the expansion could not ask.
+     */
+    private suspend fun searchFused(text: String, k: Int): List<Hit> {
+        val original = store.search(provider.embed(listOf(text)).single(), text, provider.model, k)
+        val restated = restate(text) ?: return original
+        val english = store.search(provider.embed(listOf(restated)).single(), restated, provider.model, k)
+        val byId: Map<Long, Hit> = (original + english).associateBy { it.chunkId }
+        val fused = Rrf.fuse(listOf(original.map { it.chunkId }, english.map { it.chunkId }))
+        return fused.mapNotNull { entry -> byId[entry.id]?.copy(score = entry.score) }.take(k)
+    }
+
+    /** The English restatement, or null when there is nothing to add. Never throws. */
+    private suspend fun restate(text: String): String? {
+        val chat = this.chat ?: return null
+        val restated = try {
+            QueryExpansion.parse(
+                chat.completeJson(
+                    QueryExpansion.systemPrompt(),
+                    QueryExpansion.userPrompt(text),
+                    QueryExpansion.SCHEMA,
+                ).text,
+                text,
+            )
+        } catch (e: ChatException) {
+            System.err.println("query expansion: the chat call failed (${e.message}) — the original query stands")
+            null
+        }
+        return restated
+    }
 
     /**
      * The second stage. No chat wired = a config error, thrown loudly — a
