@@ -26,3 +26,4 @@ migrator-lock.md
 quarantine.md
 tailer-truncation.md
 telegram-black-box.md
+worker-queue.md

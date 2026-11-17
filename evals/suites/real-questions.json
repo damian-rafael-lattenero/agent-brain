@@ -2,7 +2,7 @@
   "name": "real-questions",
   "kind": "recall",
   "gate": 0.8,
-  "description": "The day's real questions, verbatim: every question below was asked by the owner or the agent during the 16/11 extraction-cascade arc, and each must retrieve the document that holds its answer in the top 5 hybrid hits. Unlike recall-core (curated paraphrase pairs), this suite is the usage truth: it grows every time a real question exposes a gap. MEASURED BASELINE 16/11: 6/8 — the two misses are the SPANISH questions, both captured by the Spanish distractor docs; the owner asks in Spanish over an English corpus, so bilingual query handling is the recorded follow-up unit (the suite stays as the honest signal, not a lowered gate).",
+  "description": "The day's real questions, verbatim: every question below was asked by the owner or the agent during the 16/11 extraction-cascade arc, and each must retrieve the document that holds its answer in the top 5 hybrid hits. Unlike recall-core (curated paraphrase pairs), this suite is the usage truth: it grows every time a real question exposes a gap. MEASURED 16/11 night: 7/8 (gate 0.8 PASSES) after the bilingual second leg (QueryExpansion: a chat restatement in English fused with the original by RRF) and the two corpus gaps it exposed were filled (worker-queue.md; the degeneration paragraph in extraction-model.md). The one remaining miss is the queue question whose Spanish wording ('la cola', 'vueltas') is ambiguous travel vocabulary — the Spanish distractor wins that one legitimately; it stays as the honest edge.",
   "cases": [
     {
       "type": "recall",
@@ -57,7 +57,7 @@
       "type": "recall",
       "id": "queue-attempts-mechanics",
       "question": "como decide la cola que vueltas estan pendientes y cuantas veces se reintentan",
-      "uri": "/memory-lifecycle.md",
+      "uri": "/worker-queue.md",
       "needles": ["attempt", "pending"]
     }
   ]
