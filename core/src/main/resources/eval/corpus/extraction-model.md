@@ -10,4 +10,7 @@ quarantine with its raw text. A turn with nothing durable comes back empty,
 and caps bound how many items one turn may yield, so a chatty transcript
 cannot flood the store. Transport failures (the provider is down) are retried;
 invalid output is not, because retrying a confused model only multiplies the
-confusion.
+confusion. A small local model can also degenerate into a repetition loop on
+giant transcripts, filling the whole output cap with one repeated sentence:
+the cap bounds the damage, the quarantine keeps the raw evidence, and a
+stronger remote model does not loop where the small one does.
