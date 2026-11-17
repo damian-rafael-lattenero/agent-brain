@@ -7,6 +7,41 @@ programs that read the hook payload as JSON on stdin.
 | File | Event | Job |
 | --- | --- | --- |
 | `write-guard.nu` | `PreToolUse` (`Write\|Edit`) | Mirror the harness read-state from the session store and deny a Write/Edit that ZCode would reject anyway — **before** the permission prompt and before the model burns a second composition. |
+| `rag-guard.nu` | `PreToolUse` (`Write\|Edit`) | Query the brain before every code write and inject matched LAW hits as additionalContext — never blocks (never exit 2), honest silence on brain down/wedged, global throttle across sessions. |
+
+## rag-guard.nu
+
+### Why
+
+Every non-trivial write should consult the brain's law corpus before the model
+composes. The guard answers it automatically — but a PreToolUse hook runs on
+EVERY Edit/Write, so its failure mode is machine-wide: the 17/11 fleet audit
+found the brain query had NO deadline (a wedged brain stalls every edit) and
+unguarded JSON edges (a malformed payload crashes the hook, contradicting its
+own never-blocks contract).
+
+### Contract and mechanics
+
+- NEVER blocks: every parse/IO edge fails soft to silence (`try`/`catch` →
+  `exit 0`); the brain query carries a HARD DEADLINE (`QUERY_BUDGET` = 5 s) via
+  `job spawn` + tagged `job recv --timeout` + `job kill` (stale-mailbox law:
+  the per-call tag isolates the mailbox; a kill cannot leak a message into an
+  unrelated call).
+- Returns `hookSpecificOutput.additionalContext` JSON on stdout when ≥1 law
+  matches; silent exit 0 otherwise.
+- Global throttle: anti-hammer floor of 60 s between speaks; the state file
+  `~/.zcode/hooks/rag-guard-last` is shared across sessions.
+- Installed by copying to `~/.zcode/hooks/rag-guard.nu`.
+
+### Test
+
+Live drill (payload on stdin, wall time must stay under the 5 s budget):
+
+```sh
+nu-check ~/.zcode/hooks/rag-guard.nu   # boolean true, never the exit code
+'{ "session_id": "drill", "tool_name": "Edit", "tool_input": { "file_path": "/Users/lattenero/Projects/kap/docs/drill.md", "old_string": "a", "new_string": "job spawn mailbox timeout" } }' \
+  | nu --stdin ~/.zcode/hooks/rag-guard.nu
+```
 
 ## write-guard.nu
 
