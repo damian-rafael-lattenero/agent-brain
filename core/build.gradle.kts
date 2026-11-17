@@ -26,6 +26,11 @@ dependencies {
     implementation(libs.kafka.clients)
     implementation(libs.bundles.logging)
     implementation(libs.bundles.kap)
+    // The Meter SPI's exporter side (kap 5.4.0): the worker's cycle counters
+    // ride the standard Meter and the Prometheus registry renders them into
+    // the existing /metrics exposition.
+    implementation(libs.kap.micrometer)
+    implementation(libs.micrometer.registry.prometheus)
     implementation(libs.ktor.server.status.pages)
     ksp(libs.kap.ksp)
 

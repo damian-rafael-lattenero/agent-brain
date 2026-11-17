@@ -19,6 +19,7 @@ import dev.lattenero.brain.rag.QueryRequest
 import dev.lattenero.brain.rag.RagQueryException
 import dev.lattenero.brain.rag.RagService
 import org.slf4j.LoggerFactory
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import io.ktor.http.HttpStatusCode
 import kap.KapTypeSafe
 import kap.ProcessHandle
@@ -192,6 +193,7 @@ fun Application.brainModule(
     memory: MemoryService? = null,
     busProcess: ProcessHandle<*>? = null,
     evalLedger: EvalLedger? = null,
+    metricsRegistry: PrometheusMeterRegistry? = null,
 ) {
     install(ContentNegotiation) { json(responseJson) }
     routing {
@@ -206,9 +208,12 @@ fun Application.brainModule(
         // E4: the same snapshots /bus/status, /rag/stats and /memory/status
         // answer, projected to the Prometheus text format. Pure projection —
         // no counter of its own, no cached value; a scrape re-reads the truth.
+        // The Meter registry's families (the worker's cycle counters) append
+        // after the snapshot families when the brain carries a registry.
         get("/metrics") {
             val snapshot = metricsSnapshot(bus, rag, memory, busProcess)
-            call.respondText(renderMetrics(snapshot), ContentType.parse(METRICS_CONTENT_TYPE))
+            val body = (renderMetrics(snapshot) + metricsRegistry?.scrape().orEmpty()).trimEnd('\n')
+            call.respondText(if (body.isEmpty()) body else body + "\n", ContentType.parse(METRICS_CONTENT_TYPE))
         }
         if (bus != null) {
             get("/bus/status") { call.respond(bus.status(busProcess)) }
@@ -298,9 +303,10 @@ object BrainServer {
         wait: Boolean,
         busProcess: ProcessHandle<*>? = null,
         evalLedger: EvalLedger? = null,
+        metricsRegistry: PrometheusMeterRegistry? = null,
     ): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, host = config.httpHost, port = config.httpPort) {
-            brainModule(config, readiness, bus, rag, indexer, memory, busProcess, evalLedger)
+            brainModule(config, readiness, bus, rag, indexer, memory, busProcess, evalLedger, metricsRegistry)
         }
         log.info("agent-brain $VERSION listening on ${config.httpHost}:${config.httpPort}")
         return server.start(wait = wait)

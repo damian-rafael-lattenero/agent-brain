@@ -2,6 +2,10 @@ package dev.lattenero.brain
 
 import dev.lattenero.brain.bus.BusPipeline
 import dev.lattenero.brain.chat.ChatProvider
+import io.micrometer.prometheusmetrics.PrometheusConfig
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
+import kap.Meter
+import kap.micrometer.MicrometerMeter
 import dev.lattenero.brain.chat.ChatProviders
 import dev.lattenero.brain.memory.EdgeBackfill
 import dev.lattenero.brain.memory.EdgeBuilder
@@ -124,6 +128,15 @@ class Brain private constructor(
     /** The verdict machinery: ONE chat call per judged pair, one timeout, no retry (the write path never blocks). */
     val verdictJudge: VerdictJudge = VerdictJudge(judgeChat, config.judgeTimeoutS.seconds)
     val memoryReconciler: MemoryReconciler = MemoryReconciler(memoryStore, verdictJudge)
+
+    /**
+     * The Meter SPI (kap 5.4.0): the brain's in-process cycle counters ride the
+     * standard door, rendered by the Prometheus registry into /metrics next to
+     * the snapshot families. The registry is the only new state; every counter
+     * is a fact of a worker cycle the DB or the log never shows.
+     */
+    val metricsRegistry: PrometheusMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
+    val meter: Meter = MicrometerMeter(metricsRegistry)
     val memoryWorker: MemoryWorker = MemoryWorker(
         store = memoryStore,
         extractor = extractor,
@@ -134,6 +147,7 @@ class Brain private constructor(
             halfLifeDays = config.memoryHalfLifeDays,
         ),
         edges = edgeBuilder,
+        meter = meter,
     )
     val memory: MemoryService = MemoryService(
         provider = provider,

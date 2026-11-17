@@ -199,6 +199,7 @@ private fun serve(): Int {
                 BrainServer.start(
                     config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory,
                     wait = true, busProcess = busProcess, evalLedger = brain.evalLedger,
+                    metricsRegistry = brain.metricsRegistry,
                 )
             }
         }

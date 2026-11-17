@@ -13,7 +13,11 @@ import dev.lattenero.brain.embeddings.FakeProvider
 import dev.lattenero.brain.embeddings.ProviderUnavailable
 import dev.lattenero.brain.rag.CountingTracer
 import dev.lattenero.brain.rag.EmbedPipeline
+import io.micrometer.prometheusmetrics.PrometheusConfig
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import kap.CircuitBreaker
+import kap.Meter
+import kap.micrometer.MicrometerMeter
 import kap.evalGraph
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -56,9 +60,9 @@ class MemoryWorkerIT {
 
     private fun pipeline(f: Fixture) = EmbedPipeline(embedder, 8, 2, 10.seconds, f.tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes))
 
-    private fun worker(f: Fixture, chat: ChatProvider, attempts: Int = 3, maxAttempts: Int = 3): MemoryWorker {
+    private fun worker(f: Fixture, chat: ChatProvider, attempts: Int = 3, maxAttempts: Int = 3, meter: Meter = Meter.Noop): MemoryWorker {
         val extractor = MemoryExtractor(chat, 10.seconds, f.tracer, CircuitBreaker(maxFailures = 100, retryAfter = 1.minutes), attempts, backoffBase = 10.seconds.div(1000))
-        return MemoryWorker(f.store, extractor, pipeline(f), params = WorkerParams(maxAttempts = maxAttempts))
+        return MemoryWorker(f.store, extractor, pipeline(f), params = WorkerParams(maxAttempts = maxAttempts), meter = meter)
     }
 
     /** Loads the recorded bot bus (one phone turn with prompt+reply, one Mac turn that failed). */
@@ -214,6 +218,22 @@ class MemoryWorkerIT {
             val report = worker(f, tracked).processOnce()
             assertThat(report.processed).isEqualTo(3)
             assertThat(maxSeen.get()).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `the worker's cycle counters ride the Meter SPI and scrape as Prometheus families`() = runBlocking<Unit> {
+        fixture("memmeter").use { f ->
+            loadBus(f)
+            val registry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
+            val meter: Meter = MicrometerMeter(registry)
+            val report = worker(f, goodChat, meter = meter).processOnce()
+            assertThat(report.processed).isEqualTo(1)
+            val scrape = registry.scrape()
+            assertThat(scrape).contains("brain_worker_cycles_total")
+            assertThat(scrape).contains("brain_worker_turns_total{")
+            assertThat(scrape).contains("outcome=\"processed\"")
+            assertThat(scrape).contains("brain_worker_memories_total")
         }
     }
 
