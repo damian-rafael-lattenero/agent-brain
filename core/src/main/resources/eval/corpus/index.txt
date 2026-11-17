@@ -1,6 +1,10 @@
+breaker-defer-economics.md
 bus-contract.md
 bus-transport.md
+chat-timeout-ownership.md
 circuit-breaker.md
+config-durability.md
+dedup-lifecycle.md
 distractor-football.md
 distractor-lemon-pie.md
 distractor-viaje.md
@@ -8,6 +12,7 @@ dream-reconcile.md
 embedding-dimensions.md
 embedding-incident.md
 extraction-model.md
+extraction-sequential.md
 graph-edges.md
 hnsw-vectors.md
 hybrid-retrieval.md

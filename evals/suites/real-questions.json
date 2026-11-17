@@ -1,0 +1,64 @@
+{
+  "name": "real-questions",
+  "kind": "recall",
+  "gate": 0.8,
+  "description": "The day's real questions, verbatim: every question below was asked by the owner or the agent during the 16/11 extraction-cascade arc, and each must retrieve the document that holds its answer in the top 5 hybrid hits. Unlike recall-core (curated paraphrase pairs), this suite is the usage truth: it grows every time a real question exposes a gap. MEASURED BASELINE 16/11: 6/8 — the two misses are the SPANISH questions, both captured by the Spanish distractor docs; the owner asks in Spanish over an English corpus, so bilingual query handling is the recorded follow-up unit (the suite stays as the honest signal, not a lowered gate).",
+  "cases": [
+    {
+      "type": "recall",
+      "id": "why-chat-timeout-dead",
+      "question": "por que chat_timeout_s no funcionaba y quien cortaba antes",
+      "uri": "/chat-timeout-ownership.md",
+      "needles": ["client", "timeout"]
+    },
+    {
+      "type": "recall",
+      "id": "breaker-burns-attempts",
+      "question": "el breaker abierto quema intentos sin llamar al provider",
+      "uri": "/breaker-defer-economics.md",
+      "needles": ["breaker", "attempt"]
+    },
+    {
+      "type": "recall",
+      "id": "extraction-concurrency",
+      "question": "cuantas extracciones corren a la vez contra el runner de ollama",
+      "uri": "/extraction-sequential.md",
+      "needles": ["concurrency", "runner"]
+    },
+    {
+      "type": "recall",
+      "id": "dedup-pairs-not-corruption",
+      "question": "los pares near duplicate con una fila invalidada son corrupcion",
+      "uri": "/dedup-lifecycle.md",
+      "needles": ["invalid", "lifecycle"]
+    },
+    {
+      "type": "recall",
+      "id": "qwen-degenerates",
+      "question": "por que qwen2.5 1.5b degenera en los transcripts gigantes",
+      "uri": "/extraction-model.md",
+      "needles": ["deepseek", "schema"]
+    },
+    {
+      "type": "recall",
+      "id": "judge-secrets-durable",
+      "question": "donde viven los secrets del judge despues de un deploy que reescribe el plist",
+      "uri": "/config-durability.md",
+      "needles": ["file", "environment"]
+    },
+    {
+      "type": "recall",
+      "id": "giants-repetition-pattern",
+      "question": "que hacer cuando el modelo repite la misma frase hasta llenar el cap",
+      "uri": "/quarantine.md",
+      "needles": ["quarantine"]
+    },
+    {
+      "type": "recall",
+      "id": "queue-attempts-mechanics",
+      "question": "como decide la cola que vueltas estan pendientes y cuantas veces se reintentan",
+      "uri": "/memory-lifecycle.md",
+      "needles": ["attempt", "pending"]
+    }
+  ]
+}

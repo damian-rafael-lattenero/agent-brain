@@ -17,6 +17,7 @@ class EvalSuitesTest {
             "grounded-citation",
             "contradiction-core",
             "memory-core",
+            "real-questions",
         )
         assertThat(suites.map { it.kind }).containsExactly(
             EvalKind.RECALL,
@@ -24,12 +25,14 @@ class EvalSuitesTest {
             EvalKind.GROUNDED,
             EvalKind.CONTRADICTION,
             EvalKind.MEMORY,
+            EvalKind.RECALL,
         )
         assertThat(suites.map { it.axis }).containsExactly(
             EvalAxis.EMBED,
             EvalAxis.CHAT,
             EvalAxis.CHAT,
             EvalAxis.CHAT,
+            EvalAxis.EMBED,
             EvalAxis.EMBED,
         )
         assertThat(suites.map { it.gate }).allSatisfy { assertThat(it).isBetween(0.0, 1.0) }

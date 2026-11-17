@@ -1,7 +1,8 @@
 # Memory extraction model and schema
 
-Finished turns are distilled into memories by a local chat model — qwen2.5:1.5b
-by default, with glm-4.5-flash as the hosted alternative — prompted for one
+Finished turns are distilled into memories by a chat model — deepseek-v4.1-flash
+through an OpenAI-compatible relay in production, with qwen2.5:1.5b as the
+local alternative — prompted for one
 JSON object with typed groups: facts, decisions, preferences and a summary.
 The schema is enforced, not suggested: an item outside the groups, a missing
 summary or a shape the parser cannot read sends the whole extraction to

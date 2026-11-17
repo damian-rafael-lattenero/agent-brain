@@ -267,6 +267,7 @@ data class EvalSuite(
             "grounded-citation",
             "contradiction-core",
             "memory-core",
+            "real-questions",
         )
     }
 }
