@@ -1,0 +1,50 @@
+-- TYPING-ONLY declaration (see Memories.sq): the runtime DDL is Migrator's
+-- 0007_turn_costs.sql. These blocks exist so the compiler can type the
+-- queries below; they are never executed.
+CREATE TABLE turn_costs (
+  id BIGINT PRIMARY KEY,
+  event_id TEXT NOT NULL,
+  sid TEXT NOT NULL,
+  turn TEXT NOT NULL,
+  model TEXT,
+  tokens_in BIGINT,
+  tokens_out BIGINT,
+  tokens_total BIGINT,
+  duration_ms BIGINT,
+  cost_usd NUMERIC(12, 6) NOT NULL,
+  cost_known BOOLEAN NOT NULL,
+  feedback TEXT,
+  at TIMESTAMPTZ NOT NULL
+);
+
+-- The projection's insert: idempotent by the bus event id (an at-least-once
+-- tailer redelivers; the row lands once).
+insertTurnCost:
+INSERT INTO turn_costs (event_id, sid, turn, model, tokens_in, tokens_out, tokens_total,
+  duration_ms, cost_usd, cost_known, at)
+VALUES (:eventId, :sid, :turn, :model, :tokensIn, :tokensOut, :tokensTotal,
+  :durationMs, :costUsd, :costKnown, :at::timestamptz)
+ON CONFLICT (event_id) DO NOTHING;
+
+-- The owner's 👍/👎 lands on the turn's row (the completion usually came first).
+setFeedback:
+UPDATE turn_costs SET feedback = :feedback WHERE sid = :sid AND turn = :turn;
+
+-- Feedback for a turn the ledger never saw (the completion event was lost):
+-- a skeleton row so the signal is never dropped (zero cost, unpriced).
+insertFeedbackStub:
+INSERT INTO turn_costs (event_id, sid, turn, cost_usd, cost_known, feedback, at)
+VALUES (:eventId, :sid, :turn, 0, FALSE, :feedback, now())
+ON CONFLICT (event_id) DO NOTHING;
+
+-- Today's rollup: the count, the USD, and how many rows could not be priced.
+todayCost:
+SELECT count(*) AS turns,
+       coalesce(sum(cost_usd), 0) AS usd,
+       count(*) FILTER (WHERE NOT cost_known) AS unpriced
+FROM turn_costs WHERE at >= date_trunc('day', now());
+
+recentCosts:
+SELECT id, event_id, sid, turn, model, tokens_in, tokens_out, tokens_total,
+       duration_ms, cost_usd, cost_known, feedback, at
+FROM turn_costs ORDER BY at DESC, id DESC LIMIT :lim;

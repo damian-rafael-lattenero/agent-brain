@@ -80,8 +80,18 @@ data class PriceTable(
         entries.firstOrNull { it.provider == provider && it.model == model }
             ?: entries.firstOrNull { it.provider == provider && it.model == WILDCARD }
 
-    fun cost(provider: String, model: String, promptTokens: Long, completionTokens: Long): Cost {
-        val entry = entryFor(provider, model)
+    fun cost(provider: String, model: String, promptTokens: Long, completionTokens: Long): Cost =
+        costOf(entryFor(provider, model), promptTokens, completionTokens)
+
+    /**
+     * The turn ledger's resolution (audit): the bus names the MODEL, never the
+     * provider — the first exact model row wins, and no row means UNKNOWN (the
+     * same "never a free ride" law as [cost]).
+     */
+    fun costByModel(model: String, promptTokens: Long, completionTokens: Long): Cost =
+        costOf(entries.firstOrNull { it.model == model }, promptTokens, completionTokens)
+
+    private fun costOf(entry: PriceEntry?, promptTokens: Long, completionTokens: Long): Cost {
         val prompt = entry?.promptPer1m
         val completion = entry?.completionPer1m
         return if (prompt == null || completion == null) {

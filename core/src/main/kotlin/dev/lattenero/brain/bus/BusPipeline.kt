@@ -24,9 +24,21 @@ class BusPipeline private constructor(
     private val config: Config,
     val tailer: FileTailer,
     val ingest: PgBusIngest,
+    /** The per-turn cost ledger (audit): projected from the same events, after the durable ingest. */
+    val costs: TurnCosts,
     /** The parsed transport (the [Config] knob read once, as a value). */
     val transport: BusTransport,
 ) {
+
+    /**
+     * The ONE handler both consumers call: the ingest FIRST (the durable
+     * rows), the ledger projection after — derived data never blocks the
+     * source, and the projection owns its own failure line.
+     */
+    private suspend fun handle(events: List<BusEvent>) {
+        ingest.handle(events)
+        events.forEach { costs.project(it) }
+    }
 
     /**
      * The ONE long-lived loop for the configured transport, as a named
@@ -40,7 +52,7 @@ class BusPipeline private constructor(
                 KafkaTopics.ensure(config)
                 t.consumer.process()
             }
-            BusTransport.File -> tailer.process(config.busPollMs.milliseconds, handler = { ingest.handle(it) })
+            BusTransport.File -> tailer.process(config.busPollMs.milliseconds, handler = { handle(it) })
         }
 
     /** Runs the loop for the caller's lifetime (CLI `ingest`); cancellation stops it. */
@@ -68,7 +80,7 @@ class BusPipeline private constructor(
             }
             BusTransport.File -> {
                 val before = ingest.stats.snapshot().seen
-                Kap { tailer.poll { ingest.handle(it) } }
+                Kap { tailer.poll { handle(it) } }
                     .repeatUntil { tailer.offset >= fileBytes() }
                     .evalGraph()
                 (ingest.stats.snapshot().seen - before).toInt()
@@ -126,10 +138,12 @@ class BusPipeline private constructor(
         fun of(config: Config, db: Database): Kap<BusPipeline> = Kap {
             val tailer = FileTailer.open(config.busFile, config.stateDir).evalGraph()
             val ingest = PgBusIngest.of(db).evalGraph()
+            val costs = TurnCosts(db)
             val transport = BusTransport.parse(config.busTransport) {
-                KafkaBusConsumer.of(config, ingest).evalGraph()
+                KafkaBusConsumer.of(config, ingest, project = { events -> events.forEach { costs.project(it) } })
+                    .evalGraph()
             }
-            BusPipeline(config, tailer, ingest, transport)
+            BusPipeline(config, tailer, ingest, costs, transport)
         }
     }
 }
