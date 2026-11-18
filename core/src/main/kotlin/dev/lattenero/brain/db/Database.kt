@@ -71,11 +71,8 @@ class Database(config: Config) : AutoCloseable {
      */
     private val brainDb: BrainDb by lazy { BrainDb(dataSource.asJdbcDriver()) }
 
-    suspend fun ping(): Boolean = withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery("SELECT 1").use { rs -> rs.next() && rs.getInt(1) == 1 }
-        }
-    }
+    /** Readiness: one typed round trip (audit wave 4 — the query lives in Health.sq). */
+    suspend fun ping(): Boolean = withDriver { brainDb -> brainDb.healthQueries.ping().executeAsOne() == 1 }
 
     /**
      * pgjdbc keeps a per-connection type cache and PGvector registers as a

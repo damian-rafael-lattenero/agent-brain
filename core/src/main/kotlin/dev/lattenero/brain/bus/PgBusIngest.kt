@@ -72,12 +72,6 @@ class PgBusIngest private constructor(private val db: Database, val stats: Inges
     suspend fun count(): Long = db.withDriver { it.busEventsQueries.countBusEvents().executeAsOne() }
 
     companion object {
-        const val INSERT = """
-            INSERT INTO bus_events (id, ts, kind, sid, turn, source, payload)
-            VALUES (?, ?::timestamptz, ?, ?, ?, ?, ?::jsonb)
-            ON CONFLICT (id) DO NOTHING
-        """
-
         /** Construction is a [Kap]: the stats are kap `Ref` state (see [IngestStats]). */
         fun of(db: Database): Kap<PgBusIngest> = Kap { PgBusIngest(db, IngestStats.of().evalGraph()) }
     }

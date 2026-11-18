@@ -495,12 +495,8 @@ class MemoryStore(private val db: Database) {
         LifecycleCounts(counts.active, counts.cooling, counts.archived)
     }
 
-    suspend fun countByKind(): Map<String, Long> = db.withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery("SELECT kind, count(*) FROM memories GROUP BY kind ORDER BY kind").use { rs ->
-                generateSequence { if (rs.next()) rs.getString(1) to rs.getLong(2) else null }.toMap()
-            }
-        }
+    suspend fun countByKind(): Map<String, Long> = db.withDriver { brainDb ->
+        brainDb.memoriesQueries.countByKind().executeAsList().associate { it.kind to it.n }
     }
 
     /** The generated rows' common face (Recent/RecentOfKind/ById/SearchMemory). */

@@ -256,3 +256,8 @@ WHERE m.invalid_at IS NULL
   AND (m.salience * power(2.0, -extract(epoch FROM (now() - COALESCE(m.last_accessed, m.created_at))) / (86400.0 * p.half_life))) < p.cooling_floor
 ORDER BY m.created_at, m.id
 LIMIT :lim;
+
+-- The status surface's additive `byKind` (audit wave 4): one grouped read,
+-- typed rows instead of a hand-rolled ResultSet walk.
+countByKind:
+SELECT kind, count(*) AS n FROM memories GROUP BY kind ORDER BY kind;
