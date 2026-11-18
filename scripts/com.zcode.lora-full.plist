@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- com.zcode.lora-full — the overnight FULL LoRA recipe as ONE launchd shot
+     (RunAtLoad: it starts when bootstrapped, ~10 h at the measured pace, then
+     runs the extraction-core gate itself and speaks ONE Telegram line with
+     the verdict — loud on failure, the backup script's law).
+     Install (render __HOME__, then bootstrap):
+       sed "s|__HOME__|$HOME|g" scripts/com.zcode.lora-full.plist > ~/Library/LaunchAgents/com.zcode.lora-full.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.zcode.lora-full.plist
+     KeepAlive is FALSE on purpose — a training run must never respawn in a
+     loop; the script's own failure path is the loud one. PATH carries
+     /opt/homebrew/bin AND ~/.local/bin (uv) so curl and uv resolve. -->
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>__HOME__</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/Users/lattenero/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<false/>
+	<key>Label</key>
+	<string>com.zcode.lora-full</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/nu</string>
+		<string>__HOME__/Projects/agent-brain/scripts/lora-full-run.nu</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/lora-full.log</string>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/lora-full.log</string>
+	<key>WorkingDirectory</key>
+	<string>__HOME__/Projects/agent-brain</string>
+</dict>
+</plist>
