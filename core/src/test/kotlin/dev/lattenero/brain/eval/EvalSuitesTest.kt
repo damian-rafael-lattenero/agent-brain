@@ -18,6 +18,7 @@ class EvalSuitesTest {
             "contradiction-core",
             "memory-core",
             "real-questions",
+            "multi-hop",
         )
         assertThat(suites.map { it.kind }).containsExactly(
             EvalKind.RECALL,
@@ -25,6 +26,7 @@ class EvalSuitesTest {
             EvalKind.GROUNDED,
             EvalKind.CONTRADICTION,
             EvalKind.MEMORY,
+            EvalKind.RECALL,
             EvalKind.RECALL,
         )
         assertThat(suites.map { it.axis }).containsExactly(
@@ -34,12 +36,16 @@ class EvalSuitesTest {
             EvalAxis.CHAT,
             EvalAxis.EMBED,
             EvalAxis.EMBED,
+            EvalAxis.EMBED,
         )
         assertThat(suites.map { it.gate }).allSatisfy { assertThat(it).isBetween(0.0, 1.0) }
         suites.forEach { suite -> assertThat(suite.cases).isNotEmpty }
         assertThat(suites.first { it.kind == EvalKind.RECALL }.cases).hasSize(33)
         assertThat(suites.first { it.kind == EvalKind.CONTRADICTION }.cases).hasSize(8)
         assertThat(suites.first { it.kind == EvalKind.MEMORY }.cases).hasSize(10)
+        // The agentic suite is the one whose questions decompose and fuse legs.
+        assertThat(suites.first { it.name == "multi-hop" }.iterate).isTrue()
+        assertThat(suites.first { it.name == "real-questions" }.iterate).isFalse()
     }
 
     @Test
