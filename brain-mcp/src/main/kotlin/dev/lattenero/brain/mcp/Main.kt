@@ -40,6 +40,7 @@ import kotlinx.io.asSink
 import kotlinx.io.buffered
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.int
@@ -65,13 +66,20 @@ data class ToolWiring(val registry: List<ToolSpec>, val brainReady: Boolean)
 object BrainTools {
     val ragQuery = ToolSpec(
         name = "rag_query",
-        description = "Hybrid (semantic + full-text) search over the indexed corpus. Returns ranked chunks with citations (uri, title, heading, ordinal, score). Read-only.",
+        description = "Hybrid (semantic + full-text) search over the indexed corpus. Returns ranked " +
+            "chunks with citations (uri, title, heading, ordinal, score). Read-only. " +
+            "`iterate` runs the agentic loop: the question decomposes into independent sub-queries " +
+            "and every leg fuses — for questions that span two concerns.",
         properties = buildJsonObject {
             putJsonObject("query") { put("type", "string"); put("description", "the question or keywords") }
             putJsonObject("k") { put("type", "integer"); put("description", "hits to return (1..50, default 5)") }
+            putJsonObject("iterate") {
+                put("type", "boolean")
+                put("description", "multi-hop: decompose + fuse legs (spends a chat call, broader recall)")
+            }
         },
         required = listOf("query"),
-        version = 1,
+        version = 2,
         nextStep = "cite the uri and heading of what you use; index more sources with `agent-brain index`",
     )
 
@@ -322,6 +330,24 @@ internal val READ_ONLY_TOOL: ToolAnnotations =
     ToolAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false)
 
 /** The MCP server with the six tools and the panel resource; every handler answers with the envelope, never throws. */
+
+/**
+ * The rag_query call, extracted so [newServer] stays under the method-length
+ * law: the tool's `iterate` flag rides the request as an additive default-off
+ * field (a strict client that never sends it sees the exact old behavior).
+ */
+private suspend fun ragQueryCall(http: HttpBrainClient, args: JsonObject?): String {
+    val k = BrainTools.intArg(args, "k", QueryRequest(query = "").k, 50)
+    val iterate = (args?.get("iterate") as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false
+    return http.post(
+        "/rag/query",
+        Json.encodeToString(
+            QueryRequest.serializer(),
+            QueryRequest(BrainTools.stringArg(args, "query"), k, iterate = iterate),
+        ),
+    ).second
+}
+
 internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces, served: Ref<Int>): Server = Server(
     serverInfo = Implementation(name = "brain-mcp", version = dev.lattenero.brain.VERSION),
     options = ServerOptions(
@@ -345,10 +371,7 @@ internal fun newServer(wiring: ToolWiring, http: HttpBrainClient, traces: Traces
             served.update { it + 1 }.evalGraph()
             envelope(traces, spec, request) { args ->
                 when (spec.name) {
-                    BrainTools.ragQuery.name -> {
-                        val k = BrainTools.intArg(args, "k", QueryRequest(query = "").k, 50)
-                        http.post("/rag/query", Json.encodeToString(QueryRequest.serializer(), QueryRequest(BrainTools.stringArg(args, "query"), k))).second
-                    }
+                    BrainTools.ragQuery.name -> ragQueryCall(http, args)
                     BrainTools.memorySearch.name -> {
                         val k = BrainTools.intArg(args, "k", MemoryService.DEFAULT_K, 50)
                         http.post("/memory/search", Json.encodeToString(MemorySearchRequest.serializer(), MemorySearchRequest(BrainTools.stringArg(args, "query"), k))).second
