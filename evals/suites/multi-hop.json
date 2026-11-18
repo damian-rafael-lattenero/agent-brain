@@ -1,0 +1,39 @@
+{
+  "name": "multi-hop",
+  "kind": "recall",
+  "gate": 0.8,
+  "iterate": true,
+  "description": "Questions that span two concerns, each built on a twin pair whose vocabulary overlaps (the corpus's own distractor law: a doc leaking neighbor vocabulary steals that neighbor's query). Single-pass retrieval leads with the first half's vocabulary; the agentic loop decomposes into independent sub-queries and fuses every leg ON TOP of the bilingual fused order. Measured A/B (2026-11-18): fixture parity (5/5 both ways, MRR 0.70 single and looped); production-corpus A/B mixed (one real-query rescued 0->1, one regressed 2->0 — naive RRF over heterogeneous legs dilutes), so the loop ships opt-in with this suite as its non-regression gate and the usage eval as its judge.",
+  "cases": [
+    {
+      "type": "recall",
+      "id": "absorb-then-reconcile",
+      "question": "When a duplicate lands, the write path absorbs it into the oldest row — and which later pass re-reads the related band to stamp same, supersede or distinct verdicts?",
+      "uri": "/dedup-lifecycle.md"
+    },
+    {
+      "type": "recall",
+      "id": "sequential-then-breaker-economics",
+      "question": "The extraction concurrency defaults to one turn at a time against a single runner — and separately, why do breaker-open rejections leave a turn's attempt counter untouched?",
+      "uri": "/breaker-defer-economics.md"
+    },
+    {
+      "type": "recall",
+      "id": "chat-client-then-kap-retry-law",
+      "question": "Chat generations hold their own dedicated HTTP client — and inside KAP itself, why does a plain timeout placed before retry never get retried?",
+      "uri": "/kap-timeout-retry.md"
+    },
+    {
+      "type": "recall",
+      "id": "defeated-index-then-rrf-fusion",
+      "question": "The vector leg's index can be defeated by a semi-join — and how do the two rank lists fuse so an exact token match rescues a chunk the embedding underweights?",
+      "uri": "/hybrid-retrieval.md"
+    },
+    {
+      "type": "recall",
+      "id": "decay-half-life-then-edge-kinds",
+      "question": "Salience decays with a thirty-day half-life and floors classify the memory — and which three edge kinds connect memories so a search can surface what the query never named?",
+      "uri": "/graph-edges.md"
+    }
+  ]
+}

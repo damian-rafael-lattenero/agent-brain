@@ -238,7 +238,7 @@ class BrainMcpStdioTest {
         assertThat(rag["status"]!!.jsonPrimitive.content).isEqualTo("ok")
         assertThat(rag["result"]!!.jsonObject["citations"]!!.jsonArray[0].jsonObject["uri"]!!.jsonPrimitive.content).endsWith("kafka.md")
         assertThat(rag["meta"]!!.jsonObject["trace_id"]!!.jsonPrimitive.content).startsWith("trace-")
-        assertThat(rag["meta"]!!.jsonObject["tool_version"]!!.jsonPrimitive.content).isEqualTo("1")
+        assertThat(rag["meta"]!!.jsonObject["tool_version"]!!.jsonPrimitive.content).isEqualTo("2")
         assertThat(rag["nextStep"]!!.jsonPrimitive.content).contains("cite the uri")
 
         val recent = envelopeOf(out.getValue(5))

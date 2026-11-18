@@ -198,6 +198,12 @@ data class EvalSuite(
     val gate: Double,
     val cases: List<EvalCase>,
     val description: String = "",
+    /**
+     * The agentic loop ([MultiHop]): the recall cases' questions decompose
+     * into independent sub-queries and every leg fuses. A versioned-file
+     * decision like the gate — the suite's own text says which stage ran.
+     */
+    val iterate: Boolean = false,
 ) {
     val axis: EvalAxis get() = kind.axis
 
@@ -278,6 +284,7 @@ data class EvalSuite(
             "contradiction-core",
             "memory-core",
             "real-questions",
+            "multi-hop",
         )
     }
 }

@@ -97,7 +97,9 @@ const val USAGE = """usage: agent-brain <command> [args]
   index-repos [--dry-run] [--repo NAME]...
                      index the owner's repos under ~/Projects (kap, bot, zcode-bot-kotlin, ZCode,
                      agent-brain); --dry-run scans and reports, no Postgres needed
-  query TEXT [--k N] hybrid retrieval with citations (no generation)
+  query TEXT [--k N] [--iterate]
+                     hybrid retrieval with citations (no generation); --iterate runs the
+                     agentic loop: decompose into sub-queries and fuse every leg
   memory search TEXT [--k N] | recent [--k N] [--kind K] | save KIND TEXT | quarantine | status | run [--once]
   memory quarantine-stats
                      quarantine reasons bucketed (template-echo / invalid-extraction / gave-up) —
@@ -615,11 +617,11 @@ private fun backfillEdges(): Int {
 
 private fun query(args: List<String>): Int {
     val k = args.optionValue("--k")?.toIntOrNull() ?: QueryRequest(query = "").k
-    val text = args.withoutOption("--k").joinToString(" ")
+    val text = args.withoutOption("--k").withoutOption("--iterate").joinToString(" ")
     if (text.isBlank()) return usage()
     val config = Config.load()
     return withBrain(config) { brain ->
-        val response = brain.rag.query(QueryRequest(text, k))
+        val response = brain.rag.query(QueryRequest(text, k, iterate = "--iterate" in args))
         printJson(responseJson.encodeToJsonElement(QueryResponse.serializer(), response))
         EXIT_OK
     }
