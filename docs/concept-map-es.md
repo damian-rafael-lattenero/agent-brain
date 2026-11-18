@@ -365,7 +365,12 @@ iters FINAL 4/6 PASS, p50 4.5 s / p95 9.4 s, $0. deepseek MANTIENE EL SILLÓN
 vacío en turnos triviales, el needle de contenido) son la tarea de la receta
 completa (2-3 épocas, negativos pesados 0.1-0.2, ~8 h de run nocturno —
 palabra del owner). Adapters en `evals/lora/adapter-400/` (gitignoreado).
-Palabras: mask-prompt, hold-out final, self-distillation.
+ACTUALIZACIÓN: el run nocturno ESTÁ CORRIENDO — launchd one-shot
+`com.zcode.lora-full` (script `scripts/lora-full-run.nu`), 2400 iters
+(~2.7 épocas, ~10 h), los negativos en su ratio natural (3% — mlx no tiene
+peso por ejemplo), y al terminar el script sirve el adapter, corre
+extraction-core y manda UNA línea de Telegram con el veredicto (ruidosa si
+falla). Palabras: mask-prompt, hold-out final, self-distillation.
 
 **La ley de estilo del día:** terminal 100% Nushell → 99% Nushell por
 defecto (builtins sobre coreutils, cero bash -c, ^ solo si un builtin tapa el
