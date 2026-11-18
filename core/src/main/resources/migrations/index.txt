@@ -4,3 +4,4 @@
 0004_eval_product.sql
 0005_memory_edges.sql
 0006_memory_invalidation.sql
+0007_turn_costs.sql

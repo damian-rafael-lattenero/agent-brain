@@ -252,6 +252,8 @@ class KafkaBusConsumer private constructor(
     private val ingest: PgBusIngest,
     private val topic: String,
     val stats: KafkaStats,
+    /** The ledger projection, after the durable ingest (derived data never blocks the source). */
+    private val project: suspend (List<BusEvent>) -> Unit = {},
 ) {
 
     /** One poll on a fresh consumer (tests, `ingest --once`). */
@@ -313,6 +315,7 @@ class KafkaBusConsumer private constructor(
             }
         }
         ingest.handle(events)
+        project(events)
         withContext(Dispatchers.IO) { consumer.commitSync() }
         stats.accept(
             records.count(),
@@ -364,8 +367,13 @@ class KafkaBusConsumer private constructor(
         const val CLOSE_TIMEOUT_S = 10L
 
         /** Construction is a [Kap]: the stats are kap `Ref` state (see [KafkaStats]). */
-        fun of(config: Config, ingest: PgBusIngest, topic: String = config.kafkaTopic): Kap<KafkaBusConsumer> =
-            Kap { KafkaBusConsumer(config, ingest, topic, KafkaStats.of().evalGraph()) }
+        fun of(
+            config: Config,
+            ingest: PgBusIngest,
+            topic: String = config.kafkaTopic,
+            project: suspend (List<BusEvent>) -> Unit = {},
+        ): Kap<KafkaBusConsumer> =
+            Kap { KafkaBusConsumer(config, ingest, topic, KafkaStats.of().evalGraph(), project) }
 
         /** The heartbeat answers "is the process there", never "did the cycle finish". */
         val HEARTBEAT_EVERY = 5.seconds

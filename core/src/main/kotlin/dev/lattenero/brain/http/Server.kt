@@ -2,6 +2,7 @@ package dev.lattenero.brain.http
 
 import dev.lattenero.brain.VERSION
 import dev.lattenero.brain.bus.BusPipeline
+import dev.lattenero.brain.bus.TurnCosts
 import dev.lattenero.brain.config.Config
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.db.Migrator
@@ -217,6 +218,13 @@ fun Application.brainModule(
         }
         if (bus != null) {
             get("/bus/status") { call.respond(bus.status(busProcess)) }
+            // The per-turn cost ledger (audit): today's rollup and the newest
+            // rows. Read-only projections of `turn_costs`.
+            get("/costs/today") { call.respond(bus.costs.today()) }
+            get("/costs/recent") {
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: TurnCosts.DEFAULT_LIMIT
+                call.respond(bus.costs.recent(limit))
+            }
         }
         if (rag != null) {
             post("/rag/query") {

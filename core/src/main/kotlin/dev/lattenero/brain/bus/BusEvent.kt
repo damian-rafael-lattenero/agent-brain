@@ -17,6 +17,9 @@ enum class BusKind(val wire: String) {
     @SerialName("tool.result") TOOL_RESULT("tool.result"),
     @SerialName("turn.completed") TURN_COMPLETED("turn.completed"),
     @SerialName("turn.failed") TURN_FAILED("turn.failed"),
+
+    /** The owner's 👍/👎 on a sealed turn (audit: the first preference data). */
+    @SerialName("turn.feedback") TURN_FEEDBACK("turn.feedback"),
 }
 
 /** Who produced the event. */
