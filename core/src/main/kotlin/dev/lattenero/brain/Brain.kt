@@ -24,11 +24,13 @@ import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.EmbeddingProviders
 import dev.lattenero.brain.embeddings.ProviderResilience
 import dev.lattenero.brain.eval.EvalLedger
+import dev.lattenero.brain.eval.UsageEval
 import dev.lattenero.brain.http.HttpClients
 import dev.lattenero.brain.http.Readiness
 import dev.lattenero.brain.rag.CountingTracer
 import dev.lattenero.brain.rag.EmbedPipeline
 import dev.lattenero.brain.rag.Indexer
+import dev.lattenero.brain.rag.RagQueryLogger
 import dev.lattenero.brain.rag.RagService
 import dev.lattenero.brain.rag.RagStore
 import kap.CircuitBreaker
@@ -113,6 +115,15 @@ class Brain private constructor(
 
     /** The eval ledger: reads for `/eval/latest` and the CLI, writes from every eval run. */
     val evalLedger: EvalLedger = EvalLedger(db, config.embedDim)
+
+    /**
+     * The application-specific eval's two parts: the production rag_query log
+     * (written at the HTTP boundary; the in-process eval CLI never lands
+     * there) and its judge-graded report — the one number the curated suites
+     * cannot give.
+     */
+    val ragQueryLog: RagQueryLogger = RagQueryLogger(db)
+    val usageEval: UsageEval = UsageEval(db, judgeChat, embedModel = provider.model, embedDim = config.embedDim)
 
     val extractor: MemoryExtractor = MemoryExtractor(
         chat = chat,

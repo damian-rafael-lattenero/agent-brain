@@ -52,4 +52,14 @@ def main []: nothing -> nothing {
         let misses: string = ($score.misses | str join ", ")
         announce-loud $"🌙 <b>RAG nightly BAJÓ del gate</b> — ($score.passed)/($score.total) con gate ($score.gate). Misses: ($misses)"
     }
+
+    # The application-specific leg: grade the production rag_query log with the
+    # judge. Nothing to grade exits 0 quietly; a gate miss speaks LOUD — same
+    # law as the suite above.
+    let usage: record = (do { ^$BIN usage-eval } | complete)
+    print $"usage-eval: exit ($usage.exit_code)"
+    if $usage.exit_code != 0 {
+        print ($usage.stderr | str substring 0..300)
+        announce-loud $"🌙 <b>Usage eval BAJÓ del gate</b> — ($usage.stderr | str substring 0..200)"
+    }
 }

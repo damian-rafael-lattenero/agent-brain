@@ -89,3 +89,12 @@ LEFT JOIN vec ON vec.id = c.id
 LEFT JOIN fts ON fts.id = c.id
 ORDER BY f.score DESC, c.id
 LIMIT :k;
+
+-- The usage eval's re-materialization: the content a logged query was served,
+-- by chunk id (chunks pruned since the query simply don't come back — the
+-- logged top_uris remain the query's history).
+chunksByIds:
+SELECT c.id, d.uri, c.content
+FROM chunks c JOIN documents d ON d.id = c.doc_id
+WHERE c.id IN (SELECT unnest(:ids::bigint[]))
+ORDER BY c.id;

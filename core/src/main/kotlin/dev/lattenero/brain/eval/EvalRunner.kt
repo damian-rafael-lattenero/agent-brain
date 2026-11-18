@@ -55,6 +55,10 @@ data class CaseResult(
     val expectedVerdict: String? = null,
     /** Memory suites: how many graph neighbors traveled with the hit. */
     val relatedHits: Int? = null,
+    /** Usage suites: how many of the served chunks the judge graded relevant. */
+    val relevantCount: Int? = null,
+    /** Usage suites: the judge's verdict verbatim (capped evidence, also stored on the log row). */
+    val verdictText: String? = null,
     val failure: String? = null,
 )
 
@@ -185,6 +189,7 @@ class EvalRunner(
             EvalKind.GROUNDED -> groundedCases(brain)
             EvalKind.MEMORY -> legs.memoryCases(brain, suite)
             EvalKind.CONTRADICTION -> legs.contradictionCases(brain, suite, seededIds)
+            EvalKind.USAGE -> error("usage grading samples the production log; it never runs as a suite")
             EvalKind.EXTRACTION -> error("an extraction suite does not use a database")
         }
         return report(cases, startedAt, mark, identityFor(brain))
@@ -478,6 +483,12 @@ class EvalRunner(
                         row.topUri?.substringAfterLast('/'),
                         row.supported?.let { if (it) "yes" else "no" },
                     )
+                },
+            )
+            EvalKind.USAGE -> table(
+                listOf("query", "first relevant rank", "relevant of served"),
+                report.cases.map { row ->
+                    listOf(row.question, row.rank?.toString(), row.relevantCount?.toString())
                 },
             )
             EvalKind.GROUNDED -> table(
