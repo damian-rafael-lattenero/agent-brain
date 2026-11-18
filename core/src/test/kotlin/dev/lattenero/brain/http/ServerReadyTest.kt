@@ -35,7 +35,8 @@ class ServerReadyTest {
 
     @Test
     fun `health answers with the version and a redacted config`() = testApplication {
-        val secret = "s3cret-that-must-never-leak"
+        // a FAKE secret: this test proves /health never leaks it
+        val secret = "s3cret-that-must-never-leak" // gitleaks:allow — fixture, not a credential
         Brain.resource(sharedConfig.copy(pgPassword = secret, glmApiKey = "sk-$secret"), FakeProvider(768)).use { brain ->
             application { brainModule(brain.config, brain.readiness) }
             val response = client.get("/health")
