@@ -315,3 +315,54 @@ Plan de lectura: leélo dos veces (hoy y mañana); la cadena que resume todo es
 `rag_query "extraction cascade breaker timeout"`; en 3 días, explicar de
 memoria RRF, recall@5, dedup 0.90, breaker y context engineering, y por qué el
 rerank quedó OFF.
+
+## Parte 6 — el arco del 18/11 (cuatro veredictos, unidades 1-4)
+
+**Unit 1 — usage eval (application-specific evaluation), SHIPPED.** Cada
+`rag_query` real que responde el HTTP queda en `rag_query_log` (pregunta,
+chunks servidos, latencia del que preguntó; el CLI de evals nunca escribe
+ahí) y `usage-eval` lo gradúa con el judge: el rank del primer chunk
+relevante alimenta las mismas columnas graduadas del ledger (MRR/recall@1/@5/
+nDCG@5) con la latencia de PRODUCCIÓN. Suite `usage`, gate 0.7; baseline 1/1
+rank 1 MRR 1.0; el nocturno de las 04:00 lo certifica. Palabras: application-
+specific evaluation (Mem0 la lista entre los problemas abiertos 2026), usage
+log.
+
+**Unit 2 — cross-encoder probe, VERDICT.** Mismas 41 preguntas, mismos
+candidatos (top-10 de producción), solo cambia el orden. bge-reranker-base es
+el PRIMER mecanismo que vence a la fusión (recall@1 0.439 → 0.537; 10/3
+mejoraron/empeoraron); MiniLM pierde y los dos listwise-LLM siguen perdidos
+(default OFF para siempre). Integración EN PAUSA: las queries reales
+empeoraron (0/4), latencia ~25-50×, y en la JVM es ONNX/DJL + artifact.
+EL HALLAZGO GRANDE: el fixture miente — las mismas 33 preguntas con 33/33
+(MRR 0.985) en el corpus curado dan recall@5 0.697 / MRR 0.608 contra las
+20,722 docs de producción. El usage eval es el instrumento honesto; el
+corpus/retrieval es la headroom. Palabras: cross-encoder (score directo del
+par query-texto; el estándar 2026), listwise (re-ordenar con un chat), leg
+dilution (en RRF, un doc en VARIAS patas vence a uno mejor que está en UNA).
+
+**Unit 3 — agentic multi-hop, SHIPPED.** `QueryRequest.iterate` descompone
+(MultiHop) en 2-4 sub-queries y fusiona todas las patas ENCIMA del orden
+bilingüe — la primera versión lo REEMPLAZABA y el A/B de producción lo cazó
+(una query española se hundió de rank 2 a fuera del top-10: cross-lingual
+0.55-0.65 con nomic es justo la debilidad). Suite `multi-hop.json`: 5
+preguntas sobre twin pairs (el vocabulario de un doc ahoga al otro; la ley de
+distractors hecha casos), gate 0.8, 5/5 en ambas modalidades. Producción:
+mixto — un rescate real 0→1 y una dilución 2→0 (leg dilution). Opt-in por
+CLI (`--iterate`), MCP (rag_query v2) y suite. Palabras: multi-hop/agentic
+loop, patas compuestas (una etapa nueva SOLO puede sumar recall), twin pairs.
+
+**Unit 4 — el peldaño de los modelos (LoRA), EN VUELO.** Dataset = los pares
+del pipeline: 961 positivos (transcript → extracción canónica, el label ES la
+salida que el pipeline mantuvo: self-distillation) + 31 negativos del
+quarantine → extracción vacía, ~748k tokens, hold-out del 10% FINAL (medir
+turnos futuros). Receta en vuelo: Qwen2.5-3B-Instruct 4-bit en MLX (Apple
+Silicon), LoRA 16 capas, seq 1536, mask-prompt (loss solo sobre la
+extracción), lr 1e-4, 400 iters (medido ~15 s/iter con el worker vivo; la
+receta completa 2-3 épocas es un run nocturno). Gate sin cambios:
+extraction-core contra deepseek 6/6 — la ley de B2 aplica al modelo propio.
+Palabras: mask-prompt, hold-out final, self-distillation.
+
+**La ley de estilo del día:** terminal 100% Nushell → 99% Nushell por
+defecto (builtins sobre coreutils, cero bash -c, ^ solo si un builtin tapa el
+nombre; bash SOLO para lo que existe únicamente en POSIX).
