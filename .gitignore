@@ -17,3 +17,6 @@ build/
 /evals/artifacts/dream-*
 /evals/artifacts/eval-*
 /evals/artifacts/matrix-*
+
+# the LoRA training data: the owner's private transcripts, never committed
+/evals/lora/
