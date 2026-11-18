@@ -352,15 +352,19 @@ mixto — un rescate real 0→1 y una dilución 2→0 (leg dilution). Opt-in por
 CLI (`--iterate`), MCP (rag_query v2) y suite. Palabras: multi-hop/agentic
 loop, patas compuestas (una etapa nueva SOLO puede sumar recall), twin pairs.
 
-**Unit 4 — el peldaño de los modelos (LoRA), EN VUELO.** Dataset = los pares
-del pipeline: 961 positivos (transcript → extracción canónica, el label ES la
-salida que el pipeline mantuvo: self-distillation) + 31 negativos del
-quarantine → extracción vacía, ~748k tokens, hold-out del 10% FINAL (medir
-turnos futuros). Receta en vuelo: Qwen2.5-3B-Instruct 4-bit en MLX (Apple
-Silicon), LoRA 16 capas, seq 1536, mask-prompt (loss solo sobre la
-extracción), lr 1e-4, 400 iters (medido ~15 s/iter con el worker vivo; la
-receta completa 2-3 épocas es un run nocturno). Gate sin cambios:
-extraction-core contra deepseek 6/6 — la ley de B2 aplica al modelo propio.
+**Unit 4 — el peldaño de los modelos (LoRA), COMPLETO.** El primer modelo
+entrenado en la casa, de punta a punta: dataset = los pares del pipeline (961
+positivos — transcript → extracción canónica, el label ES la salida que el
+pipeline mantuvo: self-distillation — + 31 negativos del quarantine →
+extracción vacía, ~748k tokens, hold-out del 10% FINAL), Qwen2.5-3B-Instruct
+4-bit en MLX (Apple Silicon), LoRA 16 capas, seq 1536, mask-prompt, lr 1e-4,
+400 iters ≈ 1.7 h. Gate sin cambios: extraction-core contra deepseek 6/6.
+NÚMEROS: LoRA @ 200 iters 4/6 PASS (p50 9.8 s con la GPU peleada); LoRA @ 400
+iters FINAL 4/6 PASS, p50 4.5 s / p95 9.4 s, $0. deepseek MANTIENE EL SILLÓN
+(la ley de B2 aplica al modelo propio); las dos fallas (la disciplina del
+vacío en turnos triviales, el needle de contenido) son la tarea de la receta
+completa (2-3 épocas, negativos pesados 0.1-0.2, ~8 h de run nocturno —
+palabra del owner). Adapters en `evals/lora/adapter-400/` (gitignoreado).
 Palabras: mask-prompt, hold-out final, self-distillation.
 
 **La ley de estilo del día:** terminal 100% Nushell → 99% Nushell por
