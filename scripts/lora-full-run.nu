@@ -76,8 +76,9 @@ def main []: nothing -> nothing {
     print $"dataset: ($data.pairs) pairs — train ($data.train) / holdout ($data.holdout)"
 
     # 3. the full recipe. A non-zero exit here is the failure path: loud.
+    #    run-external because the binary path is an interpolated string.
     let train: record = (do {
-        $"($VENV_BIN)/mlx_lm.lora" --train --model $BASE_MODEL --data $WORK
+        run-external $"($VENV_BIN)/mlx_lm.lora" --train --model $BASE_MODEL --data $WORK
             --fine-tune-type lora --batch-size 1 --iters $ITERS --learning-rate 1e-4
             --num-layers 16 --mask-prompt --max-seq-length 1536 --steps-per-eval 400
             --steps-per-report 200 --save-every 400 --adapter-path $"($LORA)/adapter-full"
@@ -90,7 +91,7 @@ def main []: nothing -> nothing {
     # 4. the gate: serve the fresh adapter, read the server's OWN model id,
     #    run extraction-core with env-only overrides, stop the server.
     let srv: int = (job spawn {
-        $"($VENV_BIN)/mlx_lm.server" --model $BASE_MODEL --adapter-path $"($LORA)/adapter-full" --port 8769
+        run-external $"($VENV_BIN)/mlx_lm.server" --model $BASE_MODEL --adapter-path $"($LORA)/adapter-full" --port 8769
     })
     mut ready: bool = false
     for _ in (seq 1 30) {
