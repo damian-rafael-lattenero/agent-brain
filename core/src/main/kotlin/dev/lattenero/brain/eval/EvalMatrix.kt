@@ -229,6 +229,8 @@ object EvalRecommendations {
             "A wrong verdict keeps a stale lie or splits one truth: quality first, then declared cost."
         EvalKind.MEMORY ->
             "Recall with the graph attached runs on every query: quality first, then latency and declared cost."
+        EvalKind.USAGE ->
+            "Real queries, judge-graded: quality first — a usage miss is what production actually felt."
     }
 }
 

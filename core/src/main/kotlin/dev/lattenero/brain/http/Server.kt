@@ -18,6 +18,7 @@ import dev.lattenero.brain.rag.IndexRequest
 import dev.lattenero.brain.rag.Indexer
 import dev.lattenero.brain.rag.QueryRequest
 import dev.lattenero.brain.rag.RagQueryException
+import dev.lattenero.brain.rag.RagQueryLogger
 import dev.lattenero.brain.rag.RagService
 import org.slf4j.LoggerFactory
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
@@ -25,6 +26,7 @@ import io.ktor.http.HttpStatusCode
 import kap.KapTypeSafe
 import kap.ProcessHandle
 import kap.evalGraph
+import kotlin.time.TimeSource
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -195,6 +197,7 @@ fun Application.brainModule(
     busProcess: ProcessHandle<*>? = null,
     evalLedger: EvalLedger? = null,
     metricsRegistry: PrometheusMeterRegistry? = null,
+    ragQueryLogger: RagQueryLogger? = null,
 ) {
     install(ContentNegotiation) { json(responseJson) }
     routing {
@@ -232,7 +235,13 @@ fun Application.brainModule(
                     call.receiveBodyOrBadRequest<QueryRequest>("body must be {\"query\": string, \"k\"?: int}")
                         ?: return@post
                 call.runOrBadRequest(RagQueryException::class.java, "bad query") {
-                    call.respond(rag.query(request))
+                    val retrievalMark = TimeSource.Monotonic.markNow()
+                    val response = rag.query(request)
+                    // The application-specific eval's raw material: what a real
+                    // caller asked and what the boundary served it. Best-effort —
+                    // a logging failure never breaks the serve path.
+                    ragQueryLogger?.log(response.query, response.hits, retrievalMark.elapsedNow().inWholeMilliseconds)
+                    call.respond(response)
                 }
             }
             get("/rag/stats") { call.respond(rag.stats()) }
@@ -312,9 +321,13 @@ object BrainServer {
         busProcess: ProcessHandle<*>? = null,
         evalLedger: EvalLedger? = null,
         metricsRegistry: PrometheusMeterRegistry? = null,
+        ragQueryLogger: RagQueryLogger? = null,
     ): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, host = config.httpHost, port = config.httpPort) {
-            brainModule(config, readiness, bus, rag, indexer, memory, busProcess, evalLedger, metricsRegistry)
+            brainModule(
+                config, readiness, bus, rag, indexer, memory, busProcess, evalLedger, metricsRegistry,
+                ragQueryLogger,
+            )
         }
         log.info("agent-brain $VERSION listening on ${config.httpHost}:${config.httpPort}")
         return server.start(wait = wait)
