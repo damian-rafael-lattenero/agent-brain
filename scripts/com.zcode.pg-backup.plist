@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- com.zcode.pg-backup — the daily insurance for agent_brain + whatsdigest.
+     Install (render __HOME__, then bootstrap):
+       sed "s|__HOME__|$HOME|g" scripts/com.zcode.pg-backup.plist > ~/Library/LaunchAgents/com.zcode.pg-backup.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.zcode.pg-backup.plist
+     03:40 daily: after colima is up (watchdog every 2 min), before the 04:00
+     reindex. KeepAlive is FALSE on purpose — a calendar job that dies must
+     not respawn in a loop; the script itself speaks LOUD to Telegram on
+     failure. PATH carries /opt/homebrew/bin so `docker` resolves under launchd. -->
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>__HOME__</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<false/>
+	<key>Label</key>
+	<string>com.zcode.pg-backup</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/lattenero/.local/bin/nu-nightly</string>
+		<string>__HOME__/Projects/agent-brain/scripts/backup-pg.nu</string>
+	</array>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/pg-backup.log</string>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/pg-backup.log</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>3</integer>
+		<key>Minute</key>
+		<integer>40</integer>
+	</dict>
+	<key>WorkingDirectory</key>
+	<string>__HOME__/Projects/agent-brain</string>
+</dict>
+</plist>
