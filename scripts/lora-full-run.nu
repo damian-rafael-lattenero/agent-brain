@@ -81,20 +81,20 @@ def main []: nothing -> nothing {
     #    them as its own flags (measured: "unknown flag train").
     let train_cmd: list<string> = [
         $"($VENV_BIN)/mlx_lm.lora"
-        --train
-        --model $BASE_MODEL
-        --data $WORK
-        --fine-tune-type lora
-        --batch-size 1
-        --iters $ITERS
-        --learning-rate 1e-4
-        --num-layers 16
-        --mask-prompt
-        --max-seq-length 1536
-        --steps-per-eval 400
-        --steps-per-report 200
-        --save-every 400
-        --adapter-path $"($LORA)/adapter-full"
+        "--train"
+        "--model" $BASE_MODEL
+        "--data" $WORK
+        "--fine-tune-type" "lora"
+        "--batch-size" "1"
+        "--iters" ($ITERS | into string)
+        "--learning-rate" "1e-4"
+        "--num-layers" "16"
+        "--mask-prompt"
+        "--max-seq-length" "1536"
+        "--steps-per-eval" "400"
+        "--steps-per-report" "200"
+        "--save-every" "400"
+        "--adapter-path" $"($LORA)/adapter-full"
     ]
     let train: record = (do { run-external $train_cmd.0 ...($train_cmd | skip 1) } | complete)
     if $train.exit_code != 0 {
@@ -106,9 +106,9 @@ def main []: nothing -> nothing {
     #    run extraction-core with env-only overrides, stop the server.
     let serve_cmd: list<string> = [
         $"($VENV_BIN)/mlx_lm.server"
-        --model $BASE_MODEL
-        --adapter-path $"($LORA)/adapter-full"
-        --port 8769
+        "--model" $BASE_MODEL
+        "--adapter-path" $"($LORA)/adapter-full"
+        "--port" "8769"
     ]
     let srv: int = (job spawn { run-external $serve_cmd.0 ...($serve_cmd | skip 1) })
     mut ready: bool = false
