@@ -344,6 +344,19 @@ push and nightly (`.github/workflows/evals.yml`); the matrix is run on demand by
 **reports instead of gating** — a model below the gate is a finding in the table, not a red build;
 `eval --matrix ... --strict` makes it fail when that is what you want.
 
+### Usage eval (application-specific)
+
+The curated suites grade ground truth; the **usage eval grades what production actually served**.
+Every REAL `rag_query` the HTTP boundary answers is logged (`rag_query_log`: the query, the served
+chunk ids, the latency the caller felt — the in-process eval CLI never lands there), and
+`agent-brain usage-eval [--sample N]` grades the oldest ungraded rows with the judge: one judge call
+per query decides which served chunks genuinely help, the first relevant rank feeds the SAME graded
+retrieval columns (MRR, recall@1/@5, nDCG@5), and the report rides the ledger as suite `usage` with
+the PRODUCTION latency columns (p50/p95 are what callers actually felt, not the grading call).
+Nothing to grade answers honestly and exits 0; a run below the gate exits 1 and the nightly speaks
+loud. Evidence stays: each graded row stores the verdict verbatim, and a graded row never grades
+twice. The nightly (`scripts/rag-nightly.nu`) runs the usage leg after the real-questions suite.
+
 `eval_runs` (main database, migration `0004_eval_product.sql`) holds one row per (suite, model):
 `kind`, `axis`, `gate`, `ok`, `passed`/`total`, `p50_ms`/`p95_ms`, `tokens_prompt`/`tokens_completion`,
 `cost_usd` plus `cost_known`, `duration_ms`, `started_at`, and the whole report as `detail`; the rows of

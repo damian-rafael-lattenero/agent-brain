@@ -31,6 +31,14 @@ enum class EvalKind {
     /** Does memory search return the expected memory — and does the graph carry its related? */
     @SerialName("memory")
     MEMORY,
+
+    /**
+     * The production rag_query log, judge-graded: every case is a real query
+     * the HTTP boundary served, relevance decided over the logged evidence.
+     * It has no suite file — it reads the log, it never runs as a suite.
+     */
+    @SerialName("usage")
+    USAGE,
     ;
 
     /** Recall and memory rank embeddings; the rest measure the chat model. */
@@ -43,7 +51,7 @@ enum class EvalKind {
 
     /** Suites that run against a fresh throwaway database (everything but extraction). */
     val usesFreshDatabase: Boolean
-        get() = this != EXTRACTION
+        get() = this != EXTRACTION && this != USAGE
 
     /** Only the retrieval suites index the fixture corpus; the memory legs seed their own rows. */
     val indexesCorpus: Boolean
@@ -61,6 +69,7 @@ enum class EvalKind {
             GROUNDED -> "answer composition (one chat call per answered turn)"
             CONTRADICTION -> "reconcile verdict (one chat call per near-duplicate pair)"
             MEMORY -> "memory recall (embedding a query + the graph traversal)"
+            USAGE -> "usage grading (one judge call per logged query)"
         }
 }
 
@@ -220,6 +229,7 @@ data class EvalSuite(
             EvalKind.EXTRACTION -> case is ExtractionCase
             EvalKind.CONTRADICTION -> case is ContradictionCase
             EvalKind.MEMORY -> case is MemoryCase
+            EvalKind.USAGE -> false
         }
         if (!matches) {
             throw EvalSuiteException("$name: case ${case.id} does not match the suite kind '${kind.label}'")
