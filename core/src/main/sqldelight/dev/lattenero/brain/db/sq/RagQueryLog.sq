@@ -1,0 +1,41 @@
+-- TYPING-ONLY declaration (see Memories.sq): the runtime DDL is Migrator's
+-- 0008_rag_query_log.sql. chunk_ids / top_uris are JSON arrays in TEXT on
+-- purpose (no SQL-side array algebra is needed on a logging table).
+CREATE TABLE rag_query_log (
+  id BIGINT PRIMARY KEY,
+  query TEXT NOT NULL,
+  chunk_ids TEXT NOT NULL,
+  top_uris TEXT NOT NULL,
+  latency_ms INTEGER NOT NULL,
+  graded BOOLEAN NOT NULL,
+  relevant_count INTEGER,
+  first_relevant_rank INTEGER,
+  verdicts TEXT,
+  judged_at TIMESTAMPTZ,
+  at TIMESTAMPTZ NOT NULL
+);
+
+-- One row per served query, written at the HTTP boundary (the in-process eval
+-- CLI never lands here — its queries grade against ground truth, not judge).
+-- `graded` is stated explicitly: the dialect cannot populate DEFAULT columns
+-- on inserts (the TurnCosts lesson).
+insertRagQueryLog:
+INSERT INTO rag_query_log (query, chunk_ids, top_uris, latency_ms, graded, at)
+VALUES (:query, :chunkIds, :topUris, :latencyMs, FALSE, :at::timestamptz);
+
+-- The sampler: the oldest ungraded queries first (FIFO, so a steady stream is
+-- graded evenly and the partial index serves the scan).
+ungradedSample:
+SELECT id, query, chunk_ids, top_uris, latency_ms, at FROM rag_query_log
+WHERE NOT graded ORDER BY at LIMIT :limit;
+
+-- How much grading is owed (the CLI's and the nightly's "is there work" probe).
+countUngraded:
+SELECT count(*) AS n FROM rag_query_log WHERE NOT graded;
+
+-- The verdict lands with the verdict text as evidence; `AND NOT graded` makes
+-- a replayed grade a no-op (at-least-once callers stay honest).
+markGraded:
+UPDATE rag_query_log SET graded = TRUE, relevant_count = :relevantCount,
+  first_relevant_rank = :firstRelevantRank, verdicts = :verdicts, judged_at = :judgedAt::timestamptz
+WHERE id = :id AND NOT graded;

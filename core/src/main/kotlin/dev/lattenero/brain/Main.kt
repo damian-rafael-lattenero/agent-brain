@@ -28,6 +28,7 @@ import dev.lattenero.brain.eval.EvalSuites
 import dev.lattenero.brain.eval.ModelSpec
 import dev.lattenero.brain.eval.PriceTable
 import dev.lattenero.brain.eval.StoredRun
+import dev.lattenero.brain.eval.UsageEval
 import dev.lattenero.brain.http.readCorpusFile
 import dev.lattenero.brain.memory.DedupReport
 import dev.lattenero.brain.memory.DreamPass
@@ -66,6 +67,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -120,6 +122,10 @@ const val USAGE = """usage: agent-brain <command> [args]
                      --matrix runs the same suites on >=2 models into one comparative artifact
   eval latest [--suite S] [--matrix] [--limit N] [--md]
                      the last persisted run(s) from eval_runs (also GET /eval/latest)
+  usage-eval [--sample N]
+                     grade the production rag_query log with the judge: hit-rate and the graded
+                     retrieval columns over REAL queries (the report rides the ledger as suite
+                     "usage"); nothing to grade answers honestly and exits 0
 """
 
 fun main(args: Array<String>) {
@@ -144,6 +150,7 @@ fun run(args: Array<String>): Int {
             "dream" -> dream(rest)
             "export-lora-pairs" -> exportLoraPairs(rest)
             "eval" -> eval(rest)
+            "usage-eval" -> usageEval(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
             "config" -> printJson(Config.load().snapshot()).let { EXIT_OK }
@@ -199,7 +206,7 @@ private fun serve(): Int {
                 BrainServer.start(
                     config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory,
                     wait = true, busProcess = busProcess, evalLedger = brain.evalLedger,
-                    metricsRegistry = brain.metricsRegistry,
+                    metricsRegistry = brain.metricsRegistry, ragQueryLogger = brain.ragQueryLog,
                 )
             }
         }
@@ -421,6 +428,42 @@ private fun evalLatest(args: List<String>): Int {
         }
         EXIT_OK
     }
+}
+
+/**
+ * `usage-eval [--sample N]`: grade the production rag_query log with the
+ * judge. Nothing to grade answers honestly and exits 0; a report below the
+ * usage gate exits 1 (the nightly speaks LOUD on it). The report rides the
+ * ledger and the artifacts like any suite run.
+ */
+private fun usageEval(args: List<String>): Int {
+    val sample = args.optionValue("--sample")?.toIntOrNull() ?: UsageEval.DEFAULT_SAMPLE
+    if (sample < 1) return fail("usage-eval: --sample must be >= 1")
+    return withBrain(Config.load()) { brain ->
+        brain.migrator.apply()
+        val ungraded = brain.usageEval.ungradedCount()
+        if (ungraded == 0L) {
+            printJson(buildUsageNothing(0))
+            return@withBrain EXIT_OK
+        }
+        val report = brain.usageEval.grade(sampleSize = sample) ?: run {
+            printJson(buildUsageNothing(ungraded))
+            return@withBrain EXIT_OK
+        }
+        val json = responseJson.encodeToString(EvalReport.serializer(), report)
+        val outDir = java.nio.file.Path.of("evals/artifacts")
+        java.nio.file.Files.createDirectories(outDir)
+        writeArtifact(outDir, "usage-${stamp(report.startedAt)}", EvalRunner.markdown(report), json)
+        writeArtifact(outDir, "latest-usage", EvalRunner.markdown(report), json)
+        printJson(responseJson.parseToJsonElement(json))
+        if (report.ok) EXIT_OK else EXIT_FAIL
+    }
+}
+
+private fun buildUsageNothing(ungraded: Long): JsonObject = buildJsonObject {
+    put("suite", "usage")
+    put("graded", 0)
+    put("ungraded", ungraded)
 }
 
 /** One artifact, two faces: the markdown a human reads and the JSON a machine reads. */
