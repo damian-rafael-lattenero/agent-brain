@@ -11,9 +11,20 @@ import kotlinx.serialization.Serializable
  * failure mid-run degrades honestly to the fused order. The bot's
  * memory-injection path never asks (a rerank spends a chat call per query);
  * the eval and the tools that can afford it do.
+ *
+ * `iterate` asks for the agentic loop ([MultiHop]): the question is decomposed
+ * into independent sub-queries, each one retrieved, and every leg fuses with
+ * the same RRF — for questions that span two concerns, which single-pass
+ * retrieval ranks by the dominant vocabulary alone. Opt-in like `rerank`: a
+ * decomposition spends a chat call per query, so the caller decides.
  */
 @Serializable
-data class QueryRequest(val query: String, val k: Int = RagStore.DEFAULT_K, val rerank: Boolean = false)
+data class QueryRequest(
+    val query: String,
+    val k: Int = RagStore.DEFAULT_K,
+    val rerank: Boolean = false,
+    val iterate: Boolean = false,
+)
 
 @Serializable
 data class IndexRequest(val globs: List<String> = emptyList())
@@ -47,7 +58,7 @@ class RagService(
         val text = request.query.trim()
         if (text.isEmpty()) throw RagQueryException("query must not be empty")
         if (request.k !in 1..MAX_K) throw RagQueryException("k must be between 1 and $MAX_K")
-        val fused = searchFused(text, request.k)
+        val fused = if (request.iterate) searchIterated(text, request.k) else searchFused(text, request.k)
         val (hits, reranked) = if (request.rerank) rerank(text, fused) else fused to false
         return QueryResponse(
             query = text,
@@ -94,6 +105,48 @@ class RagService(
             null
         }
         return restated
+    }
+
+    /**
+     * The agentic loop, COMPOSED with the bilingual stage: the fused order
+     * (original + English restatement) is the first leg, and each sub-query
+     * the decomposer produced adds one more leg — all fused by [Rrf]. No chat,
+     * a failed decomposition, or a failed leg degrades to fewer legs —
+     * retrieval never breaks because the loop could not ask (the rerank's
+     * law, restated for the loop).
+     */
+    private suspend fun searchIterated(text: String, k: Int): List<Hit> {
+        val fused = searchFused(text, k)
+        val subQueries = decompose(text)
+        val legs = mutableListOf(fused.map { it.chunkId })
+        val byId: MutableMap<Long, Hit> = fused.associateBy { it.chunkId }.toMutableMap()
+        for (sub in subQueries) {
+            val hits = try {
+                store.search(provider.embed(listOf(sub)).single(), sub, provider.model, k)
+            } catch (e: dev.lattenero.brain.embeddings.ProviderException) {
+                System.err.println("multi-hop: the sub-query leg failed (${e.message}) — the other legs stand")
+                emptyList()
+            } catch (e: java.sql.SQLException) {
+                System.err.println("multi-hop: the sub-query leg failed (${e.message}) — the other legs stand")
+                emptyList()
+            }
+            legs.add(hits.map { it.chunkId })
+            hits.forEach { byId.putIfAbsent(it.chunkId, it) }
+        }
+        return Rrf.fuse(legs).mapNotNull { entry -> byId[entry.id]?.copy(score = entry.score) }.take(k)
+    }
+
+    /** The independent sub-queries, or an empty list when there is nothing to add. Never throws. */
+    private suspend fun decompose(text: String): List<String> {
+        val chat = this.chat ?: return emptyList()
+        val result = try {
+            chat.completeJson(MultiHop.systemPrompt(), MultiHop.userPrompt(text), MultiHop.SCHEMA)
+        } catch (e: ChatException) {
+            System.err.println("multi-hop: the chat call failed (${e.message}) — the fused order stands")
+            null
+        }
+        val parsed = result?.let { MultiHop.parse(it.text, text) }.orEmpty()
+        return parsed
     }
 
     /**

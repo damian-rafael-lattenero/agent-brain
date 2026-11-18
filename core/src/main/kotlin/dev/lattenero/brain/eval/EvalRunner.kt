@@ -237,7 +237,9 @@ class EvalRunner(
     private suspend fun recallCases(brain: Brain): List<CaseResult> =
         suite.cases.filterIsInstance<RecallCase>().map { case ->
         val mark = options.timeSource.markNow()
-        val hits = brain.rag.query(QueryRequest(case.question, k = RECALL_K, rerank = options.rerank)).hits
+        val hits = brain.rag.query(
+            QueryRequest(case.question, k = RECALL_K, rerank = options.rerank, iterate = suite.iterate),
+        ).hits
         val durationMs = mark.elapsedNow().inWholeMilliseconds
         val rank = hits.indexOfFirst { it.uri.endsWith(case.uri) }.let { if (it >= 0) it + 1 else null }
         val top = hits.firstOrNull()
