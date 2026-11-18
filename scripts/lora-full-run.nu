@@ -76,13 +76,27 @@ def main []: nothing -> nothing {
     print $"dataset: ($data.pairs) pairs — train ($data.train) / holdout ($data.holdout)"
 
     # 3. the full recipe. A non-zero exit here is the failure path: loud.
-    #    run-external because the binary path is an interpolated string.
-    let train: record = (do {
-        run-external $"($VENV_BIN)/mlx_lm.lora" --train --model $BASE_MODEL --data $WORK
-            --fine-tune-type lora --batch-size 1 --iters $ITERS --learning-rate 1e-4
-            --num-layers 16 --mask-prompt --max-seq-length 1536 --steps-per-eval 400
-            --steps-per-report 200 --save-every 400 --adapter-path $"($LORA)/adapter-full"
-    } | complete)
+    #    The probe pattern (build.nu): the dash-flags ride as LIST VALUES via
+    #    spread — run-external with LITERAL --flags at the call site parses
+    #    them as its own flags (measured: "unknown flag train").
+    let train_cmd: list<string> = [
+        $"($VENV_BIN)/mlx_lm.lora"
+        --train
+        --model $BASE_MODEL
+        --data $WORK
+        --fine-tune-type lora
+        --batch-size 1
+        --iters $ITERS
+        --learning-rate 1e-4
+        --num-layers 16
+        --mask-prompt
+        --max-seq-length 1536
+        --steps-per-eval 400
+        --steps-per-report 200
+        --save-every 400
+        --adapter-path $"($LORA)/adapter-full"
+    ]
+    let train: record = (do { run-external $train_cmd.0 ...($train_cmd | skip 1) } | complete)
     if $train.exit_code != 0 {
         fail $"training exited ($train.exit_code): ($train.stderr | str substring 0..200)"
     }
@@ -90,9 +104,13 @@ def main []: nothing -> nothing {
 
     # 4. the gate: serve the fresh adapter, read the server's OWN model id,
     #    run extraction-core with env-only overrides, stop the server.
-    let srv: int = (job spawn {
-        run-external $"($VENV_BIN)/mlx_lm.server" --model $BASE_MODEL --adapter-path $"($LORA)/adapter-full" --port 8769
-    })
+    let serve_cmd: list<string> = [
+        $"($VENV_BIN)/mlx_lm.server"
+        --model $BASE_MODEL
+        --adapter-path $"($LORA)/adapter-full"
+        --port 8769
+    ]
+    let srv: int = (job spawn { run-external $serve_cmd.0 ...($serve_cmd | skip 1) })
     mut ready: bool = false
     for _ in (seq 1 30) {
         let probe: record = (do { curl -s http://127.0.0.1:8769/v1/models } | complete)
@@ -121,6 +139,6 @@ def main []: nothing -> nothing {
 
     # 5. ONE honest line with the verdict: the incumbent is deepseek 6/6.
     let verdict: string = if $report.ok { "PASÓ el gate" } else { "NO llegó al gate" }
-    announce $"🌙 LoRA full ($ITERS iters): ($report.passed)/($report.total) — ($verdict) vs deepseek 6/6. p50 ($report.metrics.p50Ms) ms · el incumbent conserva el sillón si ($report.passed) < 6"
+    announce $"🌙 LoRA full · ($ITERS) iters · extraction-core ($report.passed)/($report.total) — ($verdict) vs deepseek 6/6 · p50 ($report.metrics.p50Ms) ms"
     print $"gate: ($report.passed)/($report.total) ok=($report.ok)"
 }
