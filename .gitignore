@@ -12,3 +12,8 @@ build/
 .gradle/
 *.log
 .kotlin/
+
+# eval run artifacts: only the latest summaries ride the repo
+/evals/artifacts/dream-*
+/evals/artifacts/eval-*
+/evals/artifacts/matrix-*
