@@ -6,7 +6,8 @@ import dev.lattenero.brain.db.sq.Eval_runs
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import java.sql.Connection
+import java.math.BigDecimal
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /** One persisted run, in the shape the CLI and `/eval/latest` answer with. */
@@ -47,31 +48,29 @@ class EvalLedger(private val db: Database, private val embedDim: Int) {
     /** Applies pending migrations then inserts the run; the row is the durable artifact. */
     suspend fun record(report: EvalReport) {
         Migrator(db, embedDim).apply()
-        db.withConnection { conn ->
-            conn.prepareStatement(INSERT).use { ps ->
-                var i = 1
-                ps.setString(i++, report.suite)
-                ps.setString(i++, report.model)
-                ps.setString(i++, report.provider)
-                ps.setInt(i++, report.passed)
-                ps.setInt(i++, report.total)
-                ps.setDouble(i++, report.metrics.costUsd)
-                ps.setString(i++, json.encodeToString(EvalReport.serializer(), report))
-                ps.setString(i++, report.runId)
-                ps.setString(i++, report.matrixId)
-                ps.setString(i++, report.kind.label)
-                ps.setString(i++, report.axis.label)
-                ps.setDouble(i++, report.gate)
-                ps.setBoolean(i++, report.ok)
-                ps.setLong(i++, report.metrics.promptTokens)
-                ps.setLong(i++, report.metrics.completionTokens)
-                ps.setBoolean(i++, report.metrics.costKnown)
-                ps.setInt(i++, report.metrics.p50Ms.toInt())
-                ps.setInt(i++, report.metrics.p95Ms.toInt())
-                ps.setInt(i++, report.durationMs.toInt())
-                ps.setString(i, report.startedAt)
-                ps.executeUpdate()
-            }
+        db.withDriver { brainDb ->
+            brainDb.evalRunsQueries.insertEvalRun(
+                suite = report.suite,
+                model = report.model,
+                provider = report.provider,
+                passed = report.passed,
+                total = report.total,
+                costUsd = BigDecimal.valueOf(report.metrics.costUsd),
+                detail = json.encodeToString(EvalReport.serializer(), report),
+                runId = UUID.fromString(report.runId),
+                matrixId = report.matrixId?.let(UUID::fromString),
+                kind = report.kind.label,
+                axis = report.axis.label,
+                gate = report.gate,
+                ok = report.ok,
+                tokensPrompt = report.metrics.promptTokens,
+                tokensCompletion = report.metrics.completionTokens,
+                costKnown = report.metrics.costKnown,
+                p50Ms = report.metrics.p50Ms.toInt(),
+                p95Ms = report.metrics.p95Ms.toInt(),
+                durationMs = report.durationMs.toInt(),
+                startedAt = OffsetDateTime.parse(report.startedAt),
+            )
         }
     }
 
@@ -118,13 +117,6 @@ class EvalLedger(private val db: Database, private val embedDim: Int) {
     companion object {
         const val DEFAULT_LIMIT = 20
         const val MAX_LIMIT = 200
-
-        private val INSERT = """
-            INSERT INTO eval_runs (suite, model, provider, passed, total, cost_usd, detail,
-              run_id, matrix_id, kind, axis, gate, ok, tokens_prompt, tokens_completion,
-              cost_known, p50_ms, p95_ms, duration_ms, started_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::timestamptz)
-        """.trimIndent()
     }
 }
 

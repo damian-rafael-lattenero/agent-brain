@@ -145,12 +145,8 @@ class MemoryGraphStore(private val db: Database) {
     }
 
     /** Edge counts by kind — the status surface's additive `edgesByKind`. */
-    suspend fun countByKind(): Map<String, Long> = db.withConnection { conn ->
-        conn.createStatement().use { st ->
-            st.executeQuery("SELECT kind, count(*) FROM memory_edges GROUP BY kind ORDER BY kind").use { rs ->
-                generateSequence { if (rs.next()) rs.getString(1) to rs.getLong(2) else null }.toMap()
-            }
-        }
+    suspend fun countByKind(): Map<String, Long> = db.withDriver { brainDb ->
+        brainDb.memoryEdgesQueries.countByKind().executeAsList().associate { it.kind to it.n }
     }
 }
 
