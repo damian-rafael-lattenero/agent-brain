@@ -1,8 +1,14 @@
 # LoRA run 400 — the models rung, measured end-to-end (unit 4 of the arc)
 
 > Created: 2026-11-18 · Status: pipeline PROVEN, gate PASSED, incumbent keeps
-> the seat. The full recipe (2-3 epochs, negatives weighted) is the overnight
-> run, on the owner's word.
+> the seat. UPDATE 19/11: the overnight FULL recipe (2400 iters ≈ 2.7 epochs,
+> `com.zcode.lora-full` one-shot) FINISHED — gate **4/6 again, identical to
+> 400 iters**, p50 4.9 s. The two failures are STRUCTURAL, not epoch-limited:
+> the 31 negatives at their natural 3% ratio are too weak to teach trivial-
+> turn emptiness, and content needles need broader pair coverage. The next
+> LoRA lever is DATA (oversampled empties, more diverse content pairs), not
+> epochs. deepseek keeps the seat. Adapters: `evals/lora/adapter-full/`
+> (6 checkpoints), ledger rows 19/11 01:15.
 
 ## What ran (the first model this house ever trained)
 
