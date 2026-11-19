@@ -47,7 +47,7 @@ def main []: nothing -> nothing {
     let score: record = (read-score $eval.stdout)
     print $"score: ($score.passed)/($score.total) gate ($score.gate) ok=($score.ok)"
     if $score.ok {
-        announce $"🌙 RAG nightly: ($score.passed)/($score.total) ✅ (gate ($score.gate))"
+        announce $"🌙 RAG nightly: ($score.passed)/($score.total) ✅ gate ($score.gate)"
     } else {
         let misses: string = ($score.misses | str join ", ")
         announce-loud $"🌙 <b>RAG nightly BAJÓ del gate</b> — ($score.passed)/($score.total) con gate ($score.gate). Misses: ($misses)"
