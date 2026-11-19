@@ -375,3 +375,47 @@ falla). Palabras: mask-prompt, hold-out final, self-distillation.
 **La ley de estilo del día:** terminal 100% Nushell → 99% Nushell por
 defecto (builtins sobre coreutils, cero bash -c, ^ solo si un builtin tapa el
 nombre; bash SOLO para lo que existe únicamente en POSIX).
+
+## Parte 7 — el arco continúa (19/11: T1 shadow judge, rubric v2, T3 /learn, el pass de DATA)
+
+**T1 — shadow judge, SHIPPED** (`3838151`): los turnos completados del bot
+se gradúan cada noche con el judge sobre un rubric (score 1-5 anclado,
+pass 4+, gate 0.7), cursor de estado en `state/shadow-cursor.json`, ledger
+suite `shadow`. Leyes 2026 aplicadas: rubric no vibes, judge ≠ performer,
+single-output (sin position bias), el trend es el signal, sample no todo,
+lo determinístico queda en código (piso 240 chars en SQL). Primer run 8/8
+score-4 y EL SIGNAL: 7/8 razones decían "demasiado largo para Telegram".
+
+**Rubric v2** (`d891da1`): ese signal era un BUG del spec — el reply típico
+de 1090 chars es exactamente el formato del dueño (hecho/pendiente/siguiente
+con números). v2 penaliza RELLENO (repetición, retórica, invención), nunca
+la longitud. A/B en vivo: misma clase de replies 4/5 → 5/5. Guardia
+anti-inflación: los anclas wrong/partial no cambiaron.
+
+**T3 — /learn, SHIPPED** (`809d22a`, bot deployado): la tarjeta de
+aprendizaje de 7 días en Telegram — memorias por tipo (filtro de ventana en
+el BOT: /memory/recent no tiene parámetro de fecha), filas de evals vs gate,
+costo del día. DETERMINISTA por decisión (sin LLM): los ingredientes son los
+hechos, la tarjeta los ordena. Cada pata se degrada sola; tres caídas = un
+caído.
+
+**LoRA — el pass de DATA** (`989bc2d`): el run de 2400 iters terminó 4/6,
+IDÉNTICO a 400 — la palanca era DATA. Nuevo leg `trivialPairs`: turnos
+cortos procesados (reply ≤ 200 chars) con extracción VACÍA como label — la
+poda manual del dueño (75 tiny status memories borradas a mano) ES el label
+humano. Dataset v2 986+31+58; el split ingenuo mandaba TODOS los vacíos al
+holdout (0.5% en train) — corregido: hold-out cada 10 líneas SOLO de
+positivos, vacíos a train con oversample ×3 (24%). Entrenamiento v2 (800
+iters) en vuelo; el gate contra deepseek 6/6 decide.
+
+**La pregunta del owner (para el examen, #13): ¿por qué ollama/nomic siguen
+si deepseek es el extractor?** El veredicto provider-split (medido 15/11):
+dos proveedores por ROL. Embeddings = la pata de VOLUMEN (cada rag_query y
+cada insert): $0 marginal, p50 ~20-33 ms en el path de query, y funciona
+sin relay (los 429 del plan remoto mataron probes enteros mientras el local
+seguía). Privacidad también: los vectores derivan de contenido privado.
+Reemplazo solo si un embedding remoto le GANA a nomic en el matrix (all-
+minilm perdió: MRR 0.909 vs 0.985) con precio plano y bendición de
+privacidad. deepseek quedó en las patas de CALIDAD crítica y baja
+frecuencia (extracción, judge, dream); qwen2.5:1.5b fue jubilado por
+degeneración medida (9,227 chars de repetición).
