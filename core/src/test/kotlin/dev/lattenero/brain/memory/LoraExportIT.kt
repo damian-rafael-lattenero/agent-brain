@@ -35,7 +35,7 @@ class LoraExportIT {
     fun up() = runBlocking {
         TestEnv.needPostgres()
         db = Database(TestDatabase.config("lora"))
-        Migrator(db, 4).apply()
+        Migrator(db, 768).apply()
         brainDb = BrainDb(db.pool.asJdbcDriver())
         store = MemoryStore(db)
         export = LoraExport(store)
@@ -62,17 +62,30 @@ class LoraExportIT {
     }
 
     @Test
-    fun `a short zero-memory processed turn is a trivial pair with the empty extraction`() {
+    fun `short processed turns grade empty regardless of kept memories`() {
         runBlocking {
             seedTurn(
                 "trivial1",
                 "dale",
                 "Listo, sigo con la próxima unidad.",
             )
+            // A SHORT turn that kept one tiny memory (the extractor squeezed
+            // something out): the owner purged exactly this class by hand, so
+            // the honest label is STILL the empty extraction.
+            seedTurn("tiny1", "viste el ticket?", "Si, cerrado. Sigo.")
+            store.insertAll(
+                Transcript(
+                    eventId = "tiny1-c", sessionId = "s-tiny1", turnId = "tiny1", source = "telegram",
+                    prompt = "viste el ticket?", reply = "Si, cerrado. Sigo.", tools = emptyList(),
+                ),
+                "nomic-test",
+                listOf(MemoryStore.MemoryRow("fact", "el ticket se cerro", TestVectors.at(1.0, axis = 0))),
+            )
+
             val trivials = export.trivialPairs(limit = 50, maxReplyChars = 200)
-            val mine = trivials.filter { it.user.contains("Listo, sigo") }
-            assertThat(mine).hasSize(1)
-            val extraction = kotlinx.serialization.json.Json.parseToJsonElement(mine.single().assistant).jsonObject
+            val mine = trivials.filter { it.user.contains("Listo, sigo") || it.user.contains("viste el ticket") }
+            assertThat(mine).hasSize(2)
+            val extraction = kotlinx.serialization.json.Json.parseToJsonElement(mine.first().assistant).jsonObject
             assertThat(extraction["facts"]?.toString()).isEqualTo("[]")
             assertThat(extraction["decisions"]?.toString()).isEqualTo("[]")
             assertThat(extraction["preferences"]?.toString()).isEqualTo("[]")
