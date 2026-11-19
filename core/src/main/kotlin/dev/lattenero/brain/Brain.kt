@@ -11,6 +11,7 @@ import dev.lattenero.brain.memory.EdgeBackfill
 import dev.lattenero.brain.memory.EdgeBuilder
 import dev.lattenero.brain.memory.MemoryExtractor
 import dev.lattenero.brain.memory.MemoryGraphStore
+import dev.lattenero.brain.memory.LegacyTranslation
 import dev.lattenero.brain.memory.MemoryReconciler
 import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.memory.MemoryStore
@@ -125,6 +126,18 @@ class Brain private constructor(
      */
     val ragQueryLog: RagQueryLogger = RagQueryLogger(db)
     val usageEval: UsageEval = UsageEval(db, judgeChat, embedModel = provider.model, embedDim = config.embedDim)
+
+    /**
+     * The English-corpus migration (the owner's call 19/11): the legacy
+     * SPANISH memories translate to English in place, batch per judge call,
+     * re-embedded with the local embedder. One-shot — new memories are born
+     * English since the extractor's reinforced instruction (f9e93c2).
+     */
+    val legacyTranslation: LegacyTranslation = LegacyTranslation(
+        db, judgeChat,
+        embed = { text -> provider.embed(listOf(text)).single() },
+        embedModel = provider.model,
+    )
 
     /**
      * The shadow judge (plan v2 T1): the bot's completed turns, rubric-graded

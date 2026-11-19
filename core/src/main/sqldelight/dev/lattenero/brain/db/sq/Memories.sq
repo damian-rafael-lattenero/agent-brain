@@ -19,7 +19,8 @@ CREATE TABLE memories (
   -- ALWAYS ... STORED): a typing-only declaration cannot express generation,
   -- and the insert below must be allowed to omit it.
   content_tsv TEXT,
-  invalid_at TIMESTAMPTZ
+  invalid_at TIMESTAMPTZ,
+  translated_at TIMESTAMPTZ
 );
 
 -- The quarantine table only backs quarantine reads/writes.
@@ -191,6 +192,22 @@ ON CONFLICT DO NOTHING;
 -- The verdict stamps, guarded.
 invalidate:
 UPDATE memories SET invalid_at = now() WHERE id = :id AND invalid_at IS NULL;
+
+-- The English-corpus migration (the owner's call 19/11): the legacy row
+-- swaps content AND embedding in place (identity, salience, edges and turn
+-- linkage survive — the graph does not know the language changed). Guarded
+-- by `AND translated_at IS NULL` so an at-least-once replay is a no-op.
+translateOne:
+UPDATE memories SET content = :content, embedding = :embedding::vector,
+  embed_model = :embedModel, translated_at = now()
+WHERE id = :id AND translated_at IS NULL;
+
+-- The migration's own queue: valid, not-yet-translated rows, oldest first
+-- (deterministic order = a resumable pass).
+untranslatedBatch:
+SELECT id, content FROM memories
+WHERE translated_at IS NULL AND invalid_at IS NULL
+ORDER BY id LIMIT :lim;
 
 -- Absorbed rows die (the dedup merge's loser deletion).
 deleteAbsorbed:
