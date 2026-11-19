@@ -45,6 +45,7 @@ import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.memory.MemoryStatus
 import dev.lattenero.brain.memory.QuarantineRow
 import dev.lattenero.brain.memory.WorkerReport
+import dev.lattenero.brain.memory.LegacyTranslation
 import dev.lattenero.brain.memory.LORA_DEFAULT_TRIVIAL_MAX
 import dev.lattenero.brain.memory.LoraExport
 import dev.lattenero.brain.memory.datasetReport
@@ -134,6 +135,10 @@ const val USAGE = """usage: agent-brain <command> [args]
                      judge the newest completed bot turns past the cursor on the rubric: the
                      daily quality number for the REPLIES (ledger suite "shadow"); nothing new
                      answers honestly and exits 0
+  translate-legacy [--max-items N] [--batch K] [--dry-run]
+                     the English-corpus migration: legacy Spanish memories translate to English
+                     in place (backup table first, re-embedded with nomic, stamped translated_at);
+                     one judge call per batch
 """
 
 fun main(args: Array<String>) {
@@ -160,6 +165,7 @@ fun run(args: Array<String>): Int {
             "eval" -> eval(rest)
             "usage-eval" -> usageEval(rest)
             "shadow-eval" -> shadowEval(rest)
+            "translate-legacy" -> translateLegacy(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
             "config" -> printJson(Config.load().snapshot()).let { EXIT_OK }
@@ -500,6 +506,40 @@ private fun shadowEval(args: List<String>): Int {
         writeArtifact(outDir, "latest-shadow", EvalRunner.markdown(report), json)
         printJson(responseJson.parseToJsonElement(json))
         if (report.ok) EXIT_OK else EXIT_FAIL
+    }
+}
+
+/**
+ * `translate-legacy [--max-items N] [--batch K] [--dry-run]`: the English-
+ * corpus migration — the legacy Spanish memories translate to English in
+ * place (one judge call per batch), re-embedded with nomic, stamped
+ * translated_at. A backup table snapshots the originals; the marker makes an
+ * at-least-once replay a no-op. Exit 0 while any batch succeeded; 1 when
+ * every batch failed (the nightly speaks LOUD).
+ */
+private fun translateLegacy(args: List<String>): Int {
+    val maxItems = args.optionValue("--max-items")?.toIntOrNull() ?: LegacyTranslation.DEFAULT_MAX_ITEMS
+    val batch = args.optionValue("--batch")?.toIntOrNull() ?: LegacyTranslation.DEFAULT_BATCH
+    val dryRun = "--dry-run" in args
+    val invalid = listOf(
+        "max-items" to (maxItems < 1),
+        "batch" to (batch !in 1..LegacyTranslation.MAX_BATCH),
+    ).filter { it.second }
+    if (invalid.isNotEmpty()) {
+        return fail("translate-legacy: invalid " + invalid.joinToString(", ") { (name, _) -> name })
+    }
+    return withBrain(Config.load()) { brain ->
+        brain.migrator.apply()
+        val report = brain.legacyTranslation.run(maxItems = maxItems, batchSize = batch, dryRun = dryRun)
+        printJson(buildJsonObject {
+            put("batches", report.batches)
+            put("translated", report.translated)
+            put("failedBatches", report.failedBatches)
+            put("failedItems", report.failedItems)
+            put("backupTable", report.backupTable)
+            put("dryRun", dryRun)
+        })
+        if (report.failedBatches == report.batches && report.batches > 0) EXIT_FAIL else EXIT_OK
     }
 }
 
