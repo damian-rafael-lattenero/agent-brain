@@ -101,17 +101,16 @@ class LoraExport(private val store: MemoryStore) {
 
     /**
      * Trivial pairs (the data pass, 19/11 — run 400's verdict: the gate
-     * failures were DATA, not epochs): PROCESSED turns the pipeline kept
-     * NOTHING from (memoriesOfTurn empty) whose reply is SHORT — greetings,
-     * acks, "dale". The canonical extraction for those IS the empty one: the
-     * model's first lesson is that most turns carry nothing durable. A LONG
-     * reply with no memories is an extraction miss, not a trivial turn — it
-     * stays out (its label is unknown, never synthesized).
+     * failures were DATA, not epochs): PROCESSED turns whose REPLY is SHORT —
+     * greetings, acks, "dale". The canonical extraction for those IS the
+     * empty one, regardless of what tiny memories the extractor squeezed out:
+     * the owner PURGED exactly this class by hand (the 75 tiny status rows of
+     * the 16/11 prune — "Merged to master", "## Ahora", "no es eso" — that
+     * hand-prune IS the human label). A LONG reply stays out: its label is
+     * unknown, never synthesized.
      */
     suspend fun trivialPairs(limit: Int, maxReplyChars: Int = LORA_TRIVIAL_REPLY_MAX): List<Pair> =
         store.processedTurns(limit).mapNotNull { turn ->
-            val memories = store.memoriesOfTurn(turn.turnId)
-            if (memories.isNotEmpty()) return@mapNotNull null
             val transcript = store.transcript(turn)
             if (transcript.isEmpty) return@mapNotNull null
             if (transcript.reply.length > maxReplyChars) return@mapNotNull null
