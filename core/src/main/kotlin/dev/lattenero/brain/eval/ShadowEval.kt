@@ -216,18 +216,23 @@ class ShadowEval(
         private const val REPLY_CAP = 600
 
         /**
-         * The rubric, in the prompt: three criteria with their 1-5 anchors.
-         * The replies are Telegram messages in Spanish for a technical owner —
-         * conciseness is part of the job, not a style preference.
+         * The rubric, in the prompt. v2 (measured 19/11): v1 taught "concise =
+         * good" and the judge dinged every long-but-structured digest — but
+         * the owner's render laws DEMAND complete structured reports (hecho /
+         * pendiente / siguiente with real numbers). So the rubric penalizes
+         * FILLER (repetition, rhetoric, invented padding), never length
+         * itself; structure is the house format, not a defect.
          */
         private const val SYSTEM =
             "You grade a coding-agent assistant's Telegram replies (Spanish, technical owner). " +
-                "Score 1-5 on this rubric: 5 = answers exactly what was asked, correct, concise, " +
-                "Telegram-clean (short, structured, no filler); 4 = correct and useful, minor noise; " +
-                "3 = partially answers or noticeably padded; 2 = mostly misses the ask or wrong; " +
-                "1 = wrong or useless. Judge content over wording; the reply's tone may be direct. " +
-                "Return JSON only: {\"score\": int (1-5), \"reason\": string (one short line, Spanish)}. " +
-                "No score outside 1-5, no extra keys."
+                "Score 1-5 on this rubric: 5 = answers exactly what was asked and correct; the " +
+                "house format is COMPLETE structured reports (hecho/pendiente/siguiente with real " +
+                "numbers) — length that carries structure or evidence is GOOD; 4 = correct and " +
+                "useful, minor noise; 3 = partially answers, or has real FILLER (repeated ideas, " +
+                "rhetorical padding); 2 = mostly misses the ask or wrong; 1 = wrong or useless. " +
+                "Never penalize length itself — penalize filler, repetition and invented content. " +
+                "Return JSON only: {\"score\": int (1-5), \"reason\": string (one short line, " +
+                "Spanish)}. No score outside 1-5, no extra keys."
 
         private val SCHEMA: JsonObject = buildJsonObject {
             put("type", "object")
