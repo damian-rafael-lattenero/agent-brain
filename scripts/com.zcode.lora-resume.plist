@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- com.zcode.lora-resume — ONE-SHOT resume of the data-pass training from
+     its last checkpoint (RunAtLoad: starts at bootstrap, launchd owns it, so
+     a ZCode restart cannot kill it — the nohup lesson applied). KeepAlive
+     FALSE: a training that dies must not respawn into a loop; the next
+     bootstrap resumes again from the newest checkpoint.
+     Resume = --resume-adapter-file adapters.safetensors (the iter-400 save):
+     iters already trained are skipped by the trainer's own bookkeeping.
+     Install:
+       sed "s|__HOME__|$HOME|g" scripts/com.zcode.lora-resume.plist > ~/Library/LaunchAgents/com.zcode.lora-resume.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.zcode.lora-resume.plist -->
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>__HOME__</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<false/>
+	<key>Label</key>
+	<string>com.zcode.lora-resume</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__HOME__/Projects/agent-brain/evals/lora/venv/bin/mlx_lm.lora</string>
+		<string>--train</string>
+		<string>--model</string>
+		<string>__HOME__/Projects/agent-brain/evals/lora/base-model</string>
+		<string>--data</string>
+		<string>/Users/lattenero/Projects/agent-brain/evals/lora/full-run</string>
+		<string>--fine-tune-type</string>
+		<string>lora</string>
+		<string>--batch-size</string>
+		<string>1</string>
+		<string>--iters</string>
+		<string>800</string>
+		<string>--learning-rate</string>
+		<string>1e-4</string>
+		<string>--num-layers</string>
+		<string>16</string>
+		<string>--mask-prompt</string>
+		<string>--max-seq-length</string>
+		<string>1536</string>
+		<string>--steps-per-eval</string>
+		<string>400</string>
+		<string>--steps-per-report</string>
+		<string>100</string>
+		<string>--save-every</string>
+		<string>400</string>
+		<string>--adapter-path</string>
+		<string>__HOME__/Projects/agent-brain/evals/lora/adapter-data-pass</string>
+		<string>--resume-adapter-file</string>
+		<string>__HOME__/Projects/agent-brain/evals/lora/adapter-data-pass/adapters.safetensors</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/lora-resume.log</string>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/lora-resume.log</string>
+	<key>WorkingDirectory</key>
+	<string>__HOME__/Projects/agent-brain</string>
+</dict>
+</plist>
