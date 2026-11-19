@@ -153,7 +153,10 @@ class MemoryExtractor(
             "preferences: how the user likes things done (style, tools, language, process). " +
             "summary: one sentence about the turn. " +
             "Omit transient details, greetings, and anything only relevant to this turn. Empty arrays are fine. " +
-            "Write each item as a short standalone sentence in English that makes sense without the conversation."
+            "Write every item and the summary IN ENGLISH ALWAYS, even when the turn is in Spanish — " +
+            "the memory corpus is English (one language = one embedding space). " +
+            "Keep code identifiers, file names and numbers verbatim. " +
+            "Each item: a short standalone English sentence that makes sense without the conversation."
 
         val SCHEMA: JsonObject = buildJsonObject {
             put("type", "object")
