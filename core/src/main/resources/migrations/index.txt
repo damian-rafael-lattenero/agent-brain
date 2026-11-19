@@ -6,3 +6,4 @@
 0006_memory_invalidation.sql
 0007_turn_costs.sql
 0008_rag_query_log.sql
+0009_memory_translation.sql
