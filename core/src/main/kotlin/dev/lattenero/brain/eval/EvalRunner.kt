@@ -190,6 +190,7 @@ class EvalRunner(
             EvalKind.MEMORY -> legs.memoryCases(brain, suite)
             EvalKind.CONTRADICTION -> legs.contradictionCases(brain, suite, seededIds)
             EvalKind.USAGE -> error("usage grading samples the production log; it never runs as a suite")
+            EvalKind.SHADOW -> error("shadow grading samples the bus past a cursor; it never runs as a suite")
             EvalKind.EXTRACTION -> error("an extraction suite does not use a database")
         }
         return report(cases, startedAt, mark, identityFor(brain))
@@ -491,6 +492,12 @@ class EvalRunner(
                 listOf("query", "first relevant rank", "relevant of served"),
                 report.cases.map { row ->
                     listOf(row.question, row.rank?.toString(), row.relevantCount?.toString())
+                },
+            )
+            EvalKind.SHADOW -> table(
+                listOf("turn", "score", "reason", "reply"),
+                report.cases.map { row ->
+                    listOf(row.id, row.verdict, row.summary, row.answer)
                 },
             )
             EvalKind.GROUNDED -> table(

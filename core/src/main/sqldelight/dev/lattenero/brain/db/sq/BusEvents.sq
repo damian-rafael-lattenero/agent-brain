@@ -29,6 +29,20 @@ processedTurns:
 SELECT id, sid, turn, source, COALESCE(memory_attempts, 0) AS attempts FROM bus_events
 WHERE kind = 'turn.completed' AND memory_at IS NOT NULL ORDER BY ts DESC LIMIT :lim;
 
+-- The shadow eval's candidates: completed turns past the cursor, payload as
+-- raw text (the fork has no ->>; the reply extraction and the length floor
+-- live Kotlin-side, where the JSON belongs).
+shadowCandidates:
+SELECT id, sid, turn, ts, payload::text AS payload_text FROM bus_events
+WHERE kind = 'turn.completed' AND ts > :cursor::timestamptz
+ORDER BY ts LIMIT :lim;
+
+-- The turn's user prompt (the user.prompt shares the turn id by contract).
+shadowPrompt:
+SELECT payload::text AS payload_text FROM bus_events
+WHERE kind = 'user.prompt' AND sid = :sid AND turn = :turn
+ORDER BY ts DESC LIMIT 1;
+
 markProcessed:
 UPDATE bus_events SET memory_at = now() WHERE id = :eventId;
 
