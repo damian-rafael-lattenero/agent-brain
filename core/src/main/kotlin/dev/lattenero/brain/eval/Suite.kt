@@ -39,6 +39,14 @@ enum class EvalKind {
      */
     @SerialName("usage")
     USAGE,
+
+    /**
+     * The bot's completed turns, judge-graded on a rubric (plan v2 T1): the
+     * daily quality number for the REPLIES, not the retrieval. It reads the
+     * bus past a cursor state file — it never runs as a suite.
+     */
+    @SerialName("shadow")
+    SHADOW,
     ;
 
     /** Recall and memory rank embeddings; the rest measure the chat model. */
@@ -51,7 +59,7 @@ enum class EvalKind {
 
     /** Suites that run against a fresh throwaway database (everything but extraction). */
     val usesFreshDatabase: Boolean
-        get() = this != EXTRACTION && this != USAGE
+        get() = this != EXTRACTION && this != USAGE && this != SHADOW
 
     /** Only the retrieval suites index the fixture corpus; the memory legs seed their own rows. */
     val indexesCorpus: Boolean
@@ -70,6 +78,7 @@ enum class EvalKind {
             CONTRADICTION -> "reconcile verdict (one chat call per near-duplicate pair)"
             MEMORY -> "memory recall (embedding a query + the graph traversal)"
             USAGE -> "usage grading (one judge call per logged query)"
+            SHADOW -> "shadow grading (one judge call per completed bot turn)"
         }
 }
 
@@ -236,6 +245,7 @@ data class EvalSuite(
             EvalKind.CONTRADICTION -> case is ContradictionCase
             EvalKind.MEMORY -> case is MemoryCase
             EvalKind.USAGE -> false
+            EvalKind.SHADOW -> false
         }
         if (!matches) {
             throw EvalSuiteException("$name: case ${case.id} does not match the suite kind '${kind.label}'")
