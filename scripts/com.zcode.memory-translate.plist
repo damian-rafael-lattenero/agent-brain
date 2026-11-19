@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- com.zcode.memory-translate — ONE-SHOT English-corpus migration: every
+     legacy Spanish memory translates to English in place (backup table
+     first, one judge call per batch of 12, re-embedded with nomic,
+     translated_at marker). RunAtLoad: it starts at bootstrap and takes
+     ~30-45 min for the current backlog; KeepAlive FALSE (a migration that
+     dies must not respawn into a loop — bootstrap again to resume from the
+     untranslated marker). Announces ONE Telegram line with the verdict.
+     Install:
+       sed "s|__HOME__|$HOME|g" scripts/com.zcode.memory-translate.plist > ~/Library/LaunchAgents/com.zcode.memory-translate.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.zcode.memory-translate.plist -->
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>__HOME__</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/Users/lattenero/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<false/>
+	<key>Label</key>
+	<string>com.zcode.memory-translate</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/nu</string>
+		<string>__HOME__/Projects/agent-brain/scripts/memory-translate-run.nu</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/memory-translate.log</string>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/memory-translate.log</string>
+	<key>WorkingDirectory</key>
+	<string>__HOME__/Projects/agent-brain</string>
+</dict>
+</plist>
