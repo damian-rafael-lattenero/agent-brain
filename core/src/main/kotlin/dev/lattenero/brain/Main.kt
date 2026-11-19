@@ -27,6 +27,7 @@ import dev.lattenero.brain.eval.EvalSuite
 import dev.lattenero.brain.eval.EvalSuites
 import dev.lattenero.brain.eval.ModelSpec
 import dev.lattenero.brain.eval.PriceTable
+import dev.lattenero.brain.eval.ShadowEval
 import dev.lattenero.brain.eval.StoredRun
 import dev.lattenero.brain.eval.UsageEval
 import dev.lattenero.brain.http.readCorpusFile
@@ -128,6 +129,10 @@ const val USAGE = """usage: agent-brain <command> [args]
                      grade the production rag_query log with the judge: hit-rate and the graded
                      retrieval columns over REAL queries (the report rides the ledger as suite
                      "usage"); nothing to grade answers honestly and exits 0
+  shadow-eval [--limit N]
+                     judge the newest completed bot turns past the cursor on the rubric: the
+                     daily quality number for the REPLIES (ledger suite "shadow"); nothing new
+                     answers honestly and exits 0
 """
 
 fun main(args: Array<String>) {
@@ -153,6 +158,7 @@ fun run(args: Array<String>): Int {
             "export-lora-pairs" -> exportLoraPairs(rest)
             "eval" -> eval(rest)
             "usage-eval" -> usageEval(rest)
+            "shadow-eval" -> shadowEval(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
             "config" -> printJson(Config.load().snapshot()).let { EXIT_OK }
@@ -466,6 +472,34 @@ private fun buildUsageNothing(ungraded: Long): JsonObject = buildJsonObject {
     put("suite", "usage")
     put("graded", 0)
     put("ungraded", ungraded)
+}
+
+/**
+ * `shadow-eval [--limit N]`: judge the newest completed bot turns past the
+ * cursor state file on the rubric. Nothing new answers honestly and exits 0;
+ * a run below the shadow gate exits 1 (the nightly speaks LOUD on it). The
+ * report rides the ledger as suite "shadow" and the artifacts.
+ */
+private fun shadowEval(args: List<String>): Int {
+    val limit = args.optionValue("--limit")?.toIntOrNull() ?: ShadowEval.DEFAULT_LIMIT
+    if (limit < 1) return fail("shadow-eval: --limit must be >= 1")
+    return withBrain(Config.load()) { brain ->
+        brain.migrator.apply()
+        val report = brain.shadowEval.grade(limit = limit) ?: run {
+            printJson(buildJsonObject {
+                put("suite", "shadow")
+                put("graded", 0)
+            })
+            return@withBrain EXIT_OK
+        }
+        val json = responseJson.encodeToString(EvalReport.serializer(), report)
+        val outDir = java.nio.file.Path.of("evals/artifacts")
+        java.nio.file.Files.createDirectories(outDir)
+        writeArtifact(outDir, "shadow-${stamp(report.startedAt)}", EvalRunner.markdown(report), json)
+        writeArtifact(outDir, "latest-shadow", EvalRunner.markdown(report), json)
+        printJson(responseJson.parseToJsonElement(json))
+        if (report.ok) EXIT_OK else EXIT_FAIL
+    }
 }
 
 /** One artifact, two faces: the markdown a human reads and the JSON a machine reads. */

@@ -24,6 +24,7 @@ import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.EmbeddingProviders
 import dev.lattenero.brain.embeddings.ProviderResilience
 import dev.lattenero.brain.eval.EvalLedger
+import dev.lattenero.brain.eval.ShadowEval
 import dev.lattenero.brain.eval.UsageEval
 import dev.lattenero.brain.http.HttpClients
 import dev.lattenero.brain.http.Readiness
@@ -124,6 +125,17 @@ class Brain private constructor(
      */
     val ragQueryLog: RagQueryLogger = RagQueryLogger(db)
     val usageEval: UsageEval = UsageEval(db, judgeChat, embedModel = provider.model, embedDim = config.embedDim)
+
+    /**
+     * The shadow judge (plan v2 T1): the bot's completed turns, rubric-graded
+     * daily. The cursor state file lives in the config's state dir, next to
+     * the other honest state.
+     */
+    val shadowEval: ShadowEval = ShadowEval(
+        db, judgeChat,
+        cursorFile = ShadowEval.cursorFile(config),
+        embedModel = provider.model, embedDim = config.embedDim,
+    )
 
     val extractor: MemoryExtractor = MemoryExtractor(
         chat = chat,

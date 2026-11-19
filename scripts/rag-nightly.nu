@@ -62,4 +62,17 @@ def main []: nothing -> nothing {
         print ($usage.stderr | str substring 0..300)
         announce-loud $"🌙 <b>Usage eval BAJÓ del gate</b> — ($usage.stderr | str substring 0..200)"
     }
+
+    # The shadow leg (plan v2 T1): judge the newest completed bot turns on the
+    # rubric — the daily quality number for the REPLIES. Nothing new exits 0
+    # quietly; a gate miss speaks LOUD with the average.
+    let shadow: record = (do { ^$BIN shadow-eval } | complete)
+    print $"shadow-eval: exit ($shadow.exit_code)"
+    if $shadow.exit_code != 0 {
+        print ($shadow.stderr | str substring 0..300)
+        let parsed: record = ($shadow.stdout | from json)
+        let passed: int = ($parsed.passed? | default 0)
+        let total: int = ($parsed.total? | default 0)
+        announce-loud $"🌙 <b>Shadow eval BAJÓ del gate</b> — ($passed)/($total) turnos al rubro 4+."
+    }
 }

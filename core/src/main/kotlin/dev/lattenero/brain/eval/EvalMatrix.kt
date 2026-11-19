@@ -231,6 +231,8 @@ object EvalRecommendations {
             "Recall with the graph attached runs on every query: quality first, then latency and declared cost."
         EvalKind.USAGE ->
             "Real queries, judge-graded: quality first — a usage miss is what production actually felt."
+        EvalKind.SHADOW ->
+            "Real replies, judge-graded: quality first — a shadow miss is what the owner actually read."
     }
 }
 
