@@ -419,3 +419,24 @@ minilm perdió: MRR 0.909 vs 0.985) con precio plano y bendición de
 privacidad. deepseek quedó en las patas de CALIDAD crítica y baja
 frecuencia (extracción, judge, dream); qwen2.5:1.5b fue jubilado por
 degeneración medida (9,227 chars de repetición).
+
+**Embeddings desde cero (las 4 preguntas del owner, 19/11):**
+- **HNSW** = Hierarchical Navigable Small World: el índice de capas de
+  pgvector; la búsqueda desciende por un grafito de autopistas y compara
+  cientos en vez de 73k. Leyes medidas: el semi-join alive lo derrota (por
+  eso la búsqueda fue siempre exacta), y la reescritura inline lo dejó
+  HNSW-capable para escala.
+- **768** = la dimensión que eligió el entrenador de nomic (constante
+  arquitectónica: minilm 384, text-embedding-3-small 1536). El candado: la
+  columna pgvector es vector(768) — cambiar de modelo = re-embeber 20,722
+  docs + migrar columna.
+- **La distancia** = coseno (1.0 misma dirección). El sentido lo aprendió
+  el encoder por entrenamiento contrastivo (pares de mismo sentido
+  atraen; distinto repele) — la geometría ES la representación.
+- **Embedder pago** (OpenAI/Cohere/Voyage): el precio NO bloquea (centavos
+  al mes); bloquean el candado del schema, la suite saturada (33/33 — sin
+  misses no hay ganancia demostrable), y el único gap real con número: el
+  cross-lingual ES-EN (0.55-0.65) que un multilingüe fuerte sí podría
+  ganar. Reapertura: usage eval mostrando misses multilingües.
+**Examen ampliado (19 preguntas):** los 13 originales + HNSW, 768,
+distancia-coseno/entrenamiento contrastivo, embedder pago.
