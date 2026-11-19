@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- com.zcode.lora-data-pass — the DATA-PASS recipe as ONE launchd shot
+     (800 iters over the v2 dataset, resuming from the checkpoint the 19/11
+     16:29 kill left at iter 400). RunAtLoad: it starts when bootstrapped —
+     AND on every boot (measured trap 19/11: RunAtLoad re-fires at each
+     boot). That is now SAFE BY DESIGN: the script is idempotent — its
+     `done` marker makes the post-completion refire a no-op, and a boot
+     DURING the run resumes from the latest checkpoint.
+     KeepAlive is FALSE on purpose — a training run must never respawn in a
+     loop; the script's own failure path is the loud one.
+     Install (render /Users/lattenero, then bootstrap):
+       sed "s|/Users/lattenero|$HOME|g" scripts/com.zcode.lora-data-pass.plist > ~/Library/LaunchAgents/com.zcode.lora-data-pass.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.zcode.lora-data-pass.plist -->
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/lattenero</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/Users/lattenero/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<false/>
+	<key>Label</key>
+	<string>com.zcode.lora-data-pass</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/nu</string>
+		<string>/Users/lattenero/Projects/agent-brain/scripts/lora-data-pass-run.nu</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/lattenero/Library/Logs/lora-data-pass.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/lattenero/Library/Logs/lora-data-pass.log</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/lattenero/Projects/agent-brain</string>
+</dict>
+</plist>
