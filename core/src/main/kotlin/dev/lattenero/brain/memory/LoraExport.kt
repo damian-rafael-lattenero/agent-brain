@@ -24,7 +24,13 @@ class LoraExport(private val store: MemoryStore) {
     data class Pair(val system: String, val user: String, val assistant: String)
 
     /** What one export pass produced: counts and the token estimate. */
-    data class Dataset(val file: Path, val positives: Int, val negatives: Int, val estimatedTokens: Long)
+    data class Dataset(
+        val file: Path,
+        val positives: Int,
+        val negatives: Int,
+        val trivials: Int,
+        val estimatedTokens: Long,
+    )
 
     private fun extractionJson(
         facts: List<String>,
@@ -93,12 +99,36 @@ class LoraExport(private val store: MemoryStore) {
                 )
             }
 
+    /**
+     * Trivial pairs (the data pass, 19/11 — run 400's verdict: the gate
+     * failures were DATA, not epochs): PROCESSED turns the pipeline kept
+     * NOTHING from (memoriesOfTurn empty) whose reply is SHORT — greetings,
+     * acks, "dale". The canonical extraction for those IS the empty one: the
+     * model's first lesson is that most turns carry nothing durable. A LONG
+     * reply with no memories is an extraction miss, not a trivial turn — it
+     * stays out (its label is unknown, never synthesized).
+     */
+    suspend fun trivialPairs(limit: Int, maxReplyChars: Int = LORA_TRIVIAL_REPLY_MAX): List<Pair> =
+        store.processedTurns(limit).mapNotNull { turn ->
+            val memories = store.memoriesOfTurn(turn.turnId)
+            if (memories.isNotEmpty()) return@mapNotNull null
+            val transcript = store.transcript(turn)
+            if (transcript.isEmpty) return@mapNotNull null
+            if (transcript.reply.length > maxReplyChars) return@mapNotNull null
+            Pair(
+                system = MemoryExtractor.SYSTEM_PROMPT,
+                user = transcript.render(MemoryExtractor.TRANSCRIPT_CAP),
+                assistant = emptyExtraction,
+            )
+        }
+
     /** Writes the chat-format JSONL and reports the measured shape. */
-    suspend fun export(outDir: Path, limit: Int): Dataset {
+    suspend fun export(outDir: Path, limit: Int, trivialMax: Int = LORA_DEFAULT_TRIVIAL_MAX): Dataset {
         Files.createDirectories(outDir)
         val file = outDir.resolve("lora-pairs-${System.currentTimeMillis()}.jsonl")
         var positives = 0
         var negatives = 0
+        var trivials = 0
         var tokens = 0L
         Files.newBufferedWriter(file).use { writer ->
             fun write(pair: Pair) {
@@ -109,12 +139,27 @@ class LoraExport(private val store: MemoryStore) {
             }
             positivePairs(limit).forEach { positives++; write(it) }
             negativePairs(limit).forEach { negatives++; write(it) }
+            // The trivial pool scans a 4× WIDER window than the positives':
+            // zero-memory turns sit OLDER than the newest kept ones, and
+            // [trivialMax] caps how many teach the empty discipline (~30%).
+            trivialPairs(limit * LORA_TRIVIAL_POOL_FACTOR)
+                .take(trivialMax)
+                .forEach { trivials++; write(it) }
         }
-        return Dataset(file, positives, negatives, tokens)
+        return Dataset(file, positives, negatives, trivials, tokens)
     }
 }
 
+/** The trivial-reply ceiling: longer zero-memory replies are extraction misses, not trivials. */
+const val LORA_TRIVIAL_REPLY_MAX = 200
+
+/** The trivial cap the export uses by default (~30% of the current set). */
+const val LORA_DEFAULT_TRIVIAL_MAX = 250
+
+/** The trivial pool scans this many × the positives' window (see export). */
+const val LORA_TRIVIAL_POOL_FACTOR = 4
+
 /** The one-line face of [LoraExport.Dataset] — what the CLI prints. */
 fun datasetReport(dataset: LoraExport.Dataset): String =
-    "pairs: ${dataset.positives} positive + ${dataset.negatives} negative, " +
-        "~${dataset.estimatedTokens} tokens -> ${dataset.file}"
+    "pairs: ${dataset.positives} positive + ${dataset.negatives} negative + " +
+        "${dataset.trivials} trivial, ~${dataset.estimatedTokens} tokens -> ${dataset.file}"

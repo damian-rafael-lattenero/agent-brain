@@ -45,6 +45,7 @@ import dev.lattenero.brain.memory.MemoryService
 import dev.lattenero.brain.memory.MemoryStatus
 import dev.lattenero.brain.memory.QuarantineRow
 import dev.lattenero.brain.memory.WorkerReport
+import dev.lattenero.brain.memory.LORA_DEFAULT_TRIVIAL_MAX
 import dev.lattenero.brain.memory.LoraExport
 import dev.lattenero.brain.memory.datasetReport
 import dev.lattenero.brain.rag.IndexReport
@@ -603,20 +604,29 @@ private fun dream(args: List<String>): Int {
 }
 
 /**
- * `export-lora-pairs [--limit N] [--out DIR]`: the LoRA dataset builder —
- * positives from processed turns (transcript -> canonical extraction) and
- * negatives from quarantine (raw degenerate answer -> empty extraction),
- * chat-format JSONL. The closing project's first brick: the training pairs
- * live in the bus; the gate is the eval matrix.
+ * `export-lora-pairs [--limit N] [--trivial-max N] [--out DIR]`: the LoRA
+ * dataset builder — positives from processed turns (transcript -> canonical
+ * extraction), negatives from quarantine (raw degenerate answer -> empty
+ * extraction) and TRIVIALS from short zero-memory turns (the empty discipline
+ * the run-400 gate said the model was missing), chat-format JSONL. The
+ * closing project's first brick: the training pairs live in the bus; the gate
+ * is the eval matrix.
  */
 private fun exportLoraPairs(args: List<String>): Int {
     val limit = args.optionValue("--limit")?.toIntOrNull() ?: 5_000
-    if (limit < 1) return fail("export-lora-pairs: --limit must be >= 1")
+    val trivialMax = args.optionValue("--trivial-max")?.toIntOrNull() ?: LORA_DEFAULT_TRIVIAL_MAX
+    val invalid = listOf(
+        "limit" to (limit < 1),
+        "trivial-max" to (trivialMax < 0),
+    ).filter { it.second }
+    if (invalid.isNotEmpty()) {
+        return fail("export-lora-pairs: invalid " + invalid.joinToString(", ") { (name, _) -> name })
+    }
     val out = args.optionValue("--out") ?: "evals/lora"
     val config = Config.load()
     return withBrain(config) { brain ->
         brain.migrator.apply()
-        val dataset = LoraExport(brain.memoryStore).export(Path.of(out), limit)
+        val dataset = LoraExport(brain.memoryStore).export(Path.of(out), limit, trivialMax)
         println(datasetReport(dataset))
         EXIT_OK
     }
