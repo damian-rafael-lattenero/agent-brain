@@ -62,6 +62,14 @@ class CorpusTest {
     }
 
     @Test
+    fun `nushell scripts are indexed under a nu glob`() {
+        write("mods/list.nu", "def replicate [] { [] }")
+        write("mods/logo.png")
+        val scan = Corpus().scan(listOf("$tmp/mods/*.nu"))
+        assertThat(scan.documents.map { it.title }).containsExactly("list.nu")
+    }
+
+    @Test
     fun `the same file reached by two globs is indexed once`() {
         write("docs/a.md")
         val scan = Corpus().scan(listOf("$tmp/docs/*.md", "$tmp/**/*.md"))

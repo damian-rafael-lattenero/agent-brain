@@ -92,6 +92,9 @@ class Corpus(
         val TEXT_EXTENSIONS = setOf(
             "md", "txt", "rst", "adoc", "kt", "kts", "java", "py", "sql", "yml", "yaml", "toml", "json",
             "sh", "mjs", "js", "ts", "tex", "cfg", "ini", "properties", "gradle",
+            // Nushell scripts are first-class corpus content: nushell-fp mods, the
+            // fleet's hooks and one-shot .nu scripts under a corpus glob.
+            "nu",
         )
         val PRUNED_DIRS = setOf(".git", "node_modules", "build", ".gradle", ".venv", "venv", "__pycache__", ".idea", "dist", "target", ".kotlin")
 
