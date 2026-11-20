@@ -22,7 +22,7 @@ class ReposTest {
     fun `the default repositories resolve to one absolute glob each, rooted at the repository`() {
         val repos = Repos(tmp).resolve()
         assertThat(repos.map { it.name })
-            .containsExactly("kap", "bot", "zcode-bot-kotlin", "ZCode", "agent-brain")
+            .containsExactly("kap", "bot", "zcode-bot-kotlin", "agent-brain")
         assertThat(repos.map { it.root })
             .containsExactlyElementsOf(Repos.DEFAULT_NAMES.map { tmp.resolve(it) })
         val glob = repos.first { it.name == "kap" }.glob

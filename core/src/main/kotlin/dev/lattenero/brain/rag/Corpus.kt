@@ -96,7 +96,7 @@ class Corpus(
             // fleet's hooks and one-shot .nu scripts under a corpus glob.
             "nu",
         )
-        val PRUNED_DIRS = setOf(".git", "node_modules", "build", ".gradle", ".venv", "venv", "__pycache__", ".idea", "dist", "target", ".kotlin")
+        val PRUNED_DIRS = setOf(".git", "node_modules", "build", ".gradle", ".venv", "venv", "__pycache__", ".idea", "dist", "target", ".kotlin", "artifacts")
 
         fun sha256(text: String): String =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }

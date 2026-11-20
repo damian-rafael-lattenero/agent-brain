@@ -98,7 +98,7 @@ const val USAGE = """usage: agent-brain <command> [args]
   bridge [--once]    tail the bus file into the Kafka topic (bus_transport=kafka deployments)
   index [GLOB...]    index the corpus (globs from args, else ~/.zcode/agent-brain/corpus.txt)
   index-repos [--dry-run] [--repo NAME]...
-                     index the owner's repos under ~/Projects (kap, bot, zcode-bot-kotlin, ZCode,
+                     index the owner's repos under ~/Projects (kap, bot, zcode-bot-kotlin,
                      agent-brain); --dry-run scans and reports, no Postgres needed
   query TEXT [--k N] [--iterate]
                      hybrid retrieval with citations (no generation); --iterate runs the
