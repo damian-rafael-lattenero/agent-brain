@@ -376,6 +376,31 @@ falla). Palabras: mask-prompt, hold-out final, self-distillation.
 defecto (builtins sobre coreutils, cero bash -c, ^ solo si un builtin tapa el
 nombre; bash SOLO para lo que existe únicamente en POSIX).
 
+## Parte 8 — cierre del arco (20/11)
+
+**LoRA data-pass veredicto FINAL** (`scripts/lora-gate.nu` commiteado): 5/6
+PASS (subió de 4/6) — el pass de data ARREGLÓ el needle de contenido, pero
+small-talk-nothing-durable sigue fallando CON vacíos al 24% + oversample ×3.
+Hallazgo estructural: un 3B instruct con 0.216% de parámetros entrenables
+agarra contenido pero NO sostiene "extraer NADA" contra su prior de ser
+útil. Palancas restantes: ratio vacío ≥50% (crece con el uso), per-example
+loss weight (mlx no lo expone → custom loss o trainer NVIDIA), base 7B+.
+deepseek conserva el sillón (6/6). Peldaño "modelos" PROBADO de punta a
+punta: export → train → resume-launchd → serve → gate → veredicto.
+
+**El doble user.prompt** (un mensaje = dos eventos user.prompt, 5.5 s
+aparte) quedó anotado como check candidate en la cola.
+
+**Las trampas del mes** (para el estudio): run-external rechaza dash-flags
+literales (viajan como valores de lista quoted via spread — KB
+run-external-flag-traps, tres strikes del mismo error); SQLDelight RETURNING
+es lazy (sin executeAsOne no ejecuta — filas fantasma); el migration
+index.txt se verifica después de tocarlo (el migrador salteó 0009 en
+silencio una vez); nohup dentro de ZCode muere con la sesión (el resume de
+entrenamiento vive bajo launchd con KeepAlive SuccessfulExit=false:
+crash → relanza desde el checkpoint, exit 0 limpio → terminal); los vectores
+de seed en tests matchean la dim del migrador (768).
+
 ## Parte 7 — el arco continúa (19/11: T1 shadow judge, rubric v2, T3 /learn, el pass de DATA)
 
 **T1 — shadow judge, SHIPPED** (`3838151`): los turnos completados del bot
