@@ -124,7 +124,9 @@ class Repos(
             "sh", "mjs", "js", "ts", "tex", "cfg", "ini", "properties", "gradle",
         )
 
-        val DEFAULT_NAMES = listOf("kap", "bot", "zcode-bot-kotlin", "ZCode", "agent-brain")
+        /** ZCode left the list 20/11/2026: 86% of the corpus was fork source (7.4k .ts +
+         *  3.2k .js) that drowned every curated source; its block needs a one-shot delete. */
+        val DEFAULT_NAMES = listOf("kap", "bot", "zcode-bot-kotlin", "agent-brain")
 
         fun defaultProjectsDir(home: Path = Paths.get(System.getProperty("user.home"))): Path = home.resolve("Projects")
     }

@@ -40,6 +40,7 @@ class CorpusTest {
         write("docs/image.png")
         write("docs/node_modules/x.md")
         write("docs/.git/HEAD.md")
+        write("docs/artifacts/eval-report.json.md")
         write("other/d.md")
         val scan = Corpus().scan(listOf("$tmp/docs/**/*.md", "$tmp/docs/*.txt"))
         assertThat(scan.documents.map { it.title }).containsExactly("a.md", "deep/b.md", "c.txt")
