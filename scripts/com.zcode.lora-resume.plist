@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- com.zcode.lora-resume — ONE-SHOT resume of the data-pass training from
-     its last checkpoint (RunAtLoad: starts at bootstrap, launchd owns it, so
-     a ZCode restart cannot kill it — the nohup lesson applied). KeepAlive
-     FALSE: a training that dies must not respawn into a loop; the next
-     bootstrap resumes again from the newest checkpoint.
-     Resume = --resume-adapter-file adapters.safetensors (the iter-400 save):
-     iters already trained are skipped by the trainer's own bookkeeping.
+<!-- com.zcode.lora-resume — the data-pass training as a SELF-HEALING launchd
+     job: KeepAlive SuccessfulExit=false means launchd RELAUNCHES it on crash
+     (resuming from the newest checkpoint via --resume-adapter-file) and
+     leaves it alone when it completes cleanly (exit 0 at iter 800). A crash
+     is retried, a completion is terminal — the respawn-loop law respected:
+     failure-driven, with a terminal condition.
      Install:
        sed "s|__HOME__|$HOME|g" scripts/com.zcode.lora-resume.plist > ~/Library/LaunchAgents/com.zcode.lora-resume.plist
        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.zcode.lora-resume.plist -->
@@ -20,7 +19,10 @@
 		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
 	</dict>
 	<key>KeepAlive</key>
-	<false/>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
 	<key>Label</key>
 	<string>com.zcode.lora-resume</string>
 	<key>ProgramArguments</key>
