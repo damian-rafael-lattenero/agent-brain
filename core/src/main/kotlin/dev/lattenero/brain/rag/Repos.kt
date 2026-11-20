@@ -35,11 +35,18 @@ data class RepoScanReport(
  * this reads whole repositories, so the brain can answer questions about the
  * code, not only about the docs someone remembered to list.
  *
- * One `**` glob per repository, built from [Corpus.TEXT_EXTENSIONS], so the
+ * One `**` glob per repository, built from [REPO_EXTENSIONS], so the
  * walk keeps exactly the corpus rules: text-like files only, noise
  * directories (.git, build, node_modules, ...) pruned, oversized and non
  * UTF-8 files skipped with a reason. The default repository list is fixed,
  * so the same tree always scans to the same documents in the same order.
+ *
+ * [REPO_EXTENSIONS] is frozen apart from [Corpus.TEXT_EXTENSIONS] on
+ * purpose: the glob string is the `documents.source` key that pruning
+ * matches against, so growing it silently re-keys the corpus (unchanged
+ * files keep the old source because the upsert short-circuits on sha).
+ * Extending the repo globs — e.g. with `nu` — is a deliberate re-index
+ * decision, not a side effect of the corpus gaining an extension.
  *
  * [plan] performs the scan once and hands the indexer what the dry run
  * reported: the documents, the skipped reasons and, per glob, the uris that
@@ -50,7 +57,7 @@ data class RepoScanReport(
  */
 class Repos(
     private val projectsDir: Path = defaultProjectsDir(),
-    private val extensions: Set<String> = Corpus.TEXT_EXTENSIONS,
+    private val extensions: Set<String> = REPO_EXTENSIONS,
 ) {
     data class Plan(val repositories: List<Repo>, val scan: Corpus.Scan, val report: RepoScanReport) {
         val globs: List<String> get() = repositories.map { it.glob }
@@ -111,6 +118,12 @@ class Repos(
     }
 
     companion object {
+        /** The extension set the repo globs were born with (2026-11-03); [globFor] sorts it. */
+        val REPO_EXTENSIONS = setOf(
+            "md", "txt", "rst", "adoc", "kt", "kts", "java", "py", "sql", "yml", "yaml", "toml", "json",
+            "sh", "mjs", "js", "ts", "tex", "cfg", "ini", "properties", "gradle",
+        )
+
         val DEFAULT_NAMES = listOf("kap", "bot", "zcode-bot-kotlin", "ZCode", "agent-brain")
 
         fun defaultProjectsDir(home: Path = Paths.get(System.getProperty("user.home"))): Path = home.resolve("Projects")

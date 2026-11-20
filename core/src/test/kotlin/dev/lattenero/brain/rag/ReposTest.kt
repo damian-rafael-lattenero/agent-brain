@@ -30,6 +30,9 @@ class ReposTest {
         assertThat(glob).contains("md", "kt")
         // Corpus cuts the walk root at the first wildcard: the glob must land exactly on the repo root.
         assertThat(Corpus().source(glob).root).isEqualTo(tmp.resolve("kap"))
+        // REPO_EXTENSIONS is frozen apart from Corpus.TEXT_EXTENSIONS: the glob is the
+        // documents.source key pruning matches on, so `nu` stays out until a deliberate re-key.
+        assertThat(glob).doesNotContain("nu")
     }
 
     @Test
