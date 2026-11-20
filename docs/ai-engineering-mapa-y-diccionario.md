@@ -6,7 +6,7 @@
 
 ---
 
-## PARTE 0 — CÓMO USAR ESTE LIBRO
+## 🧭 PARTE 0 — CÓMO USAR ESTE LIBRO
 
 - **Primera lectura (hoy):** PARTE 1 (la historia) → PARTE 3 (la brújula cumplida) → PARTE 4 (la arquitectura con los diagramas). Es el esqueleto: quién es cada pieza y cómo se hablan.
 - **La columna vertebral es la PARTE 5 (el diccionario).** Está escrita desde cero: si un término se usa en cualquier parte del libro y no lo conocés, está definido acá — empezando por las palabras de base (5.0: qué es una API, un puerto, una cola, un índice) antes de las de IA.
@@ -15,9 +15,30 @@
 - **El examen (PARTE 10) es la medición.** Se responde de memoria, con tus palabras, y cada respuesta con UN número del sistema que la demuestre.
 - **El protocolo de preguntas:** cuando algo no cierre, preguntálo en el chat. La lista de cosas que no pudiste explicar en una frase ES tu lista de estudio real.
 
+### 🎨 La leyenda visual (el sistema de colores y marcas de este libro)
+
+| Marca | Qué significa |
+|---|---|
+| **negrita** | término clave — la palabra que carga el sentido |
+| `código` | número MEDIDO o identificador exacto (si está así, se verificó) |
+| 💡 **Ejemplo** / 💡 **Analogía** | lo concreto: donde la definición aterriza |
+| 📍 **En tu sistema** | dónde vive esa idea en TU flota, con su número |
+| 📊 **El número** | el veredicto medido de esa unidad |
+| ⚠️ | trampa — lo que mordió de verdad |
+| 🔑 | ley de la casa / frase para recordar |
+| Caja 🟣 morada `[!IMPORTANT]` | LEY — regla de la casa, no negociable |
+| Caja 🟢 verde `[!TIP]` | la frase que lo resume, el tip |
+| Caja 🟡 amarilla `[!WARNING]` | cuidado / trampa |
+| Caja 🔵 azul `[!NOTE]` | contexto que ayuda a entender |
+
+En los diagramas, los colores son por ROL: 🔵 azul = donde vive el dato (Postgres) · 🟢 verde = modelos · 🟡 ámbar = decisión/punto crítico · 🔴 rojo = camino de rechazo/fallo · ⬜ gris punteado = el guardián (launchd).
+
+> [!NOTE]
+> Las cajas de color se ven en GitHub (web) al abrir el archivo, y en VS Code con la extensión **"Markdown Preview for GitHub Alerts"**. En un preview que no las soporte, se leen como citas normales — nada se pierde, sólo el color.
+
 ---
 
-## PARTE 1 — LA HISTORIA EN DOS PÁGINAS (cómo llegamos acá)
+## 📜 PARTE 1 — LA HISTORIA EN DOS PÁGINAS (cómo llegamos acá)
 
 ### 30/10 — LA BRÚJULA
 
@@ -53,7 +74,8 @@ El consenso 2026 profundizado: **evals y observabilidad como PRODUCTO**, rerank 
 
 - **B1 métricas graduadas:** MRR / recall@1 / nDCG@5 (primera medición viva).
 - **B2 rerank CONSTRUIDO y VERDICTADO:** el listwise con LLM chico PIERDE contra la fusión (recall@1 0.350 vs 0.850) → default OFF, el mecanismo queda opt-in.
-  > **Ley:** la disciplina moderna es NO shippear lo que los evals mataron.
+  > [!IMPORTANT]
+  > 🔑 **Ley:** la disciplina moderna es NO shippear lo que los evals mataron.
 
 ### 15/11 — LA MEMORIA COMO SISTEMA
 
@@ -98,7 +120,7 @@ El consenso 2026 profundizado: **evals y observabilidad como PRODUCTO**, rerank 
 
 ---
 
-## PARTE 2 — EL SISTEMA HOY (los números de la máquina)
+## 📊 PARTE 2 — EL SISTEMA HOY (los números de la máquina)
 
 ### RAG
 
@@ -147,7 +169,7 @@ El consenso 2026 profundizado: **evals y observabilidad como PRODUCTO**, rerank 
 
 ---
 
-## PARTE 3 — LA BRÚJULA CUMPLIDA (las 5 cosas → dónde viven hoy)
+## ✅ PARTE 3 — LA BRÚJULA CUMPLIDA (las 5 cosas → dónde viven hoy)
 
 | La promesa (30/10) | Dónde vive | El número que lo prueba |
 |---|---|---|
@@ -157,11 +179,12 @@ El consenso 2026 profundizado: **evals y observabilidad como PRODUCTO**, rerank 
 | 4. Evals | 8 suites + ledger + usage eval + shadow judge | cada corrida deja fila; el nocturno certifica |
 | 5. Tu propio harness | El fork de ZCode + el daemon Kotlin (Telegram) | live cards, multi-lane, /tasks, feedback |
 
+> [!TIP]
 > Las cinco promesas tienen deploy detrás y un número delante. Esta tabla es la respuesta corta a "¿qué construiste?"
 
 ---
 
-## PARTE 4 — LA ARQUITECTURA, PARTE POR PARTE (con diagramas)
+## 🏗️ PARTE 4 — LA ARQUITECTURA, PARTE POR PARTE (con diagramas)
 
 *Antes de los diagramas, los siete protagonistas, cada uno en una frase:*
 
@@ -218,6 +241,13 @@ flowchart TB
     HTTP -->|"embed de la query"| NOMIC
     LAUNCHD -.-> botbox
     LAUNCHD -.-> brainbox
+
+    classDef data fill:#dbeafe,stroke:#1e40af
+    classDef model fill:#dcfce7,stroke:#166534
+    classDef guardian fill:#e5e7eb,stroke:#374151,stroke-dasharray: 5 5
+    class PG data
+    class NOMIC,DEEP,MLXB model
+    class LAUNCHD guardian
 ```
 
 **El recorrido, paso a paso:**
@@ -294,6 +324,15 @@ flowchart TB
     REIN --> MARK
     INS --> MARK
     WAIT --> BUS
+
+    classDef data fill:#dbeafe,stroke:#1e40af
+    classDef model fill:#dcfce7,stroke:#166534
+    classDef reject fill:#fee2e2,stroke:#b91c1c
+    classDef retry fill:#fef3c7,stroke:#b45309
+    class PG data
+    class DS model
+    class QUAR reject
+    class WAIT,MARK retry
 ```
 
 **Las tres leyes que este gráfico esconde:**
@@ -321,6 +360,10 @@ stateDiagram-v2
         Olvidar = excluir de la
         búsqueda. El dato queda.
     end note
+
+    style ACT fill:#dcfce7,stroke:#166534
+    style COOL fill:#fef3c7,stroke:#b45309
+    style ARC fill:#e5e7eb,stroke:#374151
 ```
 
 **El grafo (los "related" de memory_search):** además del texto, cada memoria tiene aristas hacia otras: **related** (similitud en la banda 0.60-0.88 — parecidas pero no duplicadas), **cooccur** (aparecieron juntas en la misma búsqueda) y **temporal** (son de la misma época). ~27k aristas en producción. Cuando buscás y un hit llega, el traversal camina sus aristas y trae a sus vecinas — es el "y esto está relacionado" del brain. La lección de SQL medida: el OR simétrico (`a=b OR b=a`) generaba 85.7M filas intermedias (33-35 s); dos joins indexados unidos con UNION ALL hacen el mismo trabajo en 223 ms.
@@ -352,6 +395,11 @@ flowchart TB
     PERM -->|"no"| SEAL
     DEC -->|"no, ya tiene la respuesta"| SEAL
     SEAL --> EVENTS --> FEED
+
+    classDef ctx fill:#fef3c7,stroke:#b45309
+    classDef decision fill:#dbeafe,stroke:#1e40af
+    class CTX ctx
+    class DEC,PERM decision
 ```
 
 **Lo que enseña este gráfico:**
@@ -375,6 +423,11 @@ flowchart LR
     TG["UNA línea a Telegram:<br/>verde o roja, honesta"]
 
     LD --> BK --> IDX --> EV --> US --> SH --> LED --> TG
+
+    classDef data fill:#dbeafe,stroke:#1e40af
+    classDef output fill:#dcfce7,stroke:#166534
+    class LED data
+    class TG output
 ```
 
 **Por qué es nocturno y no continuo:** (1) el reindex lee los repos y embebe — hacerlo en vivo competiría con tus queries por el mismo ollama; (2) los evals son la CERTIFICACIÓN — una vez por día alcanza para ver tendencias, y cada corrida deja su fila en el ledger así el trend nunca se pierde; (3) a la mañana tenés UNA línea que resume si el sistema sigue sano. Si algo falla, la línea es roja — la ley de indicadores honestos: mejor silencio rojo que un ticker verde que miente.
@@ -405,6 +458,13 @@ flowchart TB
     VERD -->|"gana"| SWAP
     VERD -->|"pierde"| LEDGER
     SWAP --> LEDGER
+
+    classDef data fill:#dbeafe,stroke:#1e40af
+    classDef model fill:#dcfce7,stroke:#166534
+    classDef gate fill:#fef3c7,stroke:#b45309
+    class POS,NEG,TRIV data
+    class TRAIN,ADPT,SERVE model
+    class GATE,VERD gate
 ```
 
 **El pipeline completo corrió en tu casa, de punta a punta:** export (los pares salen del tráfico real del bus) → train (MLX sobre Apple Silicon, el modelo base 4-bit para entrar en 16 GB) → serve (el adapter se monta sobre la base) → gate (las mismas 6 preguntas, contra el incumbent) → ledger (el veredicto queda escrito). Número final del data pass: **5/6, p50 4.8 s, $0** — deepseek conserva el sillón con 6/6, y la ley de la casa se aplicó al modelo propio igual que a un proveedor: los evals lo matan o shipea.
@@ -425,81 +485,81 @@ flowchart TB
 
 ---
 
-## PARTE 5 — EL DICCIONARIO (cada palabra, desde cero)
+## 📖 PARTE 5 — EL DICCIONARIO (cada palabra, desde cero)
 
 *Esta parte asume CERO conocimiento previo. Primero las palabras de base (5.0: computación y sistemas — las que el resto del libro usa sin darse cuenta), después las de IA en orden: modelos → RAG → memoria → evals → agentes → infra → tu dialecto FP. Cada entrada: qué es, un ejemplo, y dónde vive EN TU sistema con su número.*
 
 ### 5.0 LAS PALABRAS DE BASE (antes de empezar)
 
-**Programa / proceso / servicio / daemon** — un *programa* es el código en el disco; un *proceso* es ese código EJECUTÁNDOSE (tiene pid, memoria viva); un *servicio* o *daemon* es un proceso diseñado para quedar corriendo siempre, sin terminal, esperando trabajo. *Ejemplo:* el bot es un daemon: vive dormido hasta que llega un mensaje de Telegram. *En tu sistema:* brain, bot y ollama son daemons; launchd es quien los mantiene vivos.
+**Programa / proceso / servicio / daemon** — un *programa* es el código en el disco; un *proceso* es ese código EJECUTÁNDOSE (tiene pid, memoria viva); un *servicio* o *daemon* es un proceso diseñado para quedar corriendo siempre, sin terminal, esperando trabajo. 💡 **Ejemplo:** el bot es un daemon: vive dormido hasta que llega un mensaje de Telegram. 📍 **En tu sistema:** brain, bot y ollama son daemons; launchd es quien los mantiene vivos.
 
-**Puerto** — el número de "puerta" por donde un proceso escucha pedidos en tu máquina (0-65535). Dos procesos no pueden usar el mismo puerto a la vez — por eso cada uno tiene el suyo. *En tu sistema:* brain HTTP **8765**, brain-mcp **8767**, bot **9102**.
+**Puerto** — el número de "puerta" por donde un proceso escucha pedidos en tu máquina (0-65535). Dos procesos no pueden usar el mismo puerto a la vez — por eso cada uno tiene el suyo. 📍 **En tu sistema:** brain HTTP **8765**, brain-mcp **8767**, bot **9102**.
 
-**Socket unix** — una "puerta" que no usa la red: un archivo especial por donde dos procesos de la MISMA máquina hablan más rápido y más privado que por TCP. *En tu sistema:* el canal "daemon local" del fork — con auth obligatoria: sin token, ni arranca.
+**Socket unix** — una "puerta" que no usa la red: un archivo especial por donde dos procesos de la MISMA máquina hablan más rápido y más privado que por TCP. 📍 **En tu sistema:** el canal "daemon local" del fork — con auth obligatoria: sin token, ni arranca.
 
-**API (application programming interface)** — el conjunto de funciones que un programa expone para que OTRO programa lo use, sin conocerle sus entrañas. *Ejemplo:* el brain expone `GET /costs/today` — cualquier cliente pregunta y recibe JSON, sin saber cómo el brain calcula. "Llamar la API de deepseek" = pedirle texto a su servidor por HTTP.
+**API (application programming interface)** — el conjunto de funciones que un programa expone para que OTRO programa lo use, sin conocerle sus entrañas. 💡 **Ejemplo:** el brain expone `GET /costs/today` — cualquier cliente pregunta y recibe JSON, sin saber cómo el brain calcula. "Llamar la API de deepseek" = pedirle texto a su servidor por HTTP.
 
-**HTTP / endpoint** — el protocolo de la web (pedidos y respuestas) y cada una de sus "direcciones" atendibles. *Ejemplo:* `http://localhost:8765/health` es el endpoint de salud del brain — el sentinel lo toca para saber si vive.
+**HTTP / endpoint** — el protocolo de la web (pedidos y respuestas) y cada una de sus "direcciones" atendibles. 💡 **Ejemplo:** `http://localhost:8765/health` es el endpoint de salud del brain — el sentinel lo toca para saber si vive.
 
-**JSON** — el formato de texto estructurado con el que los programas se intercambian datos: pares `"clave": valor`, listas, objetos anidados. *Ejemplo:* una memoria viaja como `{"kind":"fact","content":"...","salience":0.8}`. Legible por humanos y por cualquier lenguaje.
+**JSON** — el formato de texto estructurado con el que los programas se intercambian datos: pares `"clave": valor`, listas, objetos anidados. 💡 **Ejemplo:** una memoria viaja como `{"kind":"fact","content":"...","salience":0.8}`. Legible por humanos y por cualquier lenguaje.
 
-**Schema** — el CONTRATO de cómo tiene que ser un dato válido: qué campos, de qué tipo, qué valores permitidos. Un JSON que no cumple el schema se rechaza en la frontera. *En tu sistema:* el extractor de memorias responde JSON con schema estricto; el inputSchema de cada tool MCP es el contrato de sus argumentos.
+**Schema** — el CONTRATO de cómo tiene que ser un dato válido: qué campos, de qué tipo, qué valores permitidos. Un JSON que no cumple el schema se rechaza en la frontera. 📍 **En tu sistema:** el extractor de memorias responde JSON con schema estricto; el inputSchema de cada tool MCP es el contrato de sus argumentos.
 
-**Base de datos / tabla / fila / columna** — la base de datos es el programa que guarda y consulta datos con garantías (Postgres); la tabla es cada "planilla" (memorias, chunks, eval_runs); cada fila es un registro; cada columna un campo. *Ejemplo:* cada memoria es UNA fila de la tabla memories.
+**Base de datos / tabla / fila / columna** — la base de datos es el programa que guarda y consulta datos con garantías (Postgres); la tabla es cada "planilla" (memorias, chunks, eval_runs); cada fila es un registro; cada columna un campo. 💡 **Ejemplo:** cada memoria es UNA fila de la tabla memories.
 
-**SQL** — el lenguaje para preguntarle a una base de datos relacional (`SELECT ... FROM ... WHERE ...`). *En tu sistema:* TODO el acceso al dato pasa por SQL tipado (SQLDelight compila y verifica las queries contra el schema antes de correr).
+**SQL** — el lenguaje para preguntarle a una base de datos relacional (`SELECT ... FROM ... WHERE ...`). 📍 **En tu sistema:** TODO el acceso al dato pasa por SQL tipado (SQLDelight compila y verifica las queries contra el schema antes de correr).
 
-**Índice (de base de datos)** — una estructura extra que la base mantiene PARA BUSCAR RÁPIDO sin revisar toda la tabla — como el índice temático de un libro. *Ejemplo:* sin índice, buscar las aristas de una memoria revisa 27k filas; con el índice, va directo. La diferencia medida más extrema de tu sistema: 33-35 s → 223 ms por elegir UNION ALL de joins indexados.
+**Índice (de base de datos)** — una estructura extra que la base mantiene PARA BUSCAR RÁPIDO sin revisar toda la tabla — como el índice temático de un libro. 💡 **Ejemplo:** sin índice, buscar las aristas de una memoria revisa 27k filas; con el índice, va directo. La diferencia medida más extrema de tu sistema: 33-35 s → 223 ms por elegir UNION ALL de joins indexados.
 
 **Migración (de schema)** — un script que cambia la estructura de la base (agregar tabla, columna, índice) de forma ordenada y versionada (0001, 0002, ...). Corre al arrancar el brain, con un lock para que dos instancias no migren a la vez. *La trampa medida:* si el índice de migraciones pierde una línea, el migrador SALTEA una migración en silencio.
 
-**Cola / worker** — la cola es la lista de trabajo pendiente; el worker es el proceso que la consume de a uno. Desacopla "pasó algo" de "procesarlo ahora". *En tu sistema:* pending = turnos con `turn.completed` y sin `memory_at`; el memory worker los come de a uno, con reintentos si fallan.
+**Cola / worker** — la cola es la lista de trabajo pendiente; el worker es el proceso que la consume de a uno. Desacopla "pasó algo" de "procesarlo ahora". 📍 **En tu sistema:** pending = turnos con `turn.completed` y sin `memory_at`; el memory worker los come de a uno, con reintentos si fallan.
 
-**Latencia / p50 / p95** — la latencia es cuánto tarda UNA operación de punta a punta. p50 (mediana) es el tiempo que la mitad de las operaciones no supera; p95 es lo que la cola izquierda no supera — el "peor caso común". *Ejemplo:* búsqueda p50 ~22 ms con p95 de 2 s se lee "normalmente instantánea, a veces hay una cola". El p95 manda en la experiencia, el p50 en el costo.
+**Latencia / p50 / p95** — la latencia es cuánto tarda UNA operación de punta a punta. p50 (mediana) es el tiempo que la mitad de las operaciones no supera; p95 es lo que la cola izquierda no supera — el "peor caso común". 💡 **Ejemplo:** búsqueda p50 ~22 ms con p95 de 2 s se lee "normalmente instantánea, a veces hay una cola". El p95 manda en la experiencia, el p50 en el costo.
 
-**Prompt / completion** — el prompt es lo que LE ENTRÁS al modelo (instrucción + contexto + pregunta); la completion es lo que él produce. *En tu sistema:* el system prompt del extractor contiene el schema de la extracción; la completion ES la extracción.
+**Prompt / completion** — el prompt es lo que LE ENTRÁS al modelo (instrucción + contexto + pregunta); la completion es lo que él produce. 📍 **En tu sistema:** el system prompt del extractor contiene el schema de la extracción; la completion ES la extracción.
 
 **Repositorio / git / commit / push** — el repo es la carpeta de un proyecto con su historial versionado; un commit es un punto guardado del historial con mensaje; push lo sube al remoto. *La ley de la casa:* commit+push por cada unidad lógica terminada — un stall no debe poder borrar horas de trabajo.
 
 ### 5.1 MODELOS Y LLMS
 
-**LLM (large language model)** — un modelo de lenguaje ENORME entrenado con un solo objetivo: predecir el siguiente trozo de texto. De esa habilidad aparentemente tonta, entrenada sobre billones de palabras, emerge la capacidad de seguir instrucciones, razonar por pasos y escribir código. No "sabe" nada de tu vida ni de tus repos: sólo lo que entró en su entrenamiento y lo que le pongas en la ventana. *Ejemplo:* si le preguntás "¿por qué quedó off el rerank?", responde con conocimiento genérico — con RAG, responde con TU doc del veredicto citado. *En tu sistema:* deepseek-v4.1-flash (remoto) extrae y juzga; qwen2.5 fue el local hasta que la medición lo retiró.
+**LLM (large language model)** — un modelo de lenguaje ENORME entrenado con un solo objetivo: predecir el siguiente trozo de texto. De esa habilidad aparentemente tonta, entrenada sobre billones de palabras, emerge la capacidad de seguir instrucciones, razonar por pasos y escribir código. No "sabe" nada de tu vida ni de tus repos: sólo lo que entró en su entrenamiento y lo que le pongas en la ventana. 💡 **Ejemplo:** si le preguntás "¿por qué quedó off el rerank?", responde con conocimiento genérico — con RAG, responde con TU doc del veredicto citado. 📍 **En tu sistema:** deepseek-v4.1-flash (remoto) extrae y juzga; qwen2.5 fue el local hasta que la medición lo retiró.
 
-**Token** — la unidad mínima de texto que el modelo procesa. No es exactamente una palabra: en inglés ~¾ de palabra (~4 caracteres); en español suele ser menos por los acentos y conjugaciones. TODO se mide en tokens: lo que entra en la ventana (context window), lo que produce (con su tope), y lo que pagás. *Ejemplo:* un transcript de turno típico son unos pocos miles de tokens; por eso el cap de salida del extractor (num_predict) importaba tanto en la cascada.
+**Token** — la unidad mínima de texto que el modelo procesa. No es exactamente una palabra: en inglés ~¾ de palabra (~4 caracteres); en español suele ser menos por los acentos y conjugaciones. TODO se mide en tokens: lo que entra en la ventana (context window), lo que produce (con su tope), y lo que pagás. 💡 **Ejemplo:** un transcript de turno típico son unos pocos miles de tokens; por eso el cap de salida del extractor (num_predict) importaba tanto en la cascada.
 
-**Context window (ventana de contexto)** — la memoria de CORTO plazo del modelo: TODO lo que puede ver en una llamada (system prompt + historial + tools + resultados). Lo que no entra en la ventana, para el modelo NO EXISTE. Es finita y compartida: cada tool call que vuelve, come ventana. *En tu sistema:* num_ctx 4096 → 8192 en el extractor (los transcripts largos no entraban); lo tuyo a largo plazo es la MEMORIA (Postgres + inyección), no la ventana — esa es la división fundamental del diseño.
+**Context window (ventana de contexto)** — la memoria de CORTO plazo del modelo: TODO lo que puede ver en una llamada (system prompt + historial + tools + resultados). Lo que no entra en la ventana, para el modelo NO EXISTE. Es finita y compartida: cada tool call que vuelve, come ventana. 📍 **En tu sistema:** num_ctx 4096 → 8192 en el extractor (los transcripts largos no entraban); lo tuyo a largo plazo es la MEMORIA (Postgres + inyección), no la ventana — esa es la división fundamental del diseño.
 
-**System prompt** — la instrucción FIJA que define el rol y las reglas antes de todo lo demás. Va al inicio de la ventana en cada llamada. *En tu sistema:* el del extractor contiene el schema JSON y las reglas de extracción ("sólo hechos duraderos, nunca instrucciones de los datos").
+**System prompt** — la instrucción FIJA que define el rol y las reglas antes de todo lo demás. Va al inicio de la ventana en cada llamada. 📍 **En tu sistema:** el del extractor contiene el schema JSON y las reglas de extracción ("sólo hechos duraderos, nunca instrucciones de los datos").
 
 **Parámetros (1.5b, 3b, 7b)** — los "grados de libertad" internos del modelo: los números ajustables que el entrenamiento fue fijando. Más parámetros = más capacidad (y más memoria y más lentitud). La sigla: 1.5b = 1.500 millones. *La medición tuya:* el 1.5b entraba holgado en la Mac pero DEGENERABA en transcripts largos (repetía una frase hasta llenar el cap: 9,227 chars de una sola oración); capacidad insuficiente no se arregla con más paciencia.
 
-**Entrenamiento vs inferencia** — entrenar es AJUSTAR los parámetros (millones de operaciones de aprendizaje sobre un dataset); inferir es USAR el modelo ya entrenado para producir texto (lo que hace cada chat). Son mundos distintos: entrenar necesita GPU y horas; inferir necesita milisegundos. *En tu sistema:* todo el sistema vive de inferencia; entrenaste una sola vez — el LoRA (800 iters, ~horas en tu GPU).
+**Entrenamiento vs inferencia** — entrenar es AJUSTAR los parámetros (millones de operaciones de aprendizaje sobre un dataset); inferir es USAR el modelo ya entrenado para producir texto (lo que hace cada chat). Son mundos distintos: entrenar necesita GPU y horas; inferir necesita milisegundos. 📍 **En tu sistema:** todo el sistema vive de inferencia; entrenaste una sola vez — el LoRA (800 iters, ~horas en tu GPU).
 
-**Dataset / label** — el dataset es el conjunto de ejemplos con los que se entrena (o evalúa); el label es la respuesta CORRECTA de cada ejemplo (lo que el modelo debería producir). Sin labels correctos no hay aprendizaje supervisado — y labels malos entrenan modelos malos. *En tu sistema:* los 986+31+58 pares del LoRA; el label de cada positivo es la extracción que el propio pipeline mantuvo (self-distillation).
+**Dataset / label** — el dataset es el conjunto de ejemplos con los que se entrena (o evalúa); el label es la respuesta CORRECTA de cada ejemplo (lo que el modelo debería producir). Sin labels correctos no hay aprendizaje supervisado — y labels malos entrenan modelos malos. 📍 **En tu sistema:** los 986+31+58 pares del LoRA; el label de cada positivo es la extracción que el propio pipeline mantuvo (self-distillation).
 
-**Loss (función de pérdida)** — el número que mide "qué tan mal lo hizo" el modelo en cada ejemplo de entrenamiento. Entrenar ES minimizar la loss: ajustar los parámetros para que la próxima vez el error baje. *Analogía:* el juego de "calient-frío" — la loss es qué tan frío estás; el entrenamiento da pasitos hacia el calor. *Por qué importa acá:* mask-prompt significa "la loss se calcula SOLO sobre la respuesta" (el prompt no se aprende); per-example loss weighting (ponderar más los ejemplos vacíos) es una de las tres palancas que le quedan al LoRA.
+**Loss (función de pérdida)** — el número que mide "qué tan mal lo hizo" el modelo en cada ejemplo de entrenamiento. Entrenar ES minimizar la loss: ajustar los parámetros para que la próxima vez el error baje. 💡 **Analogía:** el juego de "calient-frío" — la loss es qué tan frío estás; el entrenamiento da pasitos hacia el calor. *Por qué importa acá:* mask-prompt significa "la loss se calcula SOLO sobre la respuesta" (el prompt no se aprende); per-example loss weighting (ponderar más los ejemplos vacíos) es una de las tres palancas que le quedan al LoRA.
 
-**Época / iteración** — una época (epoch) es UNA pasada completa por todo el dataset; una iteración (step) es un grupo chico de ejemplos procesado de una vez. *En tu sistema:* 800 iters ≈ menos de una época del dataset de 1,075 pares; el run de 2400 (~2.7 épocas) dio IDÉNTICO resultado — más épocas no era la palanca.
+**Época / iteración** — una época (epoch) es UNA pasada completa por todo el dataset; una iteración (step) es un grupo chico de ejemplos procesado de una vez. 📍 **En tu sistema:** 800 iters ≈ menos de una época del dataset de 1,075 pares; el run de 2400 (~2.7 épocas) dio IDÉNTICO resultado — más épocas no era la palanca.
 
 **Degeneración** — el modo de falla del modelo chico: entra en loop de repetición y emite la misma frase hasta que algo lo corte. No se arregla con más cap de salida (más cap = más basura repetida); se arregla con un modelo mejor. Es la razón medida del retiro del 1.5b y del nacimiento de los "negativos" del LoRA (los textos degenerados con extracción vacía como label).
 
 **Finish reason / done_reason** — lo que el proveedor informa de POR QUÉ terminó la generación: "stop" = terminó naturalmente; "length" = lo cortó el tope de salida. *Por qué fue un descubrimiento:* antes se leía "JSON inválido" y se culpaba al formato; leer el finish reason mostró que era TRUNCACIÓN silenciosa — el cap cortaba el JSON a la mitad.
 
-**Embedding model (modelo de embeddings)** — un modelo que NO conversa: convierte un texto en un VECTOR (una lista de 768 números) tal que textos de sentido parecido producen vectores de dirección parecida. Es un TRADUCTOR de sentido a geometría. *La frase que lo clava: deepseek habla, nomic mide.* *En tu sistema:* nomic-embed-text servido local por ollama, gratis; ganó el matrix a all-minilm (MRR 0.985 vs 0.909) y quedó.
+**Embedding model (modelo de embeddings)** — un modelo que NO conversa: convierte un texto en un VECTOR (una lista de 768 números) tal que textos de sentido parecido producen vectores de dirección parecida. Es un TRADUCTOR de sentido a geometría. 🔑 *La frase que lo clava: deepseek habla, nomic mide.* 📍 **En tu sistema:** nomic-embed-text servido local por ollama, gratis; ganó el matrix a all-minilm (MRR 0.985 vs 0.909) y quedó.
 
-**Chat model (modelo de chat)** — el que produce texto: conversa, extrae, juzga, razona. Es el otro mundo del embedding: uno escribe, el otro mide. Ninguno reemplaza al otro — confundirlos es como confundir un escritor con un instrumento de medición. *En tu sistema:* deepseek (remoto) para calidad crítica; el LoRA 3B aspira a ese sillón.
+**Chat model (modelo de chat)** — el que produce texto: conversa, extrae, juzga, razona. Es el otro mundo del embedding: uno escribe, el otro mide. Ninguno reemplaza al otro — confundirlos es como confundir un escritor con un instrumento de medición. 📍 **En tu sistema:** deepseek (remoto) para calidad crítica; el LoRA 3B aspira a ese sillón.
 
 **Inference local vs API / provider split** — correr modelos en TU máquina (gratis, privado, con límites de capacidad) vs llamar el modelo de un proveedor por API (paga, sin límite de capacidad, tus datos viajan). La decisión de arquitectura medida en tu sistema: **la pata de VOLUMEN va local** (embeddings: ~95% de las llamadas, $0 marginal, 20-33 ms, funciona sin relay, contenido privado) y **la pata de calidad crítica va remota** (extracción de gigantes, juez). *El límite del remoto:* deepseek es GENERATIVO — no puede embeder ni en low ni en high (esfuerzo ≠ tipo de modelo); un embedder remoto sería OTRO producto, con pricing por token que crece por siempre.
 
-**Fine-tuning** — entrenar de nuevo un modelo ya entrenado, con datos tuyos, para que aprenda un comportamiento específico. Alternativa (complementaria) a darle instrucciones en el prompt: el conocimiento queda DENTRO de los pesos. *En tu sistema:* el extractor LoRA — entrenado para producir la extracción canónica del pipeline.
+**Fine-tuning** — entrenar de nuevo un modelo ya entrenado, con datos tuyos, para que aprenda un comportamiento específico. Alternativa (complementaria) a darle instrucciones en el prompt: el conocimiento queda DENTRO de los pesos. 📍 **En tu sistema:** el extractor LoRA — entrenado para producir la extracción canónica del pipeline.
 
-**LoRA (Low-Rank Adaptation)** — la forma BARATA de fine-tuning: congelar el modelo base y entrenar sólo parches chicos (adaptadores de rango bajo montados sobre ciertas capas). Se entrena una fracción mínima de parámetros, en tu GPU, en horas — y el archivo resultante es chico. *El número tuyo:* 0.216% de los parámetros entrenables. *Analogía:* en vez de re-escribir el libro entero, le agregás post-its en los márgenes.
+**LoRA (Low-Rank Adaptation)** — la forma BARATA de fine-tuning: congelar el modelo base y entrenar sólo parches chicos (adaptadores de rango bajo montados sobre ciertas capas). Se entrena una fracción mínima de parámetros, en tu GPU, en horas — y el archivo resultante es chico. *El número tuyo:* 0.216% de los parámetros entrenables. 💡 **Analogía:** en vez de re-escribir el libro entero, le agregás post-its en los márgenes.
 
 **QLoRA** — LoRA sobre el modelo CUANTIZADO (comprimido a 4 bits): el entrenamiento cabe en hardware normal. Es lo que hace posible entrenar un 3B en una Mac de 16 GB. Tu run MLX es exactamente esto (4-bit + LoRA).
 
-**Adapter** — el archivo con SOLO los deltas que el LoRA aprendió. Se sirve MONTÁNDOLO sobre la base: base + adapter = modelo tuneado. Sin el adapter, la base queda intacta — por eso experimentar es seguro. *En tu sistema:* `evals/lora/adapter-data-pass/` (gitignoreado, privado).
+**Adapter** — el archivo con SOLO los deltas que el LoRA aprendió. Se sirve MONTÁNDOLO sobre la base: base + adapter = modelo tuneado. Sin el adapter, la base queda intacta — por eso experimentar es seguro. 📍 **En tu sistema:** `evals/lora/adapter-data-pass/` (gitignoreado, privado).
 
-**Quantization (cuantización)** — comprimir el modelo usando menos bits por parámetro para que quepa y corra en tu hardware. *Analogía:* el MP3 del audio — pierde fidelidad imperceptible, gana tamaño y velocidad. Lo que hace ollama con los GGUF y MLX con tu Qwen 4-bit.
+**Quantization (cuantización)** — comprimir el modelo usando menos bits por parámetro para que quepa y corra en tu hardware. 💡 **Analogía:** el MP3 del audio — pierde fidelidad imperceptible, gana tamaño y velocidad. Lo que hace ollama con los GGUF y MLX con tu Qwen 4-bit.
 
 **SLM (small language model)** — los chicos (1.5b-3b): corren local, gratis, rápido… y tienen techo. *Medido dos veces:* para juzgar, 5/8 vs 8/8 del deepseek; para transcripts largos, degeneración. Para volumen simple alcanzan; para calidad crítica, no.
 
@@ -515,7 +575,7 @@ flowchart TB
 
 **Negativos** — los transcripts degenerados del quarantine con extracción vacía como salida: ejemplos de "esta basura no produce hechos".
 
-**Oversampling** — repetir la clase rara en el train para que la loss la vea con la frecuencia que importa. *El número:* los vacíos eran 3.5% del dataset original (el modelo aprendió "siempre extraé algo"); con la pata trivial + oversample ×3 llegaron al 24% del train — y el needle de contenido pasó.
+**Oversampling** — repetir la clase rara en el train para que la loss la vea con la frecuencia que importa. 📊 **El número:** los vacíos eran 3.5% del dataset original (el modelo aprendió "siempre extraé algo"); con la pata trivial + oversample ×3 llegaron al 24% del train — y el needle de contenido pasó.
 
 **Hold-out final** — el 10% más RECIENTE se aparta ANTES de entrenar y NO se usa para entrenar: el gate mide turnos "futuros" (que el modelo no vio), no memoria. Elegirlo al azar filtraría información por la ventana temporal (turnos vecinos de los mismos días).
 
@@ -525,23 +585,23 @@ flowchart TB
 
 ### 5.2 RAG Y RETRIEVAL
 
-**RAG (Retrieval-Augmented Generation)** — la técnica que resuelve las dos limitaciones del LLM desnudo: no conoce TUS datos y no puede citar. La idea: antes de responder, RECUPERÁS los trozos relevantes de tu conocimiento y se los entregás al modelo como contexto — el modelo responde APOYADO en ellos y con la fuente. *Ejemplo cotidiano:* es la diferencia entre preguntarle a alguien "¿por qué quedó off el rerank?" y entregarle además el documento del veredicto abierto en la página correcta. *En tu sistema:* 20,722 docs indexados; preguntas en español con citas a las rutas de tus repos.
+**RAG (Retrieval-Augmented Generation)** — la técnica que resuelve las dos limitaciones del LLM desnudo: no conoce TUS datos y no puede citar. La idea: antes de responder, RECUPERÁS los trozos relevantes de tu conocimiento y se los entregás al modelo como contexto — el modelo responde APOYADO en ellos y con la fuente. *Ejemplo cotidiano:* es la diferencia entre preguntarle a alguien "¿por qué quedó off el rerank?" y entregarle además el documento del veredicto abierto en la página correcta. 📍 **En tu sistema:** 20,722 docs indexados; preguntas en español con citas a las rutas de tus repos.
 
 **Corpus** — el conjunto de documentos indexados — TODO lo que el sistema "leyó" y puede recuperar. La calidad del RAG tiene dos padres: el retrieval Y el corpus (un doc que no existe es un miss que ningún algoritmo arregla — la lección del 17/11: los misses eran CORPUS, no idioma).
 
 **Chunk / chunking** — trozar cada documento en pedazos del tamaño justo para embeber y servir. Chicos = búsqueda fina pero contexto pobre; grandes = contexto rico pero búsqueda burda. *Tu receta:* cada chunk arranca con "ruta > heading" — el encabezado viaja CON el pedazo, así un fragmento de código sabe a qué doc pertenece (la versión casera y gratis del Contextual Retrieval de Anthropic).
 
-**Vector / embedding** — la lista de 768 números que representa el SENTIDO de un texto. La propiedad mágica (que no es magia, es entrenamiento): textos de significado parecido producen vectores que apuntan parecido. No codifica las PALABRAS (sinónimos distintos pueden quedar casi iguales; la misma palabra en sentidos distintos se separa). *En tu sistema:* cada chunk de los 72,934 tiene su vector de 768 dimensiones guardado en pgvector.
+**Vector / embedding** — la lista de 768 números que representa el SENTIDO de un texto. La propiedad mágica (que no es magia, es entrenamiento): textos de significado parecido producen vectores que apuntan parecido. No codifica las PALABRAS (sinónimos distintos pueden quedar casi iguales; la misma palabra en sentidos distintos se separa). 📍 **En tu sistema:** cada chunk de los 72,934 tiene su vector de 768 dimensiones guardado en pgvector.
 
 **Cosine similarity** — la medida de parecido entre dos vectores: el COSENO del ángulo entre ellos. 1.0 = misma dirección (mismo sentido), 0.0 = ortogonales (nada que ver). Se usa el ángulo y no la distancia porque importa la DIRECCIÓN del significado, no la "magnitud" (un texto largo y uno corto sobre lo mismo pueden apuntar igual). *Tus bandas medidas:* ≥0.90 es "la misma claim" (dedup); 0.60-0.88 es "relacionado pero distinto" (ahí trabaja el reconcile); los duplicados verdaderos midieron 0.9123-0.9845 y el par relacionado más fuerte 0.8789 — el 0.90 cayó en el hueco.
 
 **Vector database / pgvector** — un motor para guardar vectores y buscar "los más parecidos a éste". pgvector es la extensión que le agrega esa capacidad a Postgres — tu base de siempre con un superpoder nuevo, sin otro sistema que operar. *La búsqueda:* `ORDER BY embedding <=> $query` (distancia coseno).
 
-**HNSW / ANN** — el índice que hace la búsqueda vectorial ESCALABLE. ANN = approximate nearest neighbor (vecino más cercano APROXIMADO); HNSW es el índice concreto: un grafito de capas — la gruesa arriba conecta "autopistas" largas, las finas abajo conectan vecinos — y la búsqueda DESCIENDE de capa en capa afinando, comparando unos cientos de candidatos en vez de los 73k. *Analogía:* viajar de Buenos Aires a una calle de Córdoba: primero la ruta nacional (capa gruesa), después la avenida, después la cuadra. *Tus dos leyes medidas:* (a) un semi-join "alive" bajo el ORDER BY distance DESTRUYE el índice — el planner cae a scan exacto (por eso tu búsqueda fue siempre EXACTA sin que lo supieras); (b) la reescritura inline dejó el query HNSW-capable para cuando el corpus crezca.
+**HNSW / ANN** — el índice que hace la búsqueda vectorial ESCALABLE. ANN = approximate nearest neighbor (vecino más cercano APROXIMADO); HNSW es el índice concreto: un grafito de capas — la gruesa arriba conecta "autopistas" largas, las finas abajo conectan vecinos — y la búsqueda DESCIENDE de capa en capa afinando, comparando unos cientos de candidatos en vez de los 73k. 💡 **Analogía:** viajar de Buenos Aires a una calle de Córdoba: primero la ruta nacional (capa gruesa), después la avenida, después la cuadra. *Tus dos leyes medidas:* (a) un semi-join "alive" bajo el ORDER BY distance DESTRUYE el índice — el planner cae a scan exacto (por eso tu búsqueda fue siempre EXACTA sin que lo supieras); (b) la reescritura inline dejó el query HNSW-capable para cuando el corpus crezca.
 
 **Exact scan vs ANN** — exacto compara contra TODOS los vectores (lento a escala, perfecto); ANN aproxima (rápido, puede errar por poco). Con 73k chunks el exacto tarda milisegundos — por eso nunca notaste la diferencia. HNSW es el seguro para cuando sean millones.
 
-**FTS / BM25 (sparse retrieval)** — la otra pata: búsqueda por PALABRAS con ranking léxico (BM25 es el algoritmo clásico que pondera términos por rareza y frecuencia). Encuentra lo que el vector no ve: el identificador exacto, el nombre propio, el error literal. *Ejemplo:* buscar `traverseSettled` — el vector trae "concurrency utils" genéricos; FTS va directo al doc que lo nombra. Por eso el híbrido es el estándar de producción.
+**FTS / BM25 (sparse retrieval)** — la otra pata: búsqueda por PALABRAS con ranking léxico (BM25 es el algoritmo clásico que pondera términos por rareza y frecuencia). Encuentra lo que el vector no ve: el identificador exacto, el nombre propio, el error literal. 💡 **Ejemplo:** buscar `traverseSettled` — el vector trae "concurrency utils" genéricos; FTS va directo al doc que lo nombra. Por eso el híbrido es el estándar de producción.
 
 **Hybrid retrieval** — correr las dos patas (dense=vector + sparse=palabras) y fusionar. Cada una cubre la ceguera de la otra. Tu estándar de facto.
 
@@ -555,9 +615,9 @@ flowchart TB
 
 **Leg dilution (dilución de pata)** — el riesgo estructural de fusionar patas: un documento mediocre que aparece en VARIAS patas a buen puesto acumula más RRF que uno EXCELENTE que aparece en una sola. *Medido en vivo:* al agregar el multi-hop, una query real se hundió de rank 2 a fuera del top-10. La cura: componer las patas con cuidado (y en el futuro, pesarlas).
 
-**recall@k** — la métrica de puerta: de las preguntas con respuesta conocida, ¿en cuántas el documento correcto aparece dentro de los primeros k resultados? Es BINARIO por pregunta (está o no está) y no le importa el orden interno. *Ejemplo:* recall@5 = 0.9 significa que en el 90% de las preguntas, la respuesta está en el top-5. Tu gate: 0.9 en recall@5.
+**recall@k** — la métrica de puerta: de las preguntas con respuesta conocida, ¿en cuántas el documento correcto aparece dentro de los primeros k resultados? Es BINARIO por pregunta (está o no está) y no le importa el orden interno. 💡 **Ejemplo:** recall@5 = 0.9 significa que en el 90% de las preguntas, la respuesta está en el top-5. Tu gate: 0.9 en recall@5.
 
-**MRR (Mean Reciprocal Rank)** — la métrica de posición: para cada pregunta toma `1/posición` del doc correcto y promedia. Castiga estar abajo: 1° = 1.0, 2° = 0.5, 10° = 0.1. *Ejemplo:* tres preguntas con el doc correcto en posiciones 1, 2 y 1 → (1 + 0.5 + 1)/3 = 0.833. Tu número: 0.9848 (casi siempre primero).
+**MRR (Mean Reciprocal Rank)** — la métrica de posición: para cada pregunta toma `1/posición` del doc correcto y promedia. Castiga estar abajo: 1° = 1.0, 2° = 0.5, 10° = 0.1. 💡 **Ejemplo:** tres preguntas con el doc correcto en posiciones 1, 2 y 1 → (1 + 0.5 + 1)/3 = 0.833. Tu número: 0.9848 (casi siempre primero).
 
 **nDCG@5** — como MRR pero premiando TODO el top-5 en orden (una lista perfecta arriba vale más que la misma lista desordenada). Útil cuando el usuario mira varios resultados, no sólo el primero. Tu número: 0.9888.
 
@@ -603,9 +663,9 @@ flowchart TB
 
 ### 5.3 MEMORIA DE AGENTE
 
-**Long-term memory (memoria de largo plazo)** — lo que el agente sabe MÁS ALLÁ de la conversación: sobrevive al cierre de la sesión. El complemento exacto de la context window: la ventana es lo que ve AHORA, la memoria es lo que ACUMULÓ. *En tu sistema:* hechos, decisiones y preferencias extraídos por LLM de cada turno completado, guardados como filas en Postgres, inyectados (los mejores) en los turnos nuevos.
+**Long-term memory (memoria de largo plazo)** — lo que el agente sabe MÁS ALLÁ de la conversación: sobrevive al cierre de la sesión. El complemento exacto de la context window: la ventana es lo que ve AHORA, la memoria es lo que ACUMULÓ. 📍 **En tu sistema:** hechos, decisiones y preferencias extraídos por LLM de cada turno completado, guardados como filas en Postgres, inyectados (los mejores) en los turnos nuevos.
 
-**Salience (salencia / importancia)** — el peso de cada memoria: cuánto importa. No es fija — SUBE cuando la memoria resulta útil (un hit de búsqueda +0.1; un merge de dedup +1.0) y alimenta la clasificación de lifecycle. *Analogía:* el orden de una pila de papeles que se re-ordena sola según cuánto la usás.
+**Salience (salencia / importancia)** — el peso de cada memoria: cuánto importa. No es fija — SUBE cuando la memoria resulta útil (un hit de búsqueda +0.1; un merge de dedup +1.0) y alimenta la clasificación de lifecycle. 💡 **Analogía:** el orden de una pila de papeles que se re-ordena sola según cuánto la usás.
 
 **Decay (decaimiento)** — la otra fuerza: el valor de una memoria baja con el tiempo desde su ÚLTIMO USO (no desde su creación). Lo que no se usa se enfría. Tu config: mitad de vida 30 días. Junto con la salience forma el par que decide el estado.
 
@@ -663,9 +723,9 @@ flowchart TB
 
 ### 5.5 MCP, AGENTES Y SEGURIDAD
 
-**MCP (Model Context Protocol)** — el estándar abierto (2024-2026) para que un asistente use herramientas y datos externos: un SERVIDOR expone "tools" con contrato (JSON Schema), y el CLIENTE/host (ZCode) se las ofrece al modelo. *Analogía:* el USB-C de los asistentes — antes cada integración era un cable a medida; con MCP, cualquier cliente enchufa cualquier servidor. *En tu sistema:* brain-mcp expone rag_query, memory_search, memory_recent, bus_status, eval_latest — el agente las llama cuando las necesita.
+**MCP (Model Context Protocol)** — el estándar abierto (2024-2026) para que un asistente use herramientas y datos externos: un SERVIDOR expone "tools" con contrato (JSON Schema), y el CLIENTE/host (ZCode) se las ofrece al modelo. 💡 **Analogía:** el USB-C de los asistentes — antes cada integración era un cable a medida; con MCP, cualquier cliente enchufa cualquier servidor. 📍 **En tu sistema:** brain-mcp expone rag_query, memory_search, memory_recent, bus_status, eval_latest — el agente las llama cuando las necesita.
 
-**Tool calling / function calling** — el modelo DECIDE llamar una herramienta: produce una llamada estructurada (nombre + argumentos JSON) en vez de texto, el harness la ejecuta, y el resultado vuelve a la ventana. Es lo que convierte un chat en un agente: puede ACTUAR y ver qué pasó. *Ejemplo:* "¿cuánto gastamos hoy?" → el modelo llama `GET /costs/today` y responde con el número real, no con una estimación.
+**Tool calling / function calling** — el modelo DECIDE llamar una herramienta: produce una llamada estructurada (nombre + argumentos JSON) en vez de texto, el harness la ejecuta, y el resultado vuelve a la ventana. Es lo que convierte un chat en un agente: puede ACTUAR y ver qué pasó. 💡 **Ejemplo:** "¿cuánto gastamos hoy?" → el modelo llama `GET /costs/today` y responde con el número real, no con una estimación.
 
 **JSON Schema** — el lenguaje estándar para describir un contrato de datos (tipos, campos requeridos, rangos). Cada tool MCP declara su inputSchema — así el host sabe qué validar antes de ejecutar.
 
@@ -693,7 +753,7 @@ flowchart TB
 
 ### 5.6 INFRAESTRUCTURA Y OBSERVABILIDAD
 
-**Bus / event sourcing** — la arquitectura donde TODO lo que pasa queda como EVENTO inmutable con id, en orden: user.prompt, tool.call, turn.completed, turn.feedback. Los sistemas no se hablan "de lado" — PUBLICAN, y quien quiera proyecta. *Analogía:* la contabilidad de doble entrada: el bus es el libro diario; las tablas de cada subsistema son los mayores que se derivan. *La ganancia práctica:* podés reconstruir/reprocesar CUALQUIER cosa (replay de memorias, costos, evals) sin que los sistemas se conozcan entre sí.
+**Bus / event sourcing** — la arquitectura donde TODO lo que pasa queda como EVENTO inmutable con id, en orden: user.prompt, tool.call, turn.completed, turn.feedback. Los sistemas no se hablan "de lado" — PUBLICAN, y quien quiera proyecta. 💡 **Analogía:** la contabilidad de doble entrada: el bus es el libro diario; las tablas de cada subsistema son los mayores que se derivan. *La ganancia práctica:* podés reconstruir/reprocesar CUALQUIER cosa (replay de memorias, costos, evals) sin que los sistemas se conozcan entre sí.
 
 **Worker / queue** — ver 5.0 — con los números del brain: pending = turnos sin memory_at e intentos < 5; backoff exponencial; el breaker decide si siquiera intentar.
 
@@ -727,7 +787,7 @@ flowchart TB
 
 **FP (programación funcional)** — el estilo que organiza el programa como COMPOSICIÓN de funciones puras (mismo input → mismo output, sin efectos ocultos), con los efectos (red, disco, reloj, azar) empujados a los BORDES. Lo que compra: testear el núcleo sin mocks, razonar por partes, y que los bugs no crucen capas.
 
-**ADT (algebraic data type)** — modelar el dominio con tipos que hacen IMPOSIBLE representar el estado inválido: `sealed class` (elecciones cerradas) + `data class` (estructura). *Ejemplo:* `TurnState` sellado con sus casos — el compilador te OBLIGA a cubrir todos; un estado inventado no compila.
+**ADT (algebraic data type)** — modelar el dominio con tipos que hacen IMPOSIBLE representar el estado inválido: `sealed class` (elecciones cerradas) + `data class` (estructura). 💡 **Ejemplo:** `TurnState` sellado con sus casos — el compilador te OBLIGA a cubrir todos; un estado inventado no compila.
 
 **Law test** — el test que verifica una LEY algebraica (identity, composition, associativity — las Functor/Applicative/Monad laws) en vez de un ejemplo puntual. kap: 92 suites de leyes. Una ley vale para TODOS los casos; un ejemplo, para uno.
 
@@ -749,7 +809,7 @@ flowchart TB
 
 ---
 
-## PARTE 6 — CÓMO LEER LOS NÚMEROS (los 5 que vas a seguir viendo)
+## 🔢 PARTE 6 — CÓMO LEER LOS NÚMEROS (los 5 que vas a seguir viendo)
 
 1. **recall@5** = "¿está la respuesta entre los primeros 5?" — la puerta de entrada.
 2. **MRR** = "¿qué tan ARRIBA está?" — 1.0 perfecto; 0.5 significa que el doc correcto promedia la posición 2. Tu 0.9848: casi siempre primero.
@@ -763,7 +823,7 @@ flowchart TB
 
 ---
 
-## PARTE 7 — EL ARCO MEDIDO (18–20/11: siete unidades, siete veredictos)
+## 🧪 PARTE 7 — EL ARCO MEDIDO (18–20/11: siete unidades, siete veredictos)
 
 *La historia reciente con sus números. Cada unidad: qué se preguntó, qué se construyó, el número, y la ley que quedó. Los diagramas de estas historias viven en la PARTE 4.*
 
@@ -816,7 +876,7 @@ Dataset v2 (986 + 31 + 58 triviales, oversample ×3 → 24% del train, hold-out 
 
 ---
 
-## PARTE 8 — EL MÉTODO (las leyes que hiciste sistema)
+## 🧱 PARTE 8 — EL MÉTODO (las leyes que hiciste sistema)
 
 *No es lo que construiste — es CÓMO decidís. Cada ley con su recibo.*
 
@@ -835,7 +895,7 @@ Dataset v2 (986 + 31 + 58 triviales, oversample ×3 → 24% del train, hold-out 
 
 ---
 
-## PARTE 9 — EL VERDICTO HONESTO (¿de verdad es serio y útil aunque lo use yo solo?)
+## 🎯 PARTE 9 — EL VERDICTO HONESTO (¿de verdad es serio y útil aunque lo use yo solo?)
 
 ### Capa 1 — Utilidad diaria REAL (usada y medida)
 
@@ -860,13 +920,14 @@ Dataset v2 (986 + 31 + 58 triviales, oversample ×3 → 24% del train, hold-out 
 
 ### La frase que lo vende (sin mentir)
 
+> [!TIP]
 > "Construí y opero un sistema de IA completo con evals como gates, memoria con lifecycle, un modelo self-trained con veredicto basado en evals — y la disciplina de matar mis propias features cuando los números lo dicen."
 
 Lo que lo hace serio no es la escala: es que TODO está medido y el sistema se niega a mentir (los gates matan features, los evals matan modelos, la ley de indicadores honestos).
 
 ---
 
-## PARTE 10 — EL EXAMEN (21 preguntas; de memoria, sin leer)
+## 📝 PARTE 10 — EL EXAMEN (21 preguntas; de memoria, sin leer)
 
 ### Los 6 ORIGINALES (el re-examen de los 3 días)
 
@@ -895,11 +956,12 @@ Lo que lo hace serio no es la escala: es que TODO está medido y el sistema se n
 20. ¿Por qué el pass de DATA cerró el needle de contenido pero NO la disciplina del vacío — y cuáles son las tres palancas que quedan?
 21. ¿Qué hace KeepAlive SuccessfulExit=false en launchd y por qué es el patrón correcto para un entrenamiento que puede morir (vs KeepAlive true y vs false a secas)?
 
-> **La regla del examen:** cada respuesta con TUS palabras y UN número del sistema que la demuestre. Si el número no lo tenés, se vuelve a leer la parte — la curva se mide igual que el sistema.
+> [!IMPORTANT]
+> 🔑 **La regla del examen:** cada respuesta con TUS palabras y UN número del sistema que la demuestre. Si el número no lo tenés, se vuelve a leer la parte — la curva se mide igual que el sistema.
 
 ---
 
-## PARTE 11 — LAS TRAMPAS DEL MES
+## ⚠️ PARTE 11 — LAS TRAMPAS DEL MES
 
 - **run-external y los dash-flags:** los flags con guión escritos como literales en el call-site se parsean como flags PROPIOS del builtin ("unknown flag train"). Van como VALORES de lista (quoted) via spread: `run-external $cmd.0 ...($cmd | skip 1)`. Tres strikes en mi propia KB — nu-check SIEMPRE antes de correr.
 - **SQLDelight RETURNING es lazy:** `insertMemory(...)` sin `.executeAsOne()` NUNCA ejecuta el insert — filas fantasma sin error. El síntoma: la cola que debería tener filas está vacía.
@@ -912,7 +974,7 @@ Lo que lo hace serio no es la escala: es que TODO está medido y el sistema se n
 
 ---
 
-## PARTE 12 — PLAN DE ESTUDIO
+## 🗺️ PARTE 12 — PLAN DE ESTUDIO
 
 **Día 1 (el esqueleto):** PARTE 1 (historia) → PARTE 3 (brújula) → PARTE 4 completa (arquitectura + diagramas). Recorré cada gráfico siguiendo los números del recorrido — si una flecha no cerrás qué es, es pregunta de chat.
 
