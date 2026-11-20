@@ -1,9 +1,13 @@
 # El mapa completo de tu AI engineering — v2 (18/11/2026)
 
+> **SUPERSEDED (20/11):** la versión canónica y completa es ahora
+> `docs/ai-engineering-mapa-y-diccionario.md` (el LIBRO v4: arquitectura con
+> diagramas, diccionario desde cero con ejemplos, el arco, el método, el
+> examen). Este archivo queda como la versión CORTA de consulta rápida — los
+> números de aquí llegan hasta el 20/11 inclusive.
+
 Todo lo construido hasta hoy + el diccionario de términos, en español. Cada
-número acá es medido y verificable (suite, ledger, endpoint o drill). La copia
-de lectura vive en `~/Desktop/ai-engineering-mapa-y-diccionario.txt` (mismo
-contenido).
+número acá es medido y verificable (suite, ledger, endpoint o drill).
 
 ## Parte 1 — La historia en una página
 
