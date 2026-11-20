@@ -1,0 +1,87 @@
+/* ============================================================
+   THE STUDY BOOK VISUAL SYSTEM (agent-brain)
+   Loaded by VS Code's built-in Markdown preview via the
+   workspace setting "markdown.styles" (see settings.json).
+
+   Roles (same language as the book's Parte 0 legend):
+   - <mark>            the KEY phrase / value (amber)
+   - mark.law          a house LAW (violet)
+   - mark.num          a measured NUMBER (green)
+   - mark.warn         a trap / warning (red)
+   - .badge-*          small labels per dictionary role
+   ============================================================ */
+
+/* --- base: make text comfortable for long study reading --- */
+.markdown-preview {
+    font-size: 15.5px;
+    line-height: 1.65;
+}
+
+/* --- headings: stronger hierarchy than default --- */
+.markdown-preview h1 {
+    border-bottom: 3px solid #8b5cf6;
+    padding-bottom: 0.3em;
+}
+.markdown-preview h2 {
+    border-bottom: 2px solid #d1d5db;
+    padding-bottom: 0.25em;
+    color: #1e3a8a;
+}
+.markdown-preview h3 {
+    color: #7c3aed;
+}
+
+/* --- the KEY phrase: amber, slightly padded --- */
+.markdown-preview mark {
+    background: #fef08a;
+    color: inherit;
+    padding: 0.05em 0.3em;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* --- a house LAW: violet --- */
+.markdown-preview mark.law {
+    background: #ede9fe;
+    border-left: 3px solid #8b5cf6;
+    color: #4c1d95;
+}
+
+/* --- a measured NUMBER: green --- */
+.markdown-preview mark.num {
+    background: #dcfce7;
+    border-left: 3px solid #16a34a;
+    color: #14532d;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-weight: 600;
+}
+
+/* --- a trap / warning: red --- */
+.markdown-preview mark.warn {
+    background: #fee2e2;
+    border-left: 3px solid #dc2626;
+    color: #7f1d1d;
+}
+
+/* --- colored GitHub-style alerts for the BUILT-IN preview --- */
+.markdown-preview blockquote {
+    border-left: 4px solid #d1d5db;
+    background: #f8fafc;
+    padding: 0.4em 1em;
+    border-radius: 0 6px 6px 0;
+}
+
+/* --- tables: readable zebra --- */
+.markdown-preview table th {
+    background: #e0e7ff;
+}
+.markdown-preview table tr:nth-child(even) td {
+    background: #f8fafc;
+}
+
+/* --- inline code already has a chip look; make numbers pop a bit more --- */
+.markdown-preview code {
+    background: #eef2ff;
+    border-radius: 4px;
+    padding: 0.08em 0.35em;
+}

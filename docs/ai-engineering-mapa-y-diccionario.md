@@ -26,6 +26,10 @@
 | 📊 **El número** | el veredicto medido de esa unidad |
 | ⚠️ | trampa — lo que mordió de verdad |
 | 🔑 | ley de la casa / frase para recordar |
+| <mark>frase resaltada</mark> | LA frase clave del párrafo (fondo amarillo) |
+| <mark class="law">**ley**</mark> | ley de la casa (violeta en VS Code) |
+| <mark class="num">`número`</mark> | número medido (verde en VS Code) |
+| <mark class="warn">**cuidado**</mark> | trampa/punto débil (rojo en VS Code) |
 | Caja 🟣 morada `[!IMPORTANT]` | LEY — regla de la casa, no negociable |
 | Caja 🟢 verde `[!TIP]` | la frase que lo resume, el tip |
 | Caja 🟡 amarilla `[!WARNING]` | cuidado / trampa |
@@ -34,7 +38,7 @@
 En los diagramas, los colores son por ROL: 🔵 azul = donde vive el dato (Postgres) · 🟢 verde = modelos · 🟡 ámbar = decisión/punto crítico · 🔴 rojo = camino de rechazo/fallo · ⬜ gris punteado = el guardián (launchd).
 
 > [!NOTE]
-> Las cajas de color se ven en GitHub (web) al abrir el archivo, y en VS Code con la extensión **"Markdown Preview for GitHub Alerts"**. En un preview que no las soporte, se leen como citas normales — nada se pierde, sólo el color.
+> **Dónde se ve cada nivel de color:** GitHub (web) muestra las cajas de alerta y los `<mark>` amarillos. **VS Code con el preview integrado (Cmd+Shift+V) muestra TODO el sistema** — cajas, marks violeta/verde/rojo, jerarquía de títulos — porque el repo trae su propio tema en `.vscode/styles.css` (se carga solo al abrir la carpeta del repo; si no aparece, recargá la ventana). Los diagramas mermaid renderizan nativo en ambos. En un visor sin soporte, todo degrada a texto plano — nada se pierde, sólo el color.
 
 ---
 
@@ -287,8 +291,8 @@ sequenceDiagram
 
 **Lo que hay que ver de este gráfico:**
 
-- **La expansión sólo puede sumar.** Si la reformulación en inglés resulta IDÉNTICA a la original, no hay segunda pata (no gastamos); si es distinta, son dos búsquedas que RRF fusiona. Un doc que aparece bien rankeado en las dos patas gana. En el peor caso el resultado es el mismo que sin expansión — por eso la regla es "sólo suma".
-- **RRF no tiene pesos que tunear.** Cada documento suma `1/(60 + posición)` en cada lista donde aparece. Ejemplo con números: el doc A salió 1° por sentido y 3° por palabras → `1/61 + 1/63 = 0.0323`. El doc B salió 2° en una sola pata → `1/62 = 0.0161`. Gana A. Esa simpleza ES la feature: no hay perillas que ajustar ni sesgos del que tunea.
+- <mark class="law">**La expansión sólo puede sumar.**</mark> Si la reformulación en inglés resulta IDÉNTICA a la original, no hay segunda pata (no gastamos); si es distinta, son dos búsquedas que RRF fusiona. Un doc que aparece bien rankeado en las dos patas gana. En el peor caso el resultado es el mismo que sin expansión — por eso la regla es "sólo suma".
+- <mark>**RRF no tiene pesos que tunear.**</mark> Cada documento suma `1/(60 + posición)` en cada lista donde aparece. Ejemplo con números: el doc A salió 1° por sentido y 3° por palabras → `1/61 + 1/63 = 0.0323`. El doc B salió 2° en una sola pata → `1/62 = 0.0161`. Gana A. Esa simpleza ES la feature: no hay perillas que ajustar ni sesgos del que tunea.
 - **Las citas son parte del contrato.** Cada chunk lleva la ruta del documento (`docs/probe-rerank-crossencoder.md`); la respuesta que arma el modelo cita esas rutas. Eso es grounding: la respuesta se APOYA en lo recuperado y podés verificar.
 - **El costo de la latencia:** todo este viaje (dos patas + fusión) tarda p50 ~20-33 ms. El embed de la query va a nomic LOCAL — si fuera una API remota, cada pregunta pagaría un round-trip de red.
 
@@ -337,9 +341,9 @@ flowchart TB
 
 **Las tres leyes que este gráfico esconde:**
 
-1. **El breaker no consume intento.** Si el fusible está OPEN (deepseek acaba de fallar 5 veces seguidas), el turno vuelve a la cola SIN gastar uno de sus 5 intentos. La lógica: el breaker es estado del PROVEEDOR (deepseek está mal), no del turno (el transcript no es el problema). Castigar al turno por una caída ajena sería perder memorias buenas.
-2. **El dedup es en escritura.** Antes de insertar, se compara el hecho nuevo contra las memorias vivas: si la similitud coseno pasa 0.90, no se crea otra copia — se REFUERZA la existente. La frontera 0.90 es MEDIDA: los pares verdaderamente duplicados dieron 0.9123-0.9845 y el par "relacionado pero distinto" más fuerte dio 0.8789. El 0.90 cayó en el hueco entre los dos grupos.
-3. **Nada se tira.** El JSON inválido va a quarantine (la evidencia queda para auditar); la memoria vieja invalidada por reconcile queda con `invalid_at` (historia diseñada, no corrupción).
+1. <mark class="law">**El breaker no consume intento.**</mark> Si el fusible está OPEN (deepseek acaba de fallar 5 veces seguidas), el turno vuelve a la cola SIN gastar uno de sus 5 intentos. La lógica: el breaker es estado del PROVEEDOR (deepseek está mal), no del turno (el transcript no es el problema). Castigar al turno por una caída ajena sería perder memorias buenas.
+2. <mark class="law">**El dedup es en escritura.**</mark> Antes de insertar, se compara el hecho nuevo contra las memorias vivas: si la similitud coseno pasa 0.90, no se crea otra copia — se REFUERZA la existente. La frontera 0.90 es MEDIDA: los pares verdaderamente duplicados dieron 0.9123-0.9845 y el par "relacionado pero distinto" más fuerte dio 0.8789. El 0.90 cayó en el hueco entre los dos grupos.
+3. <mark class="law">**Nada se tira.**</mark> El JSON inválido va a quarantine (la evidencia queda para auditar); la memoria vieja invalidada por reconcile queda con `invalid_at` (historia diseñada, no corrupción).
 
 ### 4.4 LA MEMORIA POR DENTRO (lifecycle, grafo y reconcile)
 
@@ -404,7 +408,7 @@ flowchart TB
 
 **Lo que enseña este gráfico:**
 
-- **La ventana es un recurso escaso y ARMADO.** El modelo no "ve todo": ve lo que el harness decide poner — system prompt, historial, la memoria inyectada, los resultados de tools. Esa decisión (qué entra y en qué orden) es la disciplina que 2026 llama **context engineering**. Tu versión más medible: la memoria entra con tope de 1500 chars y deadline de 1.5 s — si el brain no contesta a tiempo, el turno sigue SIN memoria antes que frenarse.
+- <mark>**La ventana es un recurso escaso y ARMADO.**</mark> El modelo no "ve todo": ve lo que el harness decide poner — system prompt, historial, la memoria inyectada, los resultados de tools. Esa decisión (qué entra y en qué orden) es la disciplina que 2026 llama **context engineering**. Tu versión más medible: la memoria entra con tope de 1500 chars y deadline de 1.5 s — si el brain no contesta a tiempo, el turno sigue SIN memoria antes que frenarse.
 - **Las herramientas son el punto de entrada del mundo.** `rag_query` y `memory_search` son tools MCP que el brain expone — el modelo las llama cuando decide que necesita tus docs o tu memoria. El contrato de cada tool es un JSON Schema (qué argumentos acepta).
 - **El permiso es fail-closed.** Ante la duda, el harness pregunta en vez de ejecutar. La misma filosofía del auth del socket: 401 byte-idéntico, el proceso ni arranca sin token.
 - **El turno sellado es el que alimenta todo lo demás:** al bus llega turn.completed (con modelo y tokens → turn_costs) y de ahí salen la extracción de memoria, el shadow judge, /learn. El loop no termina en la respuesta: termina en el DATO.
@@ -430,7 +434,7 @@ flowchart LR
     class TG output
 ```
 
-**Por qué es nocturno y no continuo:** (1) el reindex lee los repos y embebe — hacerlo en vivo competiría con tus queries por el mismo ollama; (2) los evals son la CERTIFICACIÓN — una vez por día alcanza para ver tendencias, y cada corrida deja su fila en el ledger así el trend nunca se pierde; (3) a la mañana tenés UNA línea que resume si el sistema sigue sano. Si algo falla, la línea es roja — la ley de indicadores honestos: mejor silencio rojo que un ticker verde que miente.
+**Por qué es nocturno y no continuo:** (1) el reindex lee los repos y embebe — hacerlo en vivo competiría con tus queries por el mismo ollama; (2) los evals son la CERTIFICACIÓN — una vez por día alcanza para ver tendencias, y cada corrida deja su fila en el ledger así el trend nunca se pierde; (3) a la mañana tenés UNA línea que resume si el sistema sigue sano. Si algo falla, la línea es roja — la ley de indicadores honestos: <mark class="warn">mejor silencio rojo que un ticker verde que miente</mark>.
 
 ### 4.7 EL PIPELINE DEL LORA (de tu tráfico a tu modelo)
 
@@ -811,11 +815,11 @@ flowchart TB
 
 ## 🔢 PARTE 6 — CÓMO LEER LOS NÚMEROS (los 5 que vas a seguir viendo)
 
-1. **recall@5** = "¿está la respuesta entre los primeros 5?" — la puerta de entrada.
-2. **MRR** = "¿qué tan ARRIBA está?" — 1.0 perfecto; 0.5 significa que el doc correcto promedia la posición 2. Tu 0.9848: casi siempre primero.
+1. **recall@5** = <mark>"¿está la respuesta entre los primeros 5?"</mark> — la puerta de entrada.
+2. **MRR** = <mark>"¿qué tan ARRIBA está?"</mark> — 1.0 perfecto; 0.5 significa que el doc correcto promedia la posición 2. Tu <mark class="num">0.9848</mark>: casi siempre primero.
 3. **nDCG@5** = MRR que premia TODO el top-5 en orden.
-4. **p50/p95** = latencia mediana y cola. Un p50 de 20 ms con p95 de 2 s dice "normalmente rapidísimo, a veces hay una cola".
-5. **gate** = el piso aprobado por vos. passed/total ≥ gate. Si no llega, es un hallazgo: se investiga, no se baja el piso.
+4. **p50/p95** = latencia mediana y cola. Un p50 de 20 ms con p95 de 2 s dice <mark>"normalmente rapidísimo, a veces hay una cola"</mark>.
+5. **gate** = el piso aprobado por vos. passed/total ≥ gate. <mark class="law">Si no llega, es un hallazgo: se investiga, no se baja el piso.</mark>
 
 **Ejemplo vivo:** recall-core 33/33, MRR 0.9848, nDCG@5 0.9888, p50 22 ms, gate 0.9 — se lee: "en 33 preguntas reales, el doc correcto estuvo en el top-5 SIEMPRE, casi siempre primero, y la búsqueda tarda 22 ms en promedio".
 
@@ -880,10 +884,10 @@ Dataset v2 (986 + 31 + 58 triviales, oversample ×3 → 24% del train, hold-out 
 
 *No es lo que construiste — es CÓMO decidís. Cada ley con su recibo.*
 
-1. **El eval es el gate, no la demo.** Nada se shippea sin número; un cambio que baja el número no mergea. Recibos: el rerank listwise OFF tras dos veredictos; el LoRA 5/6 NO reemplaza a deepseek 6/6 aunque sea gratis.
-2. **Medir, no asumir.** El rerank se midió dos veces antes de matarlo; el cross-encoder antes de integrarlo; el "mejor embedder" contra nomic antes de pagar. El fixture se midió contra producción y resultó ciego (33/33 vs 0.697).
+1. <mark class="law">**El eval es el gate, no la demo.**</mark> Nada se shippea sin número; un cambio que baja el número no mergea. Recibos: el rerank listwise OFF tras dos veredictos; el LoRA 5/6 NO reemplaza a deepseek 6/6 aunque sea gratis.
+2. <mark class="law">**Medir, no asumir.**</mark> El rerank se midió dos veces antes de matarlo; el cross-encoder antes de integrarlo; el "mejor embedder" contra nomic antes de pagar. El fixture se midió contra producción y resultó ciego (33/33 vs 0.697).
 3. **Indicadores honestos.** Un indicador que no refleja la realidad es peor que no tenerlo (el fake ticker que mintió durante una caída). Freshness sobre "loaded"; silencio es data; degradación honesta en cada pata.
-4. **Lo determinístico queda en código.** El judge vive SOLO donde un assert no alcanza (reconcile, contradiction, usage, shadow). El piso de 240 chars es SQL; el trivial-skip propuesto es código, no modelo.
+4. <mark class="law">**Lo determinístico queda en código.**</mark> El judge vive SOLO donde un assert no alcanza (reconcile, contradiction, usage, shadow). El piso de 240 chars es SQL; el trivial-skip propuesto es código, no modelo.
 5. **Las etapas componen, nunca reemplazan.** Una etapa nueva de retrieval sólo puede SUMAR recall (la pata bilingüe quedó como pata del multi-hop; el A/B de producción cazó el reemplazo).
 6. **Parse, don't validate + no opaque types.** El dato se parsea UNA vez a un tipo que hace inválido lo inválido; ningún valor con significado oculto. El test: ¿un lector del dominio sabe qué es cada valor desde la firma?
 7. **Todo proceso que debe vivir, vive afuera.** launchd posee los servicios; la sesión no posee NADA que importe (nohup-in-session murió dos veces con los entrenamientos adentro). KeepAlive SuccessfulExit=false para lo auto-curativo.
@@ -913,9 +917,9 @@ Dataset v2 (986 + 31 + 58 triviales, oversample ×3 → 24% del train, hold-out 
 
 ### Las debilidades (nombradas, no escondidas)
 
-- **Single-person, single-Mac:** no es un producto, no hay HA; la muerte de la Mac = recuperación manual desde backups.
-- **El brain es el COPILOT, no el pilot:** el código pesado sigue fluyendo por el modelo; el brain sostiene memoria y medición.
-- **Usage/shadow evals tienen DÍAS de historia, no meses** — el signal de tendencia recién empieza.
+- <mark class="warn">**Single-person, single-Mac:**</mark> no es un producto, no hay HA; la muerte de la Mac = recuperación manual desde backups.
+- <mark class="warn">**El brain es el COPILOT, no el pilot:**</mark> el código pesado sigue fluyendo por el modelo; el brain sostiene memoria y medición.
+- <mark class="warn">**Usage/shadow evals tienen DÍAS de historia, no meses**</mark> — el signal de tendencia recién empieza.
 - Algunos subsistemas son piezas de museo post-cutover (el comparador de paridad).
 
 ### La frase que lo vende (sin mentir)
