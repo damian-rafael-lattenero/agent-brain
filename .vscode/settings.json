@@ -1,0 +1,7 @@
+{
+    "gradle.autoDetect": "off",
+    "java.gradle.buildServer.enabled": "off",
+    "markdown.styles": [
+        ".vscode/styles.css"
+    ]
+}
