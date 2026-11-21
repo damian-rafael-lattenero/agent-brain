@@ -15,6 +15,7 @@ import dev.lattenero.brain.bus.BusStatus
 import dev.lattenero.brain.bus.BusTransport
 import dev.lattenero.brain.memory.MemoryKind
 import dev.lattenero.brain.db.Database
+import dev.lattenero.brain.eval.CorpusDoctor
 import dev.lattenero.brain.eval.EvalLedger
 import dev.lattenero.brain.eval.EvalLedgerMarkdown
 import dev.lattenero.brain.eval.EvalMatrixMarkdown
@@ -131,6 +132,11 @@ const val USAGE = """usage: agent-brain <command> [args]
                      grade the production rag_query log with the judge: hit-rate and the graded
                      retrieval columns over REAL queries (the report rides the ledger as suite
                      "usage"); nothing to grade answers honestly and exits 0
+  doctor [--days N] [--limit K]
+                     the corpus doctor: judge-classify the graded failures of the production
+                     rag_query log (corpus_gap / phrasing_mismatch / stale_chunk / unanswerable)
+                     into repair proposals; READ-ONLY (proposes, never writes); nothing graded
+                     in the window answers honestly and exits 0
   shadow-eval [--limit N]
                      judge the newest completed bot turns past the cursor on the rubric: the
                      daily quality number for the REPLIES (ledger suite "shadow"); nothing new
@@ -164,6 +170,7 @@ fun run(args: Array<String>): Int {
             "export-lora-pairs" -> exportLoraPairs(rest)
             "eval" -> eval(rest)
             "usage-eval" -> usageEval(rest)
+            "doctor" -> doctor(rest)
             "shadow-eval" -> shadowEval(rest)
             "translate-legacy" -> translateLegacy(rest)
             "health" -> health(url = rest.optionValue("--url"))
@@ -479,6 +486,47 @@ private fun buildUsageNothing(ungraded: Long): JsonObject = buildJsonObject {
     put("suite", "usage")
     put("graded", 0)
     put("ungraded", ungraded)
+}
+
+/**
+ * `doctor [--days N] [--limit K]`: the corpus doctor — the graded failures
+ * of the production rag_query log, one judge call per failure, classified
+ * into repair proposals. READ-ONLY by design: the doctor proposes (artifacts
+ * + the summary the weekly script announces), it never writes the corpus.
+ * Nothing graded in the window answers honestly and exits 0; a run WITH
+ * failures is a FINDING, not a broken run — the exit stays 0 and the failure
+ * rate speaks in the report.
+ */
+private fun doctor(args: List<String>): Int {
+    val days = args.optionValue("--days")?.toIntOrNull() ?: CorpusDoctor.DEFAULT_DAYS
+    val limit = args.optionValue("--limit")?.toIntOrNull() ?: CorpusDoctor.DEFAULT_LIMIT
+    val invalid = listOf(
+        "days" to (days < 1),
+        "limit" to (limit < 1),
+    ).filter { it.second }
+    if (invalid.isNotEmpty()) {
+        return fail("doctor: invalid " + invalid.joinToString(", ") { (name, _) -> name })
+    }
+    return withBrain(Config.load()) { brain ->
+        brain.migrator.apply()
+        val report = brain.corpusDoctor.diagnose(days = days, limit = limit) ?: run {
+            printJson(buildJsonObject {
+                put("doctor", "corpus-doctor")
+                put("window_days", days)
+                put("graded", 0)
+                put("failed", 0)
+            })
+            return@withBrain EXIT_OK
+        }
+        val markdown = report.markdown()
+        val json = responseJson.encodeToString(CorpusDoctor.DoctorReport.serializer(), report)
+        val outDir = java.nio.file.Path.of("evals/artifacts")
+        java.nio.file.Files.createDirectories(outDir)
+        writeArtifact(outDir, "doctor-${stamp(report.startedAt)}", markdown, json)
+        writeArtifact(outDir, "latest-doctor", markdown, json)
+        printJson(responseJson.parseToJsonElement(json))
+        EXIT_OK
+    }
 }
 
 /**

@@ -24,6 +24,7 @@ import dev.lattenero.brain.db.Migrator
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.EmbeddingProviders
 import dev.lattenero.brain.embeddings.ProviderResilience
+import dev.lattenero.brain.eval.CorpusDoctor
 import dev.lattenero.brain.eval.EvalLedger
 import dev.lattenero.brain.eval.ShadowEval
 import dev.lattenero.brain.eval.UsageEval
@@ -126,6 +127,14 @@ class Brain private constructor(
      */
     val ragQueryLog: RagQueryLogger = RagQueryLogger(db)
     val usageEval: UsageEval = UsageEval(db, judgeChat, embedModel = provider.model, embedDim = config.embedDim)
+
+    /**
+     * The corpus doctor (plan v2 B6): the usage eval's closing half — the
+     * graded failures of the rag_query log, judge-classified into repair
+     * proposals. READ-ONLY: it proposes (report + artifacts), the owner
+     * applies, the nightly verifies.
+     */
+    val corpusDoctor: CorpusDoctor = CorpusDoctor(db, judgeChat)
 
     /**
      * The English-corpus migration (the owner's call 19/11): the legacy
