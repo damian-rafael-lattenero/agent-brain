@@ -58,7 +58,7 @@ class IndexReposCliTest {
         assertThat(json["bytes"]!!.jsonPrimitive.long).isEqualTo(5L + "fun main() {}".length + 3L)
         assertThat(json["projectsDir"]!!.jsonPrimitive.content).isEqualTo(tmp.toString())
         val repos = json["repos"]!!.jsonArray.map { it.jsonObject }
-        assertThat(repos.map { it["name"]!!.jsonPrimitive.content }).containsExactly("kap", "bot", "zcode-bot-kotlin", "ZCode", "agent-brain")
+        assertThat(repos.map { it["name"]!!.jsonPrimitive.content }).containsExactly("kap", "bot", "zcode-bot-kotlin", "agent-brain")
         assertThat(repos.first { it["name"]!!.jsonPrimitive.content == "kap" }["documents"]!!.jsonPrimitive.int).isEqualTo(2)
         assertThat(repos.first { it["name"]!!.jsonPrimitive.content == "bot" }["documents"]!!.jsonPrimitive.int).isEqualTo(1)
     }
