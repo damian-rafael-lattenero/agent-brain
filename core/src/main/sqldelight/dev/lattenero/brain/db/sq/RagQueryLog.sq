@@ -39,3 +39,17 @@ markGraded:
 UPDATE rag_query_log SET graded = TRUE, relevant_count = :relevantCount,
   first_relevant_rank = :firstRelevantRank, verdicts = :verdicts, judged_at = :judgedAt::timestamptz
 WHERE id = :id AND NOT graded;
+
+-- The corpus doctor's input: the graded FAILURES (the judge found nothing
+-- relevant) inside the window, newest first — the query-side history the
+-- usage eval measured but nobody consumed.
+failedGraded:
+SELECT id, query, chunk_ids, top_uris, at FROM rag_query_log
+WHERE graded AND relevant_count = 0 AND at >= :since::timestamptz
+ORDER BY at DESC LIMIT :limit;
+
+-- The window's denominator: how many production queries the judge graded at
+-- all (a failure rate needs it — N failures over nothing means nothing).
+countGraded:
+SELECT count(*) AS n FROM rag_query_log
+WHERE graded AND at >= :since::timestamptz;
