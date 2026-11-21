@@ -20,3 +20,7 @@ build/
 
 # the LoRA training data: the owner's private transcripts, never committed
 /evals/lora/
+
+# The evals' dated artifacts are regenerated measurements (the nightly writes them); the ledger is the record.
+evals/artifacts/
+scripts/.DS_Store
