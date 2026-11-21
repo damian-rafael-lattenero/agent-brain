@@ -117,6 +117,27 @@ class IndexerIT {
     }
 
     @Test
+    fun `a title-only document chunks to nothing, is never stored and lands in skipped`() = runBlocking<Unit> {
+        val own = Files.createTempDirectory("agent-brain-empty")
+        Files.writeString(own.resolve("blog-index.md"), "# Blog")
+        Files.writeString(own.resolve("real.md"), "# Real\nthis one has body text")
+        val first = indexer().indexGlobs(listOf("$own/*.md"))
+        assertThat(first.indexed).isEqualTo(1)
+        assertThat(first.failed).isEmpty()
+        assertThat(first.skipped.single()).contains("blog-index.md").contains("no chunks")
+        // The empty document is not left stored: a second run sees only the real one unchanged
+        // (a stored empty would short-circuit as Unchanged and count two).
+        val second = indexer().indexGlobs(listOf("$own/*.md"))
+        assertThat(second.unchanged).isEqualTo(1)
+        assertThat(second.indexed).isZero
+        // The suite shares one database: an empty-glob pass prunes this test's rows again.
+        Files.delete(own.resolve("real.md"))
+        Files.delete(own.resolve("blog-index.md"))
+        val cleanup = indexer().indexGlobs(listOf("$own/*.md"))
+        assertThat(cleanup.pruned).isEqualTo(1)
+    }
+
+    @Test
     fun `the queries find what was indexed, with citations pointing at the file`() = runBlocking<Unit> {
         indexer().indexGlobs(listOf(glob))
         val provider = FakeProvider(dim, FakeProvider.Mode.BOW)

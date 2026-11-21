@@ -47,6 +47,9 @@ RETURNING id;
 deleteChunksByDoc:
 DELETE FROM chunks WHERE doc_id = :docId;
 
+deleteDocument:
+DELETE FROM documents WHERE id = :docId RETURNING id;
+
 insertChunk:
 INSERT INTO chunks (doc_id, ordinal, heading, content, embed_model, embedding)
 VALUES (:docId, :ordinal, :heading, :content, :embedModel, :embedding::vector);

@@ -55,6 +55,9 @@ class Indexer(
 
         data class Unchanged(override val uri: String) : Outcome
         data class Indexed(override val uri: String, val chunks: Int, val batches: Int) : Outcome
+
+        /** A document that chunks to nothing (title-only or empty): the upsert is rolled back, never stored. */
+        data class Empty(override val uri: String) : Outcome
     }
 
     fun indexDocument(doc: Corpus.Document): Kap<Outcome> =
@@ -65,11 +68,17 @@ class Indexer(
                     is RagStore.Upsert.Unchanged -> Kap.of(Outcome.Unchanged(doc.uri))
                     is RagStore.Upsert.Changed -> {
                         val chunks = chunker.chunk(doc.title, doc.content)
-                        val batches = (chunks.size + embed.batchSize - 1) / embed.batchSize
-                        embed.embedAll(chunks.map { it.content })
-                            .map { vectors -> chunks.zip(vectors) { c, v -> RagStore.ChunkRow(c.ordinal, c.heading, c.content, v) } }
-                            .andThen { rows -> Kap { store.replaceChunks(upsert.docId, embed.model, rows) }.traced(PHASE_STORE, tracer) }
-                            .map { Outcome.Indexed(doc.uri, chunks.size, batches) }
+                        if (chunks.isEmpty()) {
+                            // Storing a document no query can ever reach is dead weight in the corpus.
+                            Kap { store.deleteDocument(upsert.docId) }.traced(PHASE_STORE, tracer)
+                                .map { Outcome.Empty(doc.uri) }
+                        } else {
+                            val batches = (chunks.size + embed.batchSize - 1) / embed.batchSize
+                            embed.embedAll(chunks.map { it.content })
+                                .map { vectors -> chunks.zip(vectors) { c, v -> RagStore.ChunkRow(c.ordinal, c.heading, c.content, v) } }
+                                .andThen { rows -> Kap { store.replaceChunks(upsert.docId, embed.model, rows) }.traced(PHASE_STORE, tracer) }
+                                .map { Outcome.Indexed(doc.uri, chunks.size, batches) }
+                        }
                     }
                 }
             }
@@ -91,6 +100,7 @@ class Indexer(
         var chunks = 0
         var embedCalls = 0
         val failed = ArrayList<IndexFailure>()
+        val skippedAll = ArrayList<String>(skipped)
         results.zip(documents).forEach { (result, doc) ->
             result.fold(
                 onSuccess = { outcome ->
@@ -101,6 +111,7 @@ class Indexer(
                             chunks += outcome.chunks
                             embedCalls += outcome.batches
                         }
+                        is Outcome.Empty -> skippedAll += "${outcome.uri}: no chunks (title-only or empty)"
                     }
                 },
                 onFailure = { error ->
@@ -117,7 +128,7 @@ class Indexer(
             pruned = run.pruned,
             chunks = chunks,
             embedCalls = embedCalls,
-            skipped = skipped,
+            skipped = skippedAll,
             durationMs = mark.elapsedNow().inWholeMilliseconds,
             embedModel = embed.model,
             phases = tracer.phases.mapValues { (_, p) ->

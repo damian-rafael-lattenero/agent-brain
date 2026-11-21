@@ -72,6 +72,11 @@ class RagStore(private val db: Database) {
             brainDb.ragQueries.deleteDocumentsNotIn(source, keptUris.toTypedArray()).value.toInt()
         }
 
+    /** Deletes one document; its chunks cascade via the foreign key. For documents that chunk to nothing. */
+    suspend fun deleteDocument(docId: Long) {
+        db.withDriver { brainDb -> brainDb.ragQueries.deleteDocument(docId).executeAsOne() }
+    }
+
     suspend fun search(queryEmbedding: FloatArray, queryText: String, embedModel: String, k: Int = DEFAULT_K): List<Hit> = db.withDriver { brainDb ->
         val candidates = maxOf(k * CANDIDATE_FACTOR, MIN_CANDIDATES)
         brainDb.ragQueries.searchRag(
