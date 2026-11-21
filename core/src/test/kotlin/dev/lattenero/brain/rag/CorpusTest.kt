@@ -71,6 +71,15 @@ class CorpusTest {
     }
 
     @Test
+    fun `eval fixtures and test resources are never corpus content`() {
+        write("bot/core/src/main/resources/eval/corpus/distractor-viaje.md")
+        write("bot/core/src/test/resources/corpus/distractor-bariloche.md")
+        write("bot/docs/adr/ADR-013.md")
+        val scan = Corpus(prunedPathParts = Corpus.REPO_PRUNED_PATH_PARTS).scan(listOf("$tmp/bot/**/*.md"))
+        assertThat(scan.documents.map { it.title }).containsExactly("docs/adr/ADR-013.md")
+    }
+
+    @Test
     fun `the same file reached by two globs is indexed once`() {
         write("docs/a.md")
         val scan = Corpus().scan(listOf("$tmp/docs/*.md", "$tmp/**/*.md"))

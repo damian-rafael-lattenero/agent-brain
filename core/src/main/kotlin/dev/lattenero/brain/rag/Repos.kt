@@ -88,7 +88,10 @@ class Repos(
      * document to its source glob for the per-repository counters. Bytes are
      * the UTF-8 length of the content, which is the file size [Corpus] read.
      */
-    fun plan(names: List<String> = DEFAULT_NAMES, corpus: Corpus = Corpus()): Plan {
+    fun plan(
+        names: List<String> = DEFAULT_NAMES,
+        corpus: Corpus = Corpus(prunedPathParts = Corpus.REPO_PRUNED_PATH_PARTS),
+    ): Plan {
         val repositories = resolve(names)
         val scan = corpus.scan(repositories.map { it.glob })
         val bySource = scan.documents.groupBy { it.source }
