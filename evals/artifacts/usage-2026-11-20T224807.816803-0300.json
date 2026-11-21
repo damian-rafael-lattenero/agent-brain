@@ -1,0 +1,63 @@
+{
+    "runId": "93931882-33da-43b7-8f37-a2fc4c325c83",
+    "suite": "usage",
+    "kind": "usage",
+    "axis": "chat",
+    "model": "deepseek-v4.1-flash",
+    "provider": "openai",
+    "embedModel": "nomic-embed-text",
+    "gate": 0.7,
+    "passed": 1,
+    "total": 1,
+    "ok": true,
+    "metrics": {
+        "p50Ms": 3073,
+        "p95Ms": 3073,
+        "promptTokens": 2220,
+        "completionTokens": 1075,
+        "costUsd": 0.0,
+        "costKnown": false,
+        "durationMs": 16824,
+        "supportChecked": null,
+        "supported": null,
+        "retrieval": {
+            "mrr": 1.0,
+            "recall1": 1.0,
+            "recall5": 1.0,
+            "ndcg5": 1.0,
+            "cases": 1
+        }
+    },
+    "cases": [
+        {
+            "id": "22",
+            "ok": true,
+            "durationMs": 3073,
+            "promptTokens": 2220,
+            "completionTokens": 1075,
+            "tokensEstimated": false,
+            "question": "nushell run external command tolerate failure complete record launchctl exit code try best-effort",
+            "expectedUri": null,
+            "rank": 1,
+            "topUri": "/Users/lattenero/Projects/nushell-kb/official/book/stdout_stderr_exit_codes.md",
+            "supported": null,
+            "citedUris": [],
+            "answer": null,
+            "facts": 0,
+            "decisions": 0,
+            "preferences": 0,
+            "summary": null,
+            "verdict": null,
+            "expectedVerdict": null,
+            "relatedHits": null,
+            "relevantCount": 2,
+            "verdictText": "{\"relevant\":[1,3]}",
+            "failure": null
+        }
+    ],
+    "startedAt": "2026-11-20T22:48:07.816803-03:00",
+    "durationMs": 16824,
+    "matrixId": null,
+    "chatModel": "deepseek-v4.1-flash",
+    "rerank": false
+}

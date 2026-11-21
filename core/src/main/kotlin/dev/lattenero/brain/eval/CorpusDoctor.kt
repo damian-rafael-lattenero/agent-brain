@@ -16,6 +16,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import java.time.OffsetDateTime
+import java.util.Locale
 import kotlin.time.TimeSource
 
 /**
@@ -94,7 +95,7 @@ class CorpusDoctor(private val db: Database, private val judge: ChatProvider) {
             append("# Corpus doctor — ${windowDays}d window\n\n")
             append("Graded ").append(gradedTotal).append(" production queries · ")
                 .append(failedTotal).append(" failures (")
-                .append("%.1f".format(failureRate * PERCENT_SCALE)).append("%)\n\n")
+                .append("%.1f".format(Locale.ROOT, failureRate * PERCENT_SCALE)).append("%)\n\n")
             if (truncated) {
                 append("_(capped at ").append(cases.size)
                     .append(" diagnosed cases — older failures beyond the cap)_\n\n")
