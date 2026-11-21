@@ -41,15 +41,17 @@ UPDATE rag_query_log SET graded = TRUE, relevant_count = :relevantCount,
 WHERE id = :id AND NOT graded;
 
 -- The corpus doctor's input: the graded FAILURES (the judge found nothing
--- relevant) inside the window, newest first — the query-side history the
--- usage eval measured but nobody consumed.
+-- relevant) inside the window, newest first. The clock is judged_at, NOT at:
+-- the usage judge grades the OLDEST ungraded rows first (FIFO), so a steady
+-- stream is graded days after it was asked — a graded verdict describes the
+-- corpus AS OF the grading time, which is what the weekly report means.
 failedGraded:
 SELECT id, query, chunk_ids, top_uris, at FROM rag_query_log
-WHERE graded AND relevant_count = 0 AND at >= :since::timestamptz
+WHERE graded AND relevant_count = 0 AND judged_at >= :since::timestamptz
 ORDER BY at DESC LIMIT :limit;
 
 -- The window's denominator: how many production queries the judge graded at
 -- all (a failure rate needs it — N failures over nothing means nothing).
 countGraded:
 SELECT count(*) AS n FROM rag_query_log
-WHERE graded AND at >= :since::timestamptz;
+WHERE graded AND judged_at >= :since::timestamptz;
