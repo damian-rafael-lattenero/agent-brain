@@ -18,6 +18,7 @@ class Corpus(
     private val maxBytes: Long = DEFAULT_MAX_BYTES,
     private val extensions: Set<String> = TEXT_EXTENSIONS,
     private val prunedDirs: Set<String> = PRUNED_DIRS,
+    private val prunedPathParts: List<String> = emptyList(),
 ) {
     data class Source(val glob: String, val root: Path, val matchers: List<PathMatcher>) {
         fun matches(path: Path): Boolean = matchers.any { it.matches(path) }
@@ -54,6 +55,10 @@ class Corpus(
             Files.walk(source.root).use { stream ->
                 stream.filter { Files.isRegularFile(it) }
                     .filter { path -> path.none { it.toString() in prunedDirs } }
+                    .filter { path ->
+                        val p = path.toString().replace('\\', '/')
+                        prunedPathParts.none { p.contains(it) }
+                    }
                     .filter { source.matches(it) }
                     .filter { it.fileName.toString().substringAfterLast('.', "").lowercase() in extensions }
                     .sorted()
@@ -100,6 +105,17 @@ class Corpus(
             ".git", "node_modules", "build", ".gradle", ".venv", "venv", "__pycache__",
             ".idea", "dist", "target", ".kotlin", "artifacts",
         )
+
+        /**
+         * Path segments never indexed by the REPO indexer, wherever they
+         * appear. The consumer repos' own RAG eval fixtures (distractor-*.md,
+         * eval/corpus/) and their test resources surfaced as top hits on
+         * real queries — measured 21/11: the bot's distractor-viaje.md
+         * outranked the real content on a Spanish question. Test trees are
+         * for tests, not for the corpus. Opt-in: only index-repos passes
+         * this — the KB globs and the recall-gate fixtures index unpruned.
+         */
+        val REPO_PRUNED_PATH_PARTS = listOf("/src/test/resources/", "/eval/corpus/", "/distractor")
 
         fun sha256(text: String): String =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
