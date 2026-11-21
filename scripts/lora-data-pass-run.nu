@@ -14,6 +14,12 @@
 # One launchd shot: environment → dataset → training → serve → gate →
 # ONE Telegram line with the verdict (loud on failure — the backup script's
 # law: success is the log, failure is the alarm).
+#
+# MEASURED TRAP this script ALSO fixes (20/11, two forced restarts): the
+# done marker was never written (the gate leg died before step 5), so the
+# boot refires were NOT no-ops — the pass retrained at every boot (load
+# average 272, the machine hung). Defense in depth: on completion AND on
+# the no-op refire the script SELF-DISARMS launchd (see self-disarm).
 
 use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce announce-loud]
 
@@ -28,11 +34,44 @@ const GATE_OUT: string = "/Users/lattenero/Projects/agent-brain/evals/lora/data-
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 const ITERS: int = 800
 const EMPTY_OVERSAMPLE: int = 3
+const LAUNCH_PLIST_DIR: string = "/Users/lattenero/Library/LaunchAgents"
+const GRAVEYARD: string = "/Users/lattenero/Library/LaunchAgents/disabled-graveyard"
+const LABELS: list<string> = ["com.zcode.lora-data-pass", "com.zcode.lora-resume"]
 
 def fail [msg: string]: nothing -> nothing {
     print -e $"lora-data-pass: ($msg)"
     announce-loud $"🌙 <b>LoRA data-pass FAILED</b> — ($msg | str substring 0..250)"
     exit 1
+}
+
+# The self-disarm (20/11): the pass is TERMINAL once gated — launchd must
+# never relaunch it. TRAP (launchd detachment law, measured 13/11): a script
+# that boots out its OWN job dies mid-run with the whole tree, so this only
+# DISABLES its own label (the override-DB flag survives reboots, the running
+# job is untouched) and bootouts the OTHER agent (the KeepAlive resume job)
+# from the side. The plists then move to the graveyard — no file left for
+# any bootstrap to pick up; mv of the own plist is safe, only bootout kills.
+# Best-effort and idempotent: a disarm landing twice is an honest no-op.
+def self-disarm []: nothing -> nothing {
+    let uid: int = (^id -u | into int)
+    let steps: list<list<string>> = [
+        ["bootout" $"gui/($uid)/com.zcode.lora-resume"]
+        ["disable" $"gui/($uid)/com.zcode.lora-data-pass"]
+        ["disable" $"gui/($uid)/com.zcode.lora-resume"]
+    ]
+    let landed: list<record> = ($steps | each {|step|
+        let r: record = (try { do { ^launchctl ...$step } | complete } catch { {exit_code: 99} })
+        {step: ($step | str join ' '), ok: ($r.exit_code == 0)}
+    })
+    mkdir $GRAVEYARD
+    let moved: int = ($LABELS
+        | each {|l| $"($LAUNCH_PLIST_DIR)/($l).plist" }
+        | where {|p| $p | path exists }
+        | each {|p| try { mv -f $p $GRAVEYARD; true } catch { false } }
+        | where {|ok| $ok == true }
+        | length)
+    let ok: int = ($landed | where ok | length)
+    print $"disarm: launchctl ($ok)/($landed | length) landed · ($moved) plists to the graveyard"
 }
 
 # The v2 split law (19/11 data pass, deterministic): holdout = every 10th
@@ -76,9 +115,12 @@ def prepare-data-pass []: nothing -> record {
 
 def main []: nothing -> nothing {
     # 0. the boot-refire guard: a launchd RunAtLoad agent re-fires on EVERY
-    #    boot — after completion this is a silent no-op (the 19/11 trap).
+    #    boot — after completion this is a silent no-op (the 19/11 trap),
+    #    AND the refire re-disarms launchd (defense in depth: the plists may
+    #    have crept back, the disable flag may have been lifted).
     if ($"($ADAPTER)/done" | path exists) {
         print "done marker present — boot refire, no-op"
+        self-disarm
         exit 0
     }
     print $"== lora-data-pass (date now | format date '%Y-%m-%d %H:%M') =="
@@ -174,4 +216,5 @@ def main []: nothing -> nothing {
     let verdict: string = if $report.ok { "PASSED the gate" } else { "did NOT reach the gate" }
     announce $"🌙 LoRA data-pass · ($ITERS) iters (resume 400→800) · extraction-core ($report.passed)/($report.total) — ($verdict) vs deepseek 6/6 · p50 ($report.metrics.p50Ms) ms"
     print $"gate: ($report.passed)/($report.total) ok=($report.ok)"
+    self-disarm
 }
