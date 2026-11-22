@@ -21,8 +21,8 @@
 
 use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu *
 
-const LABEL = "com.zcode.agent-brain"
-const BASE = "http://127.0.0.1:8765"
+const LABEL: string = "com.zcode.agent-brain"
+const BASE: string = "http://127.0.0.1:8765"
 
 # Probe /ready in a bounded retry loop INSIDE a job; success wakes the main
 # thread via the mailbox. 90 tries x 500ms covers a cold JVM with margin;
