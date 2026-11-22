@@ -36,6 +36,11 @@ data class Citation(val uri: String, val title: String, val heading: String, val
  * `reranked` says whether the second stage actually rode: a request that
  * asked for it but degraded (chat failure, unparsable verdict) answers with
  * the fused order AND `reranked = false` — the flag is the honest stage.
+ *
+ * `topSimilarity`/`relevant` are the confidence floor: RRF scores are
+ * rank-based and saturate (~0.03 for hits and noise alike, measured 22/11),
+ * so the top hit's VECTOR similarity is the only signal that separates
+ * "the corpus is about this" from garbage served with an answer's face.
  */
 @Serializable
 data class QueryResponse(
@@ -44,6 +49,8 @@ data class QueryResponse(
     val hits: List<Hit>,
     val citations: List<Citation>,
     val reranked: Boolean = false,
+    val topSimilarity: Double? = null,
+    val relevant: Boolean = true,
 )
 
 class RagQueryException(message: String) : IllegalArgumentException(message)
@@ -60,32 +67,42 @@ class RagService(
         if (request.k !in 1..MAX_K) throw RagQueryException("k must be between 1 and $MAX_K")
         val fused = if (request.iterate) searchIterated(text, request.k) else searchFused(text, request.k)
         val (hits, reranked) = if (request.rerank) rerank(text, fused) else fused to false
+        val topSim = hits.firstOrNull()?.similarity
         return QueryResponse(
             query = text,
             embedModel = provider.model,
             hits = hits,
             citations = hits.map { Citation(it.uri, it.title, it.heading, it.ordinal, it.score) },
             reranked = reranked,
+            topSimilarity = topSim,
+            relevant = topSim != null && topSim >= CONFIDENCE_FLOOR,
         )
     }
 
     suspend fun stats(): RagStats = store.stats()
 
     /**
-     * The retrieval stage with the bilingual second leg: the original query
-     * always runs; when the chat restates it in English (the corpus's
-     * language) the restatement runs too and the two ranked lists fuse with
-     * the same [Rrf] the SQL uses. One leg when there is no restatement (an
-     * English query restates to itself), no chat wired, or the chat fails —
-     * retrieval never degrades because the expansion could not ask.
+     * The retrieval stage with its extra legs: the original query always
+     * runs; the English restatement (the bilingual leg) and the deterministic
+     * synonym terms ([QueryExpansion.synonyms] — the corpus laws' canonical
+     * vocabulary for a paraphrase's concept words) each add a ranked leg when
+     * they have something to add, and every leg fuses with the same [Rrf]
+     * the SQL uses. The original leg alone when nothing adds — no chat
+     * wired, a failed call, no triggers — retrieval never degrades because
+     * an expansion could not run (each leg can only ADD recall).
      */
     private suspend fun searchFused(text: String, k: Int): List<Hit> {
         val original = store.search(provider.embed(listOf(text)).single(), text, provider.model, k)
-        val restated = restate(text) ?: return original
-        val english = store.search(provider.embed(listOf(restated)).single(), restated, provider.model, k)
-        val byId: Map<Long, Hit> = (original + english).associateBy { it.chunkId }
-        val fused = Rrf.fuse(listOf(original.map { it.chunkId }, english.map { it.chunkId }))
-        return fused.mapNotNull { entry -> byId[entry.id]?.copy(score = entry.score) }.take(k)
+        val extras = listOfNotNull(restate(text), QueryExpansion.synonyms(text))
+        if (extras.isEmpty()) return original
+        val legs = mutableListOf(original.map { it.chunkId })
+        val byId = original.associateBy { it.chunkId }.toMutableMap()
+        for (extra in extras) {
+            val hits = store.search(provider.embed(listOf(extra)).single(), extra, provider.model, k)
+            legs.add(hits.map { it.chunkId })
+            hits.forEach { byId.putIfAbsent(it.chunkId, it) }
+        }
+        return Rrf.fuse(legs).mapNotNull { entry -> byId[entry.id]?.copy(score = entry.score) }.take(k)
     }
 
     /** The English restatement, or null when there is nothing to add. Never throws. */
@@ -174,5 +191,16 @@ class RagService(
 
     companion object {
         const val MAX_K = 50
+
+        /**
+         * The confidence floor, measured 22/11 on the live corpus with
+         * nomic-embed-text: known-relevant queries' top-1 cosine similarity
+         * spanned 0.5686–0.7904, noise queries 0.4341–0.5667. 0.55 cuts the
+         * clear garbage (≤ 0.50) with margin and keeps every relevant probe
+         * with margin — the boundary band passes by design: a false
+         * "nothing relevant" on a real query costs more than a borderline
+         * hit served on noise (the safe error direction).
+         */
+        const val CONFIDENCE_FLOOR = 0.55
     }
 }

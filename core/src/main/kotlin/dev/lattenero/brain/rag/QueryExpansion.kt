@@ -42,6 +42,31 @@ object QueryExpansion {
     fun userPrompt(query: String): String = "Query: ${query.take(MAX_QUERY_CHARS)}"
 
     /**
+     * The deterministic third leg's terms: the corpus laws' CANONICAL
+     * vocabulary for a paraphrase's concept words — measured 22/11, the
+     * paraphrase "dispatch on data without if-else chains" lost to the
+     * official docs' literal "if-else" while the law's own words (mode
+     * table) win instantly. A trigger-word match yields the row's canonical
+     * terms; null when nothing triggers. Pure data + a word match — no chat
+     * call, and the leg can only ADD recall (the expansion law).
+     */
+    private val SYNONYMS: List<Pair<Regex, String>> = listOf(
+        Regex("\\b(dispatch|if[- ]?else|else[- ]?if|branching)\\b") to
+            "mode table predicate table dispatch data priority",
+        Regex("\\b(accumulat\\w*|collecting errors?|error accumulation)\\b") to
+            "validated traverse error accumulation applicative",
+        Regex("\\b(nullable|null checks?|optional values?)\\b") to
+            "option maybe some none parse don't validate tagged records",
+    )
+
+    /** The canonical terms for the query's concept words, or null when no trigger fires. */
+    fun synonyms(query: String): String? {
+        val low = query.lowercase()
+        val terms = SYNONYMS.filter { it.first.containsMatchIn(low) }.map { it.second }.distinct()
+        return terms.takeIf { it.isNotEmpty() }?.joinToString(" ")
+    }
+
+    /**
      * The model's answer → the restatement, or null for "no second leg": a
      * blank answer, an unparsable one, or one identical to the input modulo
      * case and whitespace (an English query restates to itself).

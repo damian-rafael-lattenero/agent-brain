@@ -20,6 +20,8 @@ data class Hit(
     val score: Double,
     val vectorRank: Int?,
     val textRank: Int?,
+    /** The vector cosine similarity — the relevance signal RRF cannot express; null on FTS-only hits. */
+    val similarity: Double? = null,
 )
 
 @Serializable
@@ -97,6 +99,7 @@ class RagStore(private val db: Database) {
                 score = it.score?.toDouble() ?: 0.0,
                 vectorRank = it.vec_rank?.toInt(),
                 textRank = it.fts_rank?.toInt(),
+                similarity = it.sim,
             )
         }
     }
@@ -125,6 +128,8 @@ class RagStore(private val db: Database) {
         const val RRF_K = Rrf.K
 
         // Two ranked legs, one fused list: 1/(RRF_K + rank) summed per chunk.
+        // `sim` (1 - vec.dist) rides out with the hit — the confidence
+        // floor's signal (see Rag.sq searchRag).
         // Parameters: 1 query vector, 2 embed model, 3 candidates per leg, 4 query text, 5 k.
         // The vector leg is an exact scan (the 1-row params CTE hides the constant from
         // the HNSW planner); exact beats approximate until the corpus outgrows it.
