@@ -11,11 +11,16 @@
 # the alarm.
 
 use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce announce-loud]
+use /Users/lattenero/Projects/nushell-fp/mods/proc.nu fold-stderr
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 
+# The type aliases (the owner's 22/11 law): the shapes read once, the
+# signatures spell the name.
+type EvalScore = record<passed: int, total: int, gate: float, ok: bool, misses: list<string>>
+
 # The eval report's score as a tagged value: {passed, total, gate, ok, misses}
-def read-score [stdout: string]: nothing -> record {
+def read-score [stdout: string]: nothing -> EvalScore {
     let parsed: record = ($stdout | from json)
     let passed: int = ($parsed.passed? | default 0)
     let total: int = ($parsed.cases? | default [] | length)
@@ -33,18 +38,18 @@ def main []: nothing -> nothing {
     print $"index-repos: exit ($index.exit_code)"
     if $index.exit_code != 0 {
         print "index-repos failed — the eval leg still runs on the previous index"
-        print ($index.stderr | str substring 0..400)
+        print (fold-stderr $index | str substring 0..400)
     }
 
     let eval: record = (do { ^$BIN eval --suite real-questions } | complete)
     print $"eval real-questions: exit ($eval.exit_code)"
     if $eval.exit_code != 0 {
-        print ($eval.stderr | str substring 0..400)
-        announce-loud $"🌙 <b>RAG nightly FALLÓ</b> — el eval no corrió: ($eval.stderr | str substring 0..200)"
+        print (fold-stderr $eval | str substring 0..400)
+        announce-loud $"🌙 <b>RAG nightly FALLÓ</b> — el eval no corrió: (fold-stderr $eval | str substring 0..200)"
         return
     }
 
-    let score: record = (read-score $eval.stdout)
+    let score: EvalScore = (read-score $eval.stdout)
     print $"score: ($score.passed)/($score.total) gate ($score.gate) ok=($score.ok)"
     if $score.ok {
         announce $"🌙 RAG nightly: ($score.passed)/($score.total) ✅ gate ($score.gate)"
@@ -59,8 +64,8 @@ def main []: nothing -> nothing {
     let usage: record = (do { ^$BIN usage-eval } | complete)
     print $"usage-eval: exit ($usage.exit_code)"
     if $usage.exit_code != 0 {
-        print ($usage.stderr | str substring 0..300)
-        announce-loud $"🌙 <b>Usage eval BAJÓ del gate</b> — ($usage.stderr | str substring 0..200)"
+        print (fold-stderr $usage | str substring 0..300)
+        announce-loud $"🌙 <b>Usage eval BAJÓ del gate</b> — (fold-stderr $usage | str substring 0..200)"
     }
 
     # The shadow leg (plan v2 T1): judge the newest completed bot turns on the

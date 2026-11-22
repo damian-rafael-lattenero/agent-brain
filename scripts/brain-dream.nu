@@ -11,6 +11,7 @@
 # retry.
 
 use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce]
+use /Users/lattenero/Projects/nushell-fp/mods/proc.nu fold-stderr
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 const ARTIFACTS: string = "/Users/lattenero/Projects/agent-brain/evals/artifacts"
@@ -27,9 +28,10 @@ def main [
 
     let run: record = (do { run-external $BIN ...$args } | complete)
     if $run.exit_code != 0 {
-        # `complete`'s stderr may arrive as a string or a list of lines — fold to
-        # text FIRST (the drill of 15/11 crashed here and hid the real error).
-        let errText: string = (if ($run.stderr | describe | str starts-with "list") { $run.stderr | str join "\n" } else { $run.stderr })
+        # fold-stderr (nushell-fp proc.nu): the complete record's stderr
+        # arrives string OR list-of-lines — one fold, everywhere (the 15/11
+        # drill trap's single source, adopted here).
+        let errText: string = (fold-stderr $run)
         let why: string = (if ($errText | is-empty) { "no stderr" } else { $errText | lines | last 1 })
         announce $"😴 dream FAILED — ($why | str substring 0..160)"
         print $"dream failed: ($why)"

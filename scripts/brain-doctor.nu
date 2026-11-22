@@ -16,6 +16,7 @@
 # bold), never the mere presence of failures.
 
 use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce announce-loud]
+use /Users/lattenero/Projects/nushell-fp/mods/proc.nu fold-stderr
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 const KB_NOTES: string = "/Users/lattenero/Projects/nushell-kb/notes"
@@ -37,9 +38,10 @@ def main [
     let args: list<string> = (["doctor", "--days", ($days | into string), "--limit", ($limit | into string)])
     let run: record = (do { run-external $BIN ...$args } | complete)
     if $run.exit_code != 0 {
-        # `complete`'s stderr may arrive as a string or a list of lines — fold to
-        # text FIRST (the drill of 15/11 crashed here and hid the real error).
-        let errText: string = (if ($run.stderr | describe | str starts-with "list") { $run.stderr | str join "\n" } else { $run.stderr })
+        # fold-stderr (nushell-fp proc.nu): the fold born in THIS script goes
+        # home — the complete record's stderr arrives string OR list-of-lines,
+        # one source everywhere (the 15/11 drill trap).
+        let errText: string = (fold-stderr $run)
         let why: string = (if ($errText | is-empty) { "no stderr" } else { $errText | lines | last 1 })
         announce-loud $"🩺 <b>Corpus doctor FALLÓ</b> — ($why | str substring 0..160)"
         print $"corpus doctor failed: ($why)"

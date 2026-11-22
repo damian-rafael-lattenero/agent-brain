@@ -8,9 +8,19 @@
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 
-# cada check devuelve record {layer, check, ok, detail, hint}
+# The type aliases (the owner's 22/11 law): the shapes read once, the
+# signatures spell the name. Each check row carries its closure; each
+# closure answers the uniform payload. Rule rows compose: a named row type
+# + a named book type (measured 22/11 — the owner's subtype-alias ask).
+type LayerCheck = record<layer: string, check: string, f: closure>
+type DetailRule = record<when: closure, render: closure>
+type DetailRules = list<DetailRule>
+
+# each check answers the uniform {layer, check, ok, detail, hint} payload;
+# the Spanish check names/details/hints are the owner-facing report voice
+# (the header's declared law — data, not code identity)
 # exported so brain-sentinel.nu can reuse the whole engine
-export def checks []: nothing -> list<record> {
+export def checks []: nothing -> list<LayerCheck> {
     [
         # 1. launchd: la cadena de boot cargada
         {
@@ -79,13 +89,15 @@ export def checks []: nothing -> list<record> {
                 # 15 s for an 8-token answer on a loaded box is already generous:
                 # healthy = sub-second, the 15/11 degradation measured 25-60 s.
                 let chat_ok: bool = ($probe.ok and ($took < 15sec))
-                let detail: string = (if not $probe.ok {
-                    $"chat DOWN: ($probe.answer | str substring 0..60)"
-                } else if not $chat_ok {
-                    $"chat LENTO: ($took) — runner degradado o cola (15/11: inanición de qwen)"
-                } else {
-                    $"($t.models | length) modelos, chat ($took)"
-                })
+                # the detail classifier as a predicate table — precedence in
+                # row order, catch-all last (the mode-table law).
+                let detailRows: DetailRules = [
+                    {when: {|p: record| not $p.ok}, render: {|p: record| $"chat DOWN: ($p.answer | str substring 0..60)"}}
+                    {when: {|p: record| not $chat_ok}, render: {|p: record| $"chat LENTO: ($took) — runner degradado o cola (15/11: inanición de qwen)"}}
+                    {when: {|p: record| true}, render: {|p: record| $"($t.models | length) modelos, chat ($took)"}}
+                ]
+                let hit: record = ($detailRows | where {|r| do $r.when $probe } | first)
+                let detail: string = (do $hit.render $probe)
                 {ok: $chat_ok, detail: $detail, hint: "brew services restart ollama; si persiste: presión de RAM (daemons idle) — ver ~/Library/Logs/agent-brain.log"}
             }
         }

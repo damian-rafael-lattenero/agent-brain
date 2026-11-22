@@ -34,9 +34,12 @@ const STATE: string = "/Users/lattenero/.zcode/agent-brain/sentinel-state.json"
 const HEARTBEAT: string = "/Users/lattenero/.zcode/agent-brain/sentinel-heartbeat.url"
 
 # The type aliases (the owner's 22/11 law): the shapes read once, the
-# signatures spell the name.
+# signatures spell the name. Rule rows compose: a named row type + a named
+# book type (measured 22/11 — the owner's subtype-alias ask).
 type LayerVerdict = record<layer: string, check: string, ok: bool, detail: string, hint: string>
 type DownState = record<down: list<string>>
+type DetailRule = record<when: closure, render: closure>
+type DetailRules = list<DetailRule>
 
 # Stateless sendMessage — the bot-healer pattern: token rides curl's config
 # on stdin, never argv; it never touches getUpdates so it cannot fight the
@@ -61,7 +64,7 @@ def tg-send [text: string]: nothing -> nothing {
 # the branch chain DIES, not relocates): predicate → render closure in the
 # same row, precedence in row order, catch-all last.
 def normalize-detail [d: any]: nothing -> string {
-    let shapes: list<record<when: closure, render: closure>> = [
+    let shapes: DetailRules = [
         {when: {|x: any| ($x | describe) == "string"}, render: {|x: any| $x}}
         {when: {|x: any| ($x | describe) == "list<string>"}, render: {|x: any| $x | str join "; "}}
         {when: {|x: any| true}, render: {|x: any| $x | into string}}
