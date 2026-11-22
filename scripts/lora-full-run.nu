@@ -30,6 +30,10 @@ const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/ag
 const ITERS: int = 2400
 const HOLDOUT_FRACTION: float = 0.1
 
+# The type aliases (the owner's 22/11 law): the shapes read once, the
+# signatures spell the name.
+type DataSplit = record<pairs: int, train: int, holdout: int>
+
 def fail [msg: string]: nothing -> nothing {
     print -e $"lora-full: ($msg)"
     announce-loud $"🌙 <b>LoRA full run FALLÓ</b> — ($msg | str substring 0..250)"
@@ -39,7 +43,7 @@ def fail [msg: string]: nothing -> nothing {
 # The dataset of record (flat system/user/assistant) rewrapped into the chat
 # messages format MLX trains on, then split time-ordered: the LAST hold-out
 # fraction is valid/test (future turns, never memorized), the rest is train.
-def prepare-data []: nothing -> record {
+def prepare-data []: nothing -> DataSplit {
     mkdir $WORK
     let lines: list<string> = (open --raw $DATASET | lines | where {|l| ($l | str trim) != "" })
     let chat: list<string> = ($lines | each {|line|

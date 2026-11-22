@@ -38,6 +38,10 @@ const LAUNCH_PLIST_DIR: string = "/Users/lattenero/Library/LaunchAgents"
 const GRAVEYARD: string = "/Users/lattenero/Library/LaunchAgents/disabled-graveyard"
 const LABELS: list<string> = ["com.zcode.lora-data-pass", "com.zcode.lora-resume"]
 
+# The type aliases (the owner's 22/11 law): the shapes read once, the
+# signatures spell the name.
+type DataPassSplit = record<pairs: int, train: int, holdout: int, empties: int>
+
 def fail [msg: string]: nothing -> nothing {
     print -e $"lora-data-pass: ($msg)"
     announce-loud $"🌙 <b>LoRA data-pass FAILED</b> — ($msg | str substring 0..250)"
@@ -79,7 +83,7 @@ def self-disarm []: nothing -> nothing {
 # empty facts/decisions/preferences/summary — the negatives and the trivial
 # leg alike) stays in train, oversampled ×3.
 # 986 positives → 99 holdout → 887 + (89 × 3) = 1154 train / 99 holdout.
-def prepare-data-pass []: nothing -> record {
+def prepare-data-pass []: nothing -> DataPassSplit {
     mkdir $WORK
     let lines: list<string> = (open --raw $DATASET | lines | where {|l| ($l | str trim) != "" })
     let parsed: list<record> = ($lines | enumerate | each {|it|

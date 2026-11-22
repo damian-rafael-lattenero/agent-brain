@@ -52,14 +52,14 @@ def main []: nothing -> nothing {
         miss "install with: brew install ollama"
         $missing = true
     } else {
-        let tags = (try { http get -m 2sec http://127.0.0.1:11434/api/tags | ignore; true } catch { false })
+        let tags: bool = (try { http get -m 2sec http://127.0.0.1:11434/api/tags | ignore; true } catch { false })
         if $tags {
-            let listed = (do { ^ollama list } | complete)
+            let listed: record = (do { ^ollama list } | complete)
             if ($listed.stdout | str contains "nomic-embed-text") {
                 ok "model present"
             } else {
                 print "  … pulling nomic-embed-text"
-                let pull = (do { ^ollama pull nomic-embed-text } | complete)
+                let pull: record = (do { ^ollama pull nomic-embed-text } | complete)
                 if $pull.exit_code == 0 {
                     ok "model pulled"
                 } else {
@@ -74,7 +74,14 @@ def main []: nothing -> nothing {
     }
 
     print "▶ Gradle wrapper + dependencies"
-    ^./gradlew --quiet :core:installDist
+    # gated (the silent-continue law: nu does not raise on exit codes — a
+    # failed installDist must not end in a "ready" line)
+    let build: record = (do { ^./gradlew --quiet :core:installDist } | complete)
+    if $build.exit_code != 0 {
+        print -e ($build.stderr | str trim)
+        miss "installDist failed — fix the build first"
+        exit 1
+    }
     ok "core/build/install/agent-brain/bin/agent-brain"
 
     if $missing {
