@@ -4,6 +4,7 @@ import dev.lattenero.brain.chat.ChatException
 import dev.lattenero.brain.chat.ChatProvider
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import kotlinx.serialization.Serializable
+import org.slf4j.LoggerFactory
 
 /**
  * `rerank` asks for the listwise second stage ([Rerank]): the fused order
@@ -61,6 +62,22 @@ class RagService(
     private val store: RagStore,
     private val chat: ChatProvider? = null,
 ) {
+    private val log = LoggerFactory.getLogger(RagService::class.java)
+
+    /**
+     * One degradation shape for every OPTIONAL chat stage (expansion,
+     * decomposition, rerank): the block runs, a [ChatException] logs through
+     * the logger and collapses to null — the stage's leg simply does not
+     * exist, retrieval never breaks because an enhancement could not ask
+     * (the rerank law, stated once instead of three times).
+     */
+    private suspend fun <T> bestEffort(stage: String, block: suspend () -> T): T? = try {
+        block()
+    } catch (e: ChatException) {
+        log.warn("{}: the chat call failed ({}) — the stage degrades, the original query stands", stage, e.message)
+        null
+    }
+
     suspend fun query(request: QueryRequest): QueryResponse {
         val text = request.query.trim()
         if (text.isEmpty()) throw RagQueryException("query must not be empty")
@@ -108,7 +125,7 @@ class RagService(
     /** The English restatement, or null when there is nothing to add. Never throws. */
     private suspend fun restate(text: String): String? {
         val chat = this.chat ?: return null
-        val restated = try {
+        return bestEffort("query expansion") {
             QueryExpansion.parse(
                 chat.completeJson(
                     QueryExpansion.systemPrompt(),
@@ -117,11 +134,7 @@ class RagService(
                 ).text,
                 text,
             )
-        } catch (e: ChatException) {
-            System.err.println("query expansion: the chat call failed (${e.message}) — the original query stands")
-            null
         }
-        return restated
     }
 
     /**
@@ -156,14 +169,10 @@ class RagService(
     /** The independent sub-queries, or an empty list when there is nothing to add. Never throws. */
     private suspend fun decompose(text: String): List<String> {
         val chat = this.chat ?: return emptyList()
-        val result = try {
+        val result = bestEffort("multi-hop") {
             chat.completeJson(MultiHop.systemPrompt(), MultiHop.userPrompt(text), MultiHop.SCHEMA)
-        } catch (e: ChatException) {
-            System.err.println("multi-hop: the chat call failed (${e.message}) — the fused order stands")
-            null
         }
-        val parsed = result?.let { MultiHop.parse(it.text, text) }.orEmpty()
-        return parsed
+        return result?.let { MultiHop.parse(it.text, text) }.orEmpty()
     }
 
     /**
@@ -175,16 +184,14 @@ class RagService(
      */
     private suspend fun rerank(query: String, fused: List<Hit>): Pair<List<Hit>, Boolean> {
         val chat = this.chat ?: throw RagQueryException("rerank requested but no chat model is wired")
-        val verdict = try {
-            val result = chat.completeJson(
-                Rerank.systemPrompt(fused.size),
-                Rerank.userPrompt(query, fused),
-                Rerank.SCHEMA,
+        val verdict = bestEffort("rerank") {
+            Rerank.parseVerdict(
+                chat.completeJson(
+                    Rerank.systemPrompt(fused.size),
+                    Rerank.userPrompt(query, fused),
+                    Rerank.SCHEMA,
+                ).text,
             )
-            Rerank.parseVerdict(result.text)
-        } catch (e: ChatException) {
-            System.err.println("rerank: the chat call failed (${e.message}) — the fused order stands")
-            null
         }
         return Rerank.apply(verdict, fused) to (verdict != null)
     }
