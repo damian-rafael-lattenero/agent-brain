@@ -69,6 +69,37 @@ def main []: string -> nothing {
     })
     if ($text | is-empty) { exit 0 }
 
+    # THE AST LAYER (the 22/11 plan's upgrade — tree-sitter-nu via
+    # web-tree-sitter, zero native deps): the else-if chain detected at
+    # SYNTAX level. A ctrl_if whose `else if` is an ERROR child IS the
+    # chain — even ONE is the violation (the mode-table law never waits
+    # for three arms; the regex rule below keeps minHits 2 as the
+    # fallback when node/wasm are missing). Fragment-safe: a partial Edit
+    # payload parses as ERROR nodes everywhere, but only a real else-if
+    # produces the ctrl_if+ERROR signature.
+    # node rides the MISE SHIM at an ABSOLUTE path: the hook's env is the
+    # app's, whose PATH may not carry the shims (the 22/11 drill — the AST
+    # layer silently skipped with `which node` empty)
+    let nodeBin: string = (if ('/Users/lattenero/.local/share/mise/shims/node' | path exists) {
+        '/Users/lattenero/.local/share/mise/shims/node'
+    } else if (which node | is-not-empty) {
+        'node'
+    } else { '' })
+    if not ($nodeBin | is-empty) {
+        let astFile: string = ($"/tmp/nu-ast-($nu.pid).nu")
+        $text | save -f $astFile
+        let ast: record = (do { ^$nodeBin $"($env.HOME)/.zcode/hooks/ast/ast-nu.mjs" $astFile } | complete)
+        ^rm -f $astFile
+        let astChains: list<any> = (if $ast.exit_code == 0 {
+            do { $ast.stdout | from json } | get -o chains | default []
+        } else { [] })
+        if not ($astChains | is-empty) {
+            let lines: string = ($astChains | each {|c| $"  line ($c.line): ($c.text)" } | str join (char nl))
+            print -e $"⛔ anti-pattern dispatch-chain · AST · law entry 1 — the else-if chain is REAL SYNTAX, the chain must DIE not relocate. Classify once into a mode record + dispatch via a table of closures, the brain.nu pick-mode pattern:\n($lines)"
+            exit 2
+        }
+    }
+
     # HIGH severity denies (exit 2, the model fixes before the write lands);
     # MEDIUM/LOW warn on stderr and let the write through (visible in the
     # transcript). HIGH rules sort first (alphabetical asc: HIGH < LOW <
