@@ -33,6 +33,11 @@ $env.PATH = ($env.PATH | append [/opt/homebrew/bin /usr/local/bin])
 const STATE: string = "/Users/lattenero/.zcode/agent-brain/sentinel-state.json"
 const HEARTBEAT: string = "/Users/lattenero/.zcode/agent-brain/sentinel-heartbeat.url"
 
+# The type aliases (the owner's 22/11 law): the shapes read once, the
+# signatures spell the name.
+type LayerVerdict = record<layer: string, check: string, ok: bool, detail: string, hint: string>
+type DownState = record<down: list<string>>
+
 # Stateless sendMessage — the bot-healer pattern: token rides curl's config
 # on stdin, never argv; it never touches getUpdates so it cannot fight the
 # daemon's polling monopoly.
@@ -52,24 +57,27 @@ def tg-send [text: string]: nothing -> nothing {
 # it is normalized ONCE at this boundary into the string the annotation
 # promises (parse-don't-validate). Before this, a list-detail tripped the
 # runtime annotation check and killed the run (measured 15/11 morning).
+# The detail-shape classifier as a predicate table (the mode-table law —
+# the branch chain DIES, not relocates): predicate → render closure in the
+# same row, precedence in row order, catch-all last.
 def normalize-detail [d: any]: nothing -> string {
-    if ($d | describe) == "string" {
-        $d
-    } else if ($d | describe) == "list<string>" {
-        $d | str join "; "
-    } else {
-        $d | into string
-    }
+    let shapes: list<record<when: closure, render: closure>> = [
+        {when: {|x: any| ($x | describe) == "string"}, render: {|x: any| $x}}
+        {when: {|x: any| ($x | describe) == "list<string>"}, render: {|x: any| $x | str join "; "}}
+        {when: {|x: any| true}, render: {|x: any| $x | into string}}
+    ]
+    let hit: record = ($shapes | where {|s| do $s.when $d } | first)
+    do $hit.render $d
 }
 
-def run-layers []: nothing -> list<record<layer: string, check: string, ok: bool, detail: string, hint: string>> {
+def run-layers []: nothing -> list<LayerVerdict> {
     checks | each {|c|
         let r: any = (try { do $c.f } catch {|err| {ok: false, detail: $"exception: ($err.msg)", hint: "review the script"}})
         {layer: $c.layer, check: $c.check, ok: ($r.ok | default false), detail: (normalize-detail ($r.detail | default "?")), hint: ($r.hint | default "")}
     }
 }
 
-def load-state []: nothing -> record<down: list<string>> {
+def load-state []: nothing -> DownState {
     let s: any = (try { open --raw $STATE | from json } catch { null })
     if $s == null { {down: []} } else { {down: ($s.down? | default [])} }
 }
@@ -79,11 +87,11 @@ def main [--dry-run(-d), --status(-s)]: nothing -> nothing {
         print (load-state | to json)
         return
     }
-    let rows: list<record<layer: string, check: string, ok: bool, detail: string, hint: string>> = (run-layers)
-    let bad: list<record> = ($rows | where {|r| not $r.ok})
-    let prev: record<down: list<string>> = (load-state)
+    let rows: list<LayerVerdict> = (run-layers)
+    let bad: list<LayerVerdict> = ($rows | where {|r| not $r.ok})
+    let prev: DownState = (load-state)
     let nowDown: list<string> = ($bad | get layer)
-    let newDowns: list<record> = ($bad | where {|r| $r.layer not-in $prev.down})
+    let newDowns: list<LayerVerdict> = ($bad | where {|r| $r.layer not-in $prev.down})
     let newUps: list<string> = ($prev.down | where {|l| $l not-in $nowDown})
 
     let stamp: string = (date now | format date "%Y-%m-%d %H:%M:%S")

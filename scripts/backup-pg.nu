@@ -28,8 +28,12 @@ const DOCKER: string = "/opt/homebrew/bin/docker"
 const RETENTION_DAYS: int = 14
 const DRILL_SCRATCH: string = "agent_brain_drill"
 
+# The type aliases (the owner's 22/11 law): the shapes read once, the
+# signatures spell the name.
+type SourceDb = record<container: string, user: string, db: string>
+
 # The two databases and the credentials their own images declare.
-const SOURCES: list<record> = [
+const SOURCES: list<SourceDb> = [
     { container: "agent-brain-pg", user: "brain", db: "agent_brain" }
     { container: "pg-base", user: "whatsdigest", db: "whatsdigest" }
 ]
@@ -46,7 +50,7 @@ def die [msg: string]: nothing -> nothing {
 def docker-bin []: nothing -> string {
     # launchd starts with a minimal PATH; every external must resolve anyway.
     $env.PATH = ($env.PATH | append [/opt/homebrew/bin /usr/local/bin])
-    if not ($DOCKER | path exists) { die "docker no está en /opt/homebrew/bin" }
+    if not ($DOCKER | path exists) { die "docker is not at /opt/homebrew/bin" }
     $DOCKER
 }
 
@@ -61,7 +65,7 @@ def stamp []: nothing -> string {
 }
 
 # One database → one -Fc dump on the host. Refuses an empty dump (exit 1).
-def dump-one [src: record, out_dir: path, ts: string]: nothing -> path {
+def dump-one [src: SourceDb, out_dir: path, ts: string]: nothing -> path {
     let db: string = ($src.db | into string)
     let container: string = ($src.container | into string)
     let user: string = ($src.user | into string)
@@ -76,11 +80,11 @@ def dump-one [src: record, out_dir: path, ts: string]: nothing -> path {
         die $"docker cp ($db) exit ($cp.exit_code): ($cp.stderr | str trim | str substring 0..200)"
     }
     let rm: record = (^$DOCKER exec $container rm -f $in_box | complete)
-    if $rm.exit_code != 0 { print -e $"⚠ no pude borrar ($in_box) del contenedor" }
+    if $rm.exit_code != 0 { print -e $"⚠ could not remove ($in_box) inside the container" }
     let size: int = (ls $dest | get 0.size | into int)
     if $size <= 0 {
         rm -f $dest
-        die $"dump VACÍO para ($db) — no se guarda ni se rota nada"
+        die $"EMPTY dump for ($db) — nothing saved, nothing rotated"
     }
     print $"✓ ($db) → ($dest) — ($size) bytes"
     $dest
@@ -131,7 +135,7 @@ def sample-counts []: nothing -> record {
 # same flag, so the drill teaches it).
 def drill [out_dir: path, before: record]: nothing -> nothing {
     let dumps: list<string> = (glob $"($out_dir)/agent_brain-*.dump" | sort)
-    if ($dumps | is-empty) { die "drill: no hay ningún dump de agent_brain" }
+    if ($dumps | is-empty) { die "drill: no agent_brain dump exists yet" }
     let newest: string = ($dumps | last)
     print $"— drill sobre ($newest | path basename)"
     psql-admin $"DROP DATABASE IF EXISTS ($DRILL_SCRATCH)"
@@ -149,13 +153,13 @@ def drill [out_dir: path, before: record]: nothing -> nothing {
         let preDump: int = ($before | get $table)
         if $restored < $preDump {
             psql-admin $"DROP DATABASE IF EXISTS ($DRILL_SCRATCH)"
-            die $"drill: ($table) restaurado=($restored) pero antes del dump había ($preDump) — el dump PERDIÓ filas"
+            die $"drill: ($table) restored=($restored) but pre-dump had ($preDump) — the dump LOST rows"
         }
         let live: string = (psql-count agent-brain-pg brain agent_brain $table)
-        print $"✓ drill: ($table) pre-dump=($preDump) restaurado=($restored) vivo-ahora=($live)"
+        print $"✓ drill: ($table) pre-dump=($preDump) restored=($restored) live-now=($live)"
     }
     psql-admin $"DROP DATABASE IF EXISTS ($DRILL_SCRATCH)"
-    print "✅ drill PASS — el backup restaura y no perdió nada"
+    print "✅ drill PASS — the backup restores and lost nothing"
 }
 
 def main [--drill, --no-prune]: nothing -> nothing {
@@ -164,7 +168,7 @@ def main [--drill, --no-prune]: nothing -> nothing {
     mkdir $out_dir
     for src in $SOURCES {
         if not (container-up ($src.container | into string)) {
-            die $"($src.container) no está corriendo — ($src.db) quedó SIN respaldo esta noche"
+            die $"($src.container) is not running — ($src.db) goes UNBACKED-UP tonight"
         }
     }
     let ts: string = (stamp)
@@ -172,7 +176,7 @@ def main [--drill, --no-prune]: nothing -> nothing {
     for src in $SOURCES { dump-one $src $out_dir $ts | ignore }
     if not $no_prune {
         let removed: list<string> = (prune $out_dir)
-        print $"rotación: ($removed | length) dumps viejos fuera"
+        print $"rotation: ($removed | length) old dumps out"
     }
     if $drill { drill $out_dir $before }
     print $"✅ backups OK — ($out_dir)"
