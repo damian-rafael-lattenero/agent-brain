@@ -4,6 +4,10 @@ name: evals (nightly recall gate)
 # artifact, so model/cost/quality trends are visible over time. The gate is 0.9;
 # GLM runs only when the key secret exists (its cost column is honest: embeddings
 # only, and the row records the model so the comparison table stays truthful).
+# The gate is the KOTLIN eval (agent-brain eval, EvalRunner) — promptfoo's
+# pip/npm setup was the legacy leg and its `promptfoo@0.118.6` pin never
+# parsed (pip reads name@version as a direct-reference URL: 8/8 nightly
+# reds measured until the dead step came out on 23/11).
 
 on:
   schedule:
@@ -33,9 +37,6 @@ jobs:
       # workers all run on Corretto 25 (the stray 21 setup-java is gone).
       - uses: actions/setup-java@v4
         with: { distribution: corretto, java-version: "25" }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install "promptfoo@0.118.6" && promptfoo --version
       - name: Redpanda (for the bus transports)
         run: |
           docker run -d --name redpanda -p 127.0.0.1:19092:19092 redpandadata/redpanda:v26.2.6 \
