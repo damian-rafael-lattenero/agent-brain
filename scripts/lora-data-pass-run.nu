@@ -21,7 +21,7 @@
 # average 272, the machine hung). Defense in depth: on completion AND on
 # the no-op refire the script SELF-DISARMS launchd (see self-disarm).
 
-use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce announce-loud]
+use /Users/lattenero/Scripts/lib/deploy.nu [announce announce-loud]
 
 const REPO: string = "/Users/lattenero/Projects/agent-brain"
 const LORA: string = "/Users/lattenero/Projects/agent-brain/evals/lora"

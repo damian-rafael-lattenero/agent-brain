@@ -18,7 +18,7 @@
 # Everything this script needs survives reboots: the venv, the base model and
 # the dataset live under evals/lora/ (gitignored — private transcripts).
 
-use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce announce-loud]
+use /Users/lattenero/Scripts/lib/deploy.nu [announce announce-loud]
 
 const REPO: string = "/Users/lattenero/Projects/agent-brain"
 const LORA: string = "/Users/lattenero/Projects/agent-brain/evals/lora"

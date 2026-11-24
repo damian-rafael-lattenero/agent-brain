@@ -4,7 +4,7 @@
 # it with env-only overrides (production config untouched), print the report.
 # The report rides the ledger as its own run row — the referee is the eval.
 
-use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce]
+use /Users/lattenero/Scripts/lib/deploy.nu [announce]
 
 const VENV: string = "/Users/lattenero/Projects/agent-brain/evals/lora/venv/bin"
 const BASE: string = "/Users/lattenero/Projects/agent-brain/evals/lora/base-model"

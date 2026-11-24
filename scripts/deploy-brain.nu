@@ -19,7 +19,7 @@
 # main thread blocks on the mailbox, and `job recv --timeout` is the deadline
 # that speaks failure. Zero busy-wait on the main thread.
 
-use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu *
+use /Users/lattenero/Scripts/lib/deploy.nu *
 
 const LABEL: string = "com.zcode.agent-brain"
 const BASE: string = "http://127.0.0.1:8765"

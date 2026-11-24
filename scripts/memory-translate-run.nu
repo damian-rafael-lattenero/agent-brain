@@ -5,7 +5,7 @@
 # speaks ONE Telegram line with the verdict (loud on failure — the house
 # law). The translation costs deepseek tokens by the owner's explicit OK.
 
-use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce announce-loud]
+use /Users/lattenero/Scripts/lib/deploy.nu [announce announce-loud]
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 

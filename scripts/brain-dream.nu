@@ -10,7 +10,7 @@
 # this one-shot with StartCalendarInterval, so a failure is just next Sunday's
 # retry.
 
-use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce]
+use /Users/lattenero/Scripts/lib/deploy.nu [announce]
 use /Users/lattenero/Projects/nushell-fp/mods/proc.nu fold-stderr
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"

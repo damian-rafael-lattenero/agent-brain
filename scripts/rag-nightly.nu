@@ -10,7 +10,7 @@
 # leg does not fail the night — the ledger row is the record, the message is
 # the alarm.
 
-use /Users/lattenero/Projects/zcode-bot-kotlin/scripts/lib/deploy.nu [announce announce-loud]
+use /Users/lattenero/Scripts/lib/deploy.nu [announce announce-loud]
 use /Users/lattenero/Projects/nushell-fp/mods/proc.nu fold-stderr
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
