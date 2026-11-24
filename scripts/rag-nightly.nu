@@ -34,6 +34,19 @@ def main []: nothing -> nothing {
     let stamp: string = (date now | format date '%Y-%m-%d %H:%M')
     print $"== rag-nightly ($stamp) =="
 
+    # The CURATED layer first (corpus.txt: the KB notes, the Scripts hub, the
+    # deploy scripts) — this is the line the header always claimed and the
+    # body never ran: only index-repos was refreshed, so a note committed to
+    # nushell-kb/notes stayed invisible until someone ran `index` by hand
+    # (measured 24/11: the day's traps note was missing after a commit + a
+    # nightly). Both legs are incremental; each reports its own exit.
+    let curated: record = (do { ^$BIN index } | complete)
+    print $"index (corpus.txt): exit ($curated.exit_code)"
+    if $curated.exit_code != 0 {
+        print "index (corpus.txt) failed — the repo walker and the eval still run"
+        print (fold-stderr $curated | str substring 0..400)
+    }
+
     let index: record = (do { ^$BIN index-repos } | complete)
     print $"index-repos: exit ($index.exit_code)"
     if $index.exit_code != 0 {
