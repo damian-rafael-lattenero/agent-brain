@@ -11,7 +11,7 @@
 # retry.
 
 use /Users/lattenero/Scripts/lib/deploy.nu [announce]
-use /Users/lattenero/Projects/nushell-fp/mods/proc.nu fold-stderr
+use /Users/lattenero/Scripts/nushell-fp/mods/proc.nu fold-stderr
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 const ARTIFACTS: string = "/Users/lattenero/Projects/agent-brain/evals/artifacts"

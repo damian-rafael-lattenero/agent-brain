@@ -16,7 +16,7 @@
 # bold), never the mere presence of failures.
 
 use /Users/lattenero/Scripts/lib/deploy.nu [announce announce-loud]
-use /Users/lattenero/Projects/nushell-fp/mods/proc.nu fold-stderr
+use /Users/lattenero/Scripts/nushell-fp/mods/proc.nu fold-stderr
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
 const KB_NOTES: string = "/Users/lattenero/Projects/nushell-kb/notes"

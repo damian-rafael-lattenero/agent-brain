@@ -22,7 +22,7 @@
 # Installed as a LaunchAgent (com.zcode.pg-backup, 03:40 daily — before the
 # 04:00 reindex); run it by hand any time: `nu ~/Projects/agent-brain/scripts/backup-pg.nu`.
 
-use ~/Projects/nushell-fp/mods/telegram.nu send-telegram
+use /Users/lattenero/Scripts/nushell-fp/mods/telegram.nu send-telegram
 
 const DOCKER: string = "/opt/homebrew/bin/docker"
 const RETENTION_DAYS: int = 14
