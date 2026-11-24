@@ -1,8 +1,14 @@
-# hooks/ — the ZCode-side hooks the brain owns
+# hooks/ — where the ZCode hooks USED to live
+
+**Moved on 24/11/2026**: the hooks are the hub's now —
+`/Users/lattenero/Scripts/scripts/hooks/` — and `~/.zcode/hooks/*.nu` are
+symlinks into it. One canonical copy lives there; editing here would resurrect
+a duplicate. What stays in this repo: the `ast/` helper (the tree-sitter-nu
+wasm the anti-pattern linter rides — its live path is `~/.zcode/hooks/ast/`)
+and this table, which documents WHY each hook exists.
 
 These scripts run inside the ZCode CLI (`~/.zcode/cli/config.json` → `hooks.events`)
-and are installed by copying them to `~/.zcode/hooks/`. They are plain Nushell
-programs that read the hook payload as JSON on stdin.
+and are plain Nushell programs that read the hook payload as JSON on stdin.
 
 | File | Event | Job |
 | --- | --- | --- |

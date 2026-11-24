@@ -1,9 +1,11 @@
 #!/opt/homebrew/bin/nu
-# Pure-core tests for hooks/write-guard.nu — no DB, no filesystem, no hooks.
+# Pure-core tests for the write-guard hook — no DB, no filesystem, no hooks.
+# The hook moved to the fleet hub on 24/11 (the hub is the single home for
+# machine scripts); this test follows it.
 # Run: nu tests/test_write_guard.nu   (or via the repo test gate)
 
 use std/assert
-use ../hooks/write-guard.nu *
+use /Users/lattenero/Scripts/scripts/hooks/write-guard.nu *
 
 # --- resolve-path -----------------------------------------------------------
 
