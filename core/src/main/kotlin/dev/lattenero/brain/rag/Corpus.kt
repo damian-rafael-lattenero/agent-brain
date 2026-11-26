@@ -121,7 +121,7 @@ class Corpus(
          * Path segments never indexed by the REPO indexer, wherever they
          * appear. The consumer repos' own RAG eval fixtures (distractor-*.md,
          * eval/corpus/) and their test resources surfaced as top hits on
-         * real queries — measured 21/11: the bot's distractor-viaje.md
+         * real queries — measured 21/11: the bot's distractor-trip.md
          * outranked the real content on a Spanish question. Test trees are
          * for tests, not for the corpus. Opt-in: only index-repos passes
          * this — the KB globs and the recall-gate fixtures index unpruned.

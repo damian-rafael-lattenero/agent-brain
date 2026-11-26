@@ -73,7 +73,7 @@ class CorpusTest {
 
     @Test
     fun `eval fixtures, test resources, the agent's plans and the eval's data are never corpus content`() {
-        write("bot/core/src/main/resources/eval/corpus/distractor-viaje.md")
+        write("bot/core/src/main/resources/eval/corpus/distractor-trip.md")
         write("bot/core/src/test/resources/corpus/distractor-bariloche.md")
         write("bot/docs/adr/ADR-013.md")
         write("bot/.zcode/plans/plan-session_0c15be53.md")

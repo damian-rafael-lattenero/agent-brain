@@ -7,7 +7,7 @@ config-durability.md
 dedup-lifecycle.md
 distractor-football.md
 distractor-lemon-pie.md
-distractor-viaje.md
+distractor-trip.md
 dream-reconcile.md
 embedding-dimensions.md
 embedding-incident.md
