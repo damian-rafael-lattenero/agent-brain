@@ -41,7 +41,7 @@ def main []: nothing -> nothing {
     # (measured 24/11: the day's traps note was missing after a commit + a
     # nightly). Both legs are incremental; each reports its own exit.
     let curated: record = (do { ^$BIN index } | complete)
-    print $"index (corpus.txt): exit ($curated.exit_code)"
+    print $"index corpus.txt: exit ($curated.exit_code)"
     if $curated.exit_code != 0 {
         print "index (corpus.txt) failed — the repo walker and the eval still run"
         print (fold-stderr $curated | str substring 0..400)
