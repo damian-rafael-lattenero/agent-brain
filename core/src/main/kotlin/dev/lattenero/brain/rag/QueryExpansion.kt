@@ -15,11 +15,15 @@ import kotlinx.serialization.json.putJsonObject
  * measured 16/11 by the `real-questions` suite: Spanish queries were captured
  * by the Spanish distractor docs (6/8) while every English query landed.
  *
- * The restatement never replaces the original query: both run the hybrid
- * SEARCH and the ranked lists fuse with the same RRF the SQL uses. A blank or
- * identical restatement means "no second leg", so the expansion can only ADD
- * recall — it cannot degrade a query, and a chat failure degrades to the
- * single leg (retrieval is best-effort BY DESIGN, the rerank law's sibling).
+ * What the restatement is depends on the language of the question ([legs],
+ * the English-input law of 26/11). For an English question it is a second leg
+ * and never replaces the original: both run the hybrid SEARCH and the ranked
+ * lists fuse with the same RRF the SQL uses. For a question in another
+ * language it IS the query — the foreign text is never searched against the
+ * store. A blank or identical restatement means "no restatement", so the
+ * expansion can only ADD recall — it cannot degrade a query, and a chat
+ * failure degrades to the single leg (retrieval is best-effort BY DESIGN, the
+ * rerank law's sibling).
  */
 object QueryExpansion {
 
@@ -82,4 +86,23 @@ object QueryExpansion {
 
     private fun normalize(text: String): String =
         text.lowercase().replace(Regex("\\s+"), " ").trim().trimEnd('.', '?', '!')
+
+    /** What the store is searched with: the text of the first leg, and every leg added to it. */
+    data class Legs(val primary: String, val extras: List<String>)
+
+    /**
+     * The legs of a query under the English-input law (26/11). An English
+     * question is searched as asked and the restatement only adds a leg (the
+     * expansion law of 16/11: a leg can only ADD recall). A question in another
+     * language reaches the store ONLY as its English restatement — the foreign
+     * text is never searched, so nothing in an English store is ever matched
+     * against it. With no restatement to use (no chat wired, a failed call)
+     * the question stands as asked: retrieval never breaks because a
+     * translation could not run.
+     */
+    fun legs(text: String, restatement: String?): Legs {
+        val foreign = English.foreignQuestion(text)
+        if (!foreign || restatement == null) return Legs(text, listOfNotNull(restatement, synonyms(text)))
+        return Legs(restatement, listOfNotNull(synonyms(text)))
+    }
 }

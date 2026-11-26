@@ -238,9 +238,15 @@ fun Application.brainModule(
                     val retrievalMark = TimeSource.Monotonic.markNow()
                     val response = rag.query(request)
                     // The application-specific eval's raw material: what a real
-                    // caller asked and what the boundary served it. Best-effort —
-                    // a logging failure never breaks the serve path.
-                    ragQueryLogger?.log(response.query, response.hits, retrievalMark.elapsedNow().inWholeMilliseconds)
+                    // caller asked — logged in the English the store was searched
+                    // with, never in the question's own language — and what the
+                    // boundary served it. Best-effort: a logging failure never
+                    // breaks the serve path.
+                    ragQueryLogger?.log(
+                        response.searched ?: response.query,
+                        response.hits,
+                        retrievalMark.elapsedNow().inWholeMilliseconds,
+                    )
                     call.respond(response)
                 }
             }

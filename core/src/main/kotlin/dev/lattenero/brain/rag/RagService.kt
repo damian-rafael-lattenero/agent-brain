@@ -42,6 +42,11 @@ data class Citation(val uri: String, val title: String, val heading: String, val
  * rank-based and saturate (~0.03 for hits and noise alike, measured 22/11),
  * so the top hit's VECTOR similarity is the only signal that separates
  * "the corpus is about this" from garbage served with an answer's face.
+ *
+ * `searched` is the English text the store was searched with: the query as
+ * asked, or its restatement when the question came in another language (the
+ * English-input law of 26/11). The log records this one, never the foreign
+ * text — the database, like the store, is English.
  */
 @Serializable
 data class QueryResponse(
@@ -52,6 +57,7 @@ data class QueryResponse(
     val reranked: Boolean = false,
     val topSimilarity: Double? = null,
     val relevant: Boolean = true,
+    val searched: String? = null,
 )
 
 class RagQueryException(message: String) : IllegalArgumentException(message)
@@ -82,7 +88,8 @@ class RagService(
         val text = request.query.trim()
         if (text.isEmpty()) throw RagQueryException("query must not be empty")
         if (request.k !in 1..MAX_K) throw RagQueryException("k must be between 1 and $MAX_K")
-        val fused = if (request.iterate) searchIterated(text, request.k) else searchFused(text, request.k)
+        val legs = QueryExpansion.legs(text, restate(text))
+        val fused = if (request.iterate) searchIterated(legs, text, request.k) else searchFused(legs, request.k)
         val (hits, reranked) = if (request.rerank) rerank(text, fused) else fused to false
         val topSim = hits.firstOrNull()?.similarity
         return QueryResponse(
@@ -93,33 +100,34 @@ class RagService(
             reranked = reranked,
             topSimilarity = topSim,
             relevant = topSim != null && topSim >= CONFIDENCE_FLOOR,
+            searched = legs.primary,
         )
     }
 
     suspend fun stats(): RagStats = store.stats()
 
     /**
-     * The retrieval stage with its extra legs: the original query always
-     * runs; the English restatement (the bilingual leg) and the deterministic
-     * synonym terms ([QueryExpansion.synonyms] — the corpus laws' canonical
-     * vocabulary for a paraphrase's concept words) each add a ranked leg when
-     * they have something to add, and every leg fuses with the same [Rrf]
-     * the SQL uses. The original leg alone when nothing adds — no chat
-     * wired, a failed call, no triggers — retrieval never degrades because
-     * an expansion could not run (each leg can only ADD recall).
+     * The retrieval stage with its legs ([QueryExpansion.legs]): the primary
+     * text runs first, and each extra leg — the English restatement of an
+     * English question, the deterministic synonym terms
+     * ([QueryExpansion.synonyms], the corpus laws' canonical vocabulary for a
+     * paraphrase's concept words) — adds a ranked list when it has something
+     * to add; every leg fuses with the same [Rrf] the SQL uses. The primary
+     * leg alone when nothing adds, retrieval never degrades because an
+     * expansion could not run (each leg can only ADD recall).
      */
-    private suspend fun searchFused(text: String, k: Int): List<Hit> {
+    private suspend fun searchFused(legs: QueryExpansion.Legs, k: Int): List<Hit> {
+        val text = legs.primary
         val original = store.search(provider.embed(listOf(text)).single(), text, provider.model, k)
-        val extras = listOfNotNull(restate(text), QueryExpansion.synonyms(text))
-        if (extras.isEmpty()) return original
-        val legs = mutableListOf(original.map { it.chunkId })
+        if (legs.extras.isEmpty()) return original
+        val ranked = mutableListOf(original.map { it.chunkId })
         val byId = original.associateBy { it.chunkId }.toMutableMap()
-        for (extra in extras) {
+        for (extra in legs.extras) {
             val hits = store.search(provider.embed(listOf(extra)).single(), extra, provider.model, k)
-            legs.add(hits.map { it.chunkId })
+            ranked.add(hits.map { it.chunkId })
             hits.forEach { byId.putIfAbsent(it.chunkId, it) }
         }
-        return Rrf.fuse(legs).mapNotNull { entry -> byId[entry.id]?.copy(score = entry.score) }.take(k)
+        return Rrf.fuse(ranked).mapNotNull { entry -> byId[entry.id]?.copy(score = entry.score) }.take(k)
     }
 
     /** The English restatement, or null when there is nothing to add. Never throws. */
@@ -145,10 +153,10 @@ class RagService(
      * retrieval never breaks because the loop could not ask (the rerank's
      * law, restated for the loop).
      */
-    private suspend fun searchIterated(text: String, k: Int): List<Hit> {
-        val fused = searchFused(text, k)
+    private suspend fun searchIterated(legs: QueryExpansion.Legs, text: String, k: Int): List<Hit> {
+        val fused = searchFused(legs, k)
         val subQueries = decompose(text)
-        val legs = mutableListOf(fused.map { it.chunkId })
+        val ranked = mutableListOf(fused.map { it.chunkId })
         val byId: MutableMap<Long, Hit> = fused.associateBy { it.chunkId }.toMutableMap()
         for (sub in subQueries) {
             val hits = try {
@@ -160,10 +168,10 @@ class RagService(
                 System.err.println("multi-hop: the sub-query leg failed (${e.message}) — the other legs stand")
                 emptyList()
             }
-            legs.add(hits.map { it.chunkId })
+            ranked.add(hits.map { it.chunkId })
             hits.forEach { byId.putIfAbsent(it.chunkId, it) }
         }
-        return Rrf.fuse(legs).mapNotNull { entry -> byId[entry.id]?.copy(score = entry.score) }.take(k)
+        return Rrf.fuse(ranked).mapNotNull { entry -> byId[entry.id]?.copy(score = entry.score) }.take(k)
     }
 
     /** The independent sub-queries, or an empty list when there is nothing to add. Never throws. */

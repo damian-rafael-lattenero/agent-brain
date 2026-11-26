@@ -3,7 +3,10 @@ package dev.lattenero.brain.rag
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
-/** The expansion laws: the second leg is added, never substituted, and never invented. */
+/**
+ * The expansion laws: for an English question the second leg is added, never substituted and
+ * never invented; a question in another language is searched only as its English restatement.
+ */
 class QueryExpansionTest {
     @Test
     fun `a valid restatement is the second leg`() {
@@ -50,5 +53,27 @@ class QueryExpansionTest {
     fun `synonyms combine when several triggers fire`() {
         val combined = QueryExpansion.synonyms("dispatch the nullable accumulate path")
         assertThat(combined).contains("mode table").contains("validated").contains("option maybe")
+    }
+
+    /** The English-input law: which text the store is searched with, and what is added to it. */
+    @Test
+    fun `an English question is searched as asked and the restatement adds a leg`() {
+        val question = "how do I dispatch on data without if-else chains"
+        val legs = QueryExpansion.legs(question, "dispatch data branches")
+        assertThat(legs.primary).isEqualTo(question)
+        assertThat(legs.extras).containsExactly("dispatch data branches", "mode table predicate table dispatch data priority")
+    }
+
+    @Test
+    fun `a question in Spanish is searched only as its English restatement`() {
+        val legs = QueryExpansion.legs("qué es una mónada y para qué sirve", "monad definition purpose")
+        assertThat(legs.primary).isEqualTo("monad definition purpose")
+        assertThat(legs.extras).isEmpty()
+    }
+
+    @Test
+    fun `with no restatement a foreign question stands as asked`() {
+        val question = "qué es una mónada y para qué sirve"
+        assertThat(QueryExpansion.legs(question, null)).isEqualTo(QueryExpansion.Legs(question, emptyList()))
     }
 }
