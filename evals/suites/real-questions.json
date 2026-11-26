@@ -2,61 +2,61 @@
   "name": "real-questions",
   "kind": "recall",
   "gate": 0.8,
-  "description": "The day's real questions, verbatim: every question below was asked by the owner or the agent during the 16/11 extraction-cascade arc, and each must retrieve the document that holds its answer in the top 5 hybrid hits. Unlike recall-core (curated paraphrase pairs), this suite is the usage truth: it grows every time a real question exposes a gap. MEASURED 16/11 night: 7/8 (gate 0.8 PASSES) after the bilingual second leg (QueryExpansion: a chat restatement in English fused with the original by RRF) and the two corpus gaps it exposed were filled (worker-queue.md; the degeneration paragraph in extraction-model.md). The one remaining miss is the queue question whose Spanish wording ('la cola', 'vueltas') is ambiguous travel vocabulary — the Spanish distractor wins that one legitimately; it stays as the honest edge.",
+  "description": "The day's real questions, as asked: every question below was asked by the owner or the agent during the 16/11 extraction-cascade arc (English since the 26/11 sweep), and each must retrieve the document that holds its answer in the top 5 hybrid hits. Unlike recall-core (curated paraphrase pairs), this suite is the usage truth: it grows every time a real question exposes a gap. MEASURED 16/11 night: 7/8 (gate 0.8 PASSES) after the bilingual second leg (QueryExpansion: a chat restatement in English fused with the original by RRF) and the two corpus gaps it exposed were filled (worker-queue.md; the degeneration paragraph in extraction-model.md). The one remaining miss was the queue question whose Spanish wording was ambiguous travel vocabulary — the distractor won that one legitimately, an honest edge worth keeping in mind. Translated to English on 26/11 (the English sweep): every question keeps its intent and its expected uri, and the verbatim Spanish originals stay in git history.",
   "cases": [
     {
       "type": "recall",
       "id": "why-chat-timeout-dead",
-      "question": "por que chat_timeout_s no funcionaba y quien cortaba antes",
+      "question": "why chat_timeout_s did not work and who was cutting first",
       "uri": "/chat-timeout-ownership.md",
       "needles": ["client", "timeout"]
     },
     {
       "type": "recall",
       "id": "breaker-burns-attempts",
-      "question": "el breaker abierto quema intentos sin llamar al provider",
+      "question": "an open breaker burns attempts without calling the provider",
       "uri": "/breaker-defer-economics.md",
       "needles": ["breaker", "attempt"]
     },
     {
       "type": "recall",
       "id": "extraction-concurrency",
-      "question": "cuantas extracciones corren a la vez contra el runner de ollama",
+      "question": "how many extractions run at once against the ollama runner",
       "uri": "/extraction-sequential.md",
       "needles": ["concurrency", "runner"]
     },
     {
       "type": "recall",
       "id": "dedup-pairs-not-corruption",
-      "question": "los pares near duplicate con una fila invalidada son corrupcion",
+      "question": "are near-duplicate pairs with an invalidated row corruption",
       "uri": "/dedup-lifecycle.md",
       "needles": ["invalid", "lifecycle"]
     },
     {
       "type": "recall",
       "id": "qwen-degenerates",
-      "question": "por que qwen2.5 1.5b degenera en los transcripts gigantes",
+      "question": "why qwen2.5 1.5b degenerates on the giant transcripts",
       "uri": "/extraction-model.md",
       "needles": ["deepseek", "schema"]
     },
     {
       "type": "recall",
       "id": "judge-secrets-durable",
-      "question": "donde viven los secrets del judge despues de un deploy que reescribe el plist",
+      "question": "where do the judge's secrets live after a deploy that rewrites the plist",
       "uri": "/config-durability.md",
       "needles": ["file", "environment"]
     },
     {
       "type": "recall",
       "id": "giants-repetition-pattern",
-      "question": "que hacer cuando el modelo repite la misma frase hasta llenar el cap",
+      "question": "what to do when the model repeats the same sentence until it fills the cap",
       "uri": "/quarantine.md",
       "needles": ["quarantine"]
     },
     {
       "type": "recall",
       "id": "queue-attempts-mechanics",
-      "question": "como decide la cola que vueltas estan pendientes y cuantas veces se reintentan",
+      "question": "how does the queue decide which turns are pending and how many times they are retried",
       "uri": "/worker-queue.md",
       "needles": ["attempt", "pending"]
     }

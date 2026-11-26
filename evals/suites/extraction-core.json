@@ -8,8 +8,8 @@
       "type": "extraction",
       "id": "git-policy-preference",
       "title": "git policy",
-      "prompt": "Fijate que desde hoy cada commit va siempre con su push. Y pusheá siempre con --no-verify, porque los hooks de pre-push corren suites completas y se comen a los agentes.",
-      "reply": "Listo: dejé la regla escrita en AGENTS.md, commiteé y pusheé con --no-verify.",
+      "prompt": "Note that from today every commit always goes with its push. And always push with --no-verify, because the pre-push hooks run full suites and eat the agents.",
+      "reply": "Done: I left the rule written in AGENTS.md, committed and pushed with --no-verify.",
       "tools": [
         "Write",
         "Bash"
@@ -27,8 +27,8 @@
       "type": "extraction",
       "id": "environment-fact",
       "title": "brain stack",
-      "prompt": "Ojo que el Postgres del brain corre en el puerto 5433 y la base se llama agent_brain; Redpanda está en el 19092.",
-      "reply": "Anotado: pg 5433/agent_brain y Redpanda 19092.",
+      "prompt": "Watch out: the brain's Postgres runs on port 5433 and the database is called agent_brain; Redpanda is on 19092.",
+      "reply": "Noted: pg 5433/agent_brain and Redpanda 19092.",
       "tools": [],
       "expect": {
         "factsAny": [
@@ -43,8 +43,8 @@
       "type": "extraction",
       "id": "decision-kapstream",
       "title": "tailer rewrite",
-      "prompt": "Decidí que el tailer del bus use KapStream en vez de Flow: las fuentes tienen que ser dueñas de sus offsets.",
-      "reply": "Hecho: el drain ahora es KapStream.pollUntilQuiet y el offset vive en la fuente.",
+      "prompt": "I decided the bus tailer should use KapStream instead of Flow: the sources have to own their offsets.",
+      "reply": "Done: the drain is now KapStream.pollUntilQuiet and the offset lives in the source.",
       "tools": [
         "Edit"
       ],
@@ -64,8 +64,8 @@
       "type": "extraction",
       "id": "language-preference",
       "title": "docs language",
-      "prompt": "Para los docs nuevos prefiero inglés; los commits en inglés también, con conventional commits.",
-      "reply": "Perfecto: docs y mensajes de commit en inglés, formato conventional.",
+      "prompt": "For new docs I prefer English; commits in English too, with conventional commits.",
+      "reply": "Perfect: docs and commit messages in English, conventional format.",
       "tools": [],
       "expect": {
         "preferencesAny": [
@@ -80,8 +80,8 @@
       "type": "extraction",
       "id": "small-talk-nothing-durable",
       "title": "hello",
-      "prompt": "hola, todo bien?",
-      "reply": "Todo bien. ¿En qué querés que trabaje hoy?",
+      "prompt": "hi, everything good?",
+      "reply": "All good. What do you want me to work on today?",
       "tools": [],
       "expect": {
         "empty": true,
@@ -92,8 +92,8 @@
       "type": "extraction",
       "id": "eval-clock-decision",
       "title": "eval purity",
-      "prompt": "El EvalRunner tiene que usar clock inyectado y nada de while(true); las aserciones son funciones puras sobre los resultados.",
-      "reply": "Listo: TimeSource y wallClock inyectados, sin while(true), y las aserciones viven en un objeto puro.",
+      "prompt": "EvalRunner has to use an injected clock and no while(true); the assertions are pure functions over the results.",
+      "reply": "Done: TimeSource and wallClock injected, no while(true), and the assertions live in a pure object.",
       "tools": [
         "Edit",
         "Bash"
