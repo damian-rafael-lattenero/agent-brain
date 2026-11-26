@@ -14,6 +14,9 @@ use /Users/lattenero/Scripts/lib/deploy.nu [announce announce-loud]
 use /Users/lattenero/Scripts/nushell-fp/mods/proc.nu fold-stderr
 
 const BIN: string = "/Users/lattenero/Projects/agent-brain/core/build/install/agent-brain/bin/agent-brain"
+# launchd's PATH (the plist) carries no /opt/homebrew/bin; the store export
+# runs docker by absolute path so the English gate works under launchd too.
+const DOCKER: string = "/opt/homebrew/bin/docker"
 
 # The type aliases (the owner's 22/11 law): the shapes read once, the
 # signatures spell the name.
@@ -59,7 +62,7 @@ def main []: nothing -> nothing {
     # alarm is the record. The checker lives in the fleet hub.
     let docExport: record = (
         "SELECT row_to_json(t) FROM (SELECT id, source, uri, length(content) AS bytes, left(content, 40000) AS sample FROM documents ORDER BY id) t"
-        | ^docker exec -i agent-brain-pg psql -U brain -d agent_brain -At -f - | complete
+        | ^$DOCKER exec -i agent-brain-pg psql -U brain -d agent_brain -At -f - | complete
     )
     if $docExport.exit_code != 0 {
         print "the docs export failed — the English gate cannot run tonight"
