@@ -127,7 +127,10 @@ class RagStore(private val db: Database) {
         /** The fusion constant lives in the pure core ([Rrf]); the SQL below is its executable twin. */
         const val RRF_K = Rrf.K
 
-        // Two ranked legs, one fused list: 1/(RRF_K + rank) summed per chunk.
+        // Two ranked legs, one fused list: 1/(RRF_K + rank) summed per chunk,
+        // plus the curated vote (see [Curated]) — the same literal as Rag.sq
+        // searchRag, which is the SQL that actually runs; this twin documents
+        // it in Kotlin and the equivalence IT pins the two together.
         // `sim` (1 - vec.dist) rides out with the hit — the confidence
         // floor's signal (see Rag.sq searchRag).
         // Parameters: 1 query vector, 2 embed model, 3 candidates per leg, 4 query text, 5 k.
@@ -150,9 +153,13 @@ class RagStore(private val db: Database) {
                 ORDER BY rank DESC, c.id LIMIT (SELECT n FROM params)
               ) top
             ), fused AS (
-              SELECT id, SUM(1.0 / ($RRF_K + r)) AS score
-              FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) legs
-              GROUP BY id
+              SELECT l.id,
+                     SUM(1.0 / ($RRF_K + l.r))
+                       + CASE WHEN d.uri LIKE '${Curated.LIKE}' THEN ${Rrf.CURATED_VOTE} ELSE 0.0 END AS score
+              FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) l
+              JOIN chunks ck ON ck.id = l.id
+              JOIN documents d ON d.id = ck.doc_id
+              GROUP BY l.id, d.uri
             )
             SELECT c.id, c.doc_id, d.uri, d.title, c.heading, c.ordinal, c.content, f.score,
                    (SELECT r FROM vec WHERE vec.id = c.id) AS vec_rank,

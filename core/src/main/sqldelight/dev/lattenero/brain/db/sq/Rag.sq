@@ -64,6 +64,10 @@ DELETE FROM documents WHERE source = :source
 -- `sim` carries the vector cosine similarity (1 - dist) out of the leg — the
 -- relevance signal RRF cannot express (rank-based scores saturate at ~0.03
 -- for noise and hits alike, measured 22/11); NULL for FTS-only hits.
+-- The lighthouse (plan v2.0 U1, measured 26/11): the curated notes trees
+-- (`*-kb/notes/`, [Curated]) outrank the manuals they curate — one extra
+-- first-place vote (1/61, [Rrf.CURATED_VOTE]); without it the mirrors won
+-- 16 of 45 English concept questions.
 searchRag:
 WITH params AS (
   SELECT :qv::vector AS qv, :model::text AS model, :n::int AS n, websearch_to_tsquery('simple', :text) AS tsq
@@ -81,9 +85,13 @@ WITH params AS (
     ORDER BY rank DESC, c.id LIMIT (SELECT n FROM params)
   ) top
 ), fused AS (
-  SELECT id, SUM(1.0 / (60 + r)) AS score
-  FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) legs
-  GROUP BY id
+  SELECT l.id,
+         SUM(1.0 / (60 + l.r))
+           + CASE WHEN d.uri LIKE '%-kb/notes/%' THEN 1.0 / 61 ELSE 0.0 END AS score
+  FROM (SELECT id, r FROM vec UNION ALL SELECT id, r FROM fts) l
+  JOIN chunks ck ON ck.id = l.id
+  JOIN documents d ON d.id = ck.doc_id
+  GROUP BY l.id, d.uri
 )
 SELECT c.id, c.doc_id, d.uri, d.title, c.heading, c.ordinal, c.content, f.score,
        vec.r AS vec_rank,

@@ -35,7 +35,14 @@ class RagStoreRrfEquivalenceIT {
     private lateinit var store: RagStore
 
     private val docs = mapOf(
-        "/corpus/kafka.md" to "Kafka consumer groups\nA consumer group rebalance reassigns partitions. Idempotent consumers dedupe by key.",
+        // The manual: every query word of the flip test below repeats, so it plainly
+        // leads BOTH legs (the fts leg ranks by term frequency).
+        "/corpus/kafka.md" to "Kafka consumer groups\nA consumer group rebalance reassigns partitions. A consumer group rebalance replays partitions from the group offset.",
+        // The curated note: every keyword of the flip query below must appear here too —
+        // the full-text leg is an AND gate (websearch_to_tsquery ANDs every token), and
+        // the vote reaches a note only when BOTH legs recall it. One mention per keyword:
+        // the manual must win both legs before the vote.
+        "/corpus/fp-kb/notes/consumer-groups.md" to "Notes\nA consumer group rebalance moves partitions between members that share offsets.",
         "/corpus/pgvector.md" to "pgvector HNSW\nThe HNSW index serves cosine distance queries over vector columns in Postgres.",
         "/corpus/lemon.md" to "Lemon pie\nGrandmother's recipe: lemons, sugar, eggs, butter, and patience in the oven.",
         "/corpus/locks.md" to "Advisory locks\nThe migrator serializes runners with pg_advisory_lock 727001 before applying SQL.",
@@ -45,7 +52,12 @@ class RagStoreRrfEquivalenceIT {
     private val vocabulary = listOf(
         "kafka", "consumer", "group", "rebalance", "partitions", "pgvector", "hnsw", "cosine",
         "vector", "postgres", "lemon", "recipe", "advisory", "locks", "migrator", "727001",
+        "members", "offsets",
     )
+
+    /** The pure fusion of a hit's reported ranks, plus the curated vote when its uri is a notes tree. */
+    private fun expected(hit: Hit): Double =
+        Rrf.score(listOfNotNull(hit.vectorRank, hit.textRank), curated = Curated.isCurated(hit.uri))
 
     @BeforeAll
     fun up() = runBlocking {
@@ -80,10 +92,9 @@ class RagStoreRrfEquivalenceIT {
                 assertThat(hits).withFailMessage("query '$query'").isNotEmpty
                 assertThat(hits.size).isLessThanOrEqualTo(k)
                 for (hit in hits) {
-                    val expected = Rrf.score(listOfNotNull(hit.vectorRank, hit.textRank))
                     assertThat(hit.score)
-                        .withFailMessage("query '$query' hit ${hit.chunkId} (${hit.uri}): sql ${hit.score} vs pure $expected")
-                        .isCloseTo(expected, within(1e-9))
+                        .withFailMessage("query '$query' hit ${hit.chunkId} (${hit.uri}): sql ${hit.score} vs pure ${expected(hit)}")
+                        .isCloseTo(expected(hit), within(1e-9))
                 }
                 val ordered = hits.zipWithNext().all { (a, b) -> a.score > b.score || (a.score == b.score && a.chunkId < b.chunkId) }
                 assertThat(ordered).withFailMessage("query '$query': ${hits.map { it.chunkId to it.score }}").isTrue
@@ -93,13 +104,35 @@ class RagStoreRrfEquivalenceIT {
 
     @Test
     fun `a query both legs rank first scores exactly two over k+1`() {
-        val hits = search("kafka consumer group rebalance", k = 5)
+        // lemon.md has no curated competitor on its query: the plain fusion pins exactly.
+        val hits = search("lemon pie recipe", k = 5)
         assertThat(hits).isNotEmpty
         val first = hits.first()
-        assertThat(first.uri).isEqualTo("/corpus/kafka.md")
+        assertThat(first.uri).isEqualTo("/corpus/lemon.md")
         assertThat(first.vectorRank).isEqualTo(1)
         assertThat(first.textRank).isEqualTo(1)
         assertThat(first.score).isCloseTo(2.0 / (Rrf.K + 1), within(1e-9))
+    }
+
+    @Test
+    fun `the curated vote flips the manual the query names - the note leads, the manual keeps its own fusion`() {
+        // Every token below appears in BOTH docs (the fts leg is an AND gate) and the
+        // manual ranks better in both legs — the vote alone flips the order.
+        val hits = search("consumer group rebalance partitions", k = 5)
+        assertThat(hits).isNotEmpty
+        val note = hits.first()
+        assertThat(note.uri).withFailMessage(
+            "the vote must put the note first: ${hits.map { "${it.uri} vr=${it.vectorRank} tr=${it.textRank} s=${it.score}" }}",
+        ).isEqualTo("/corpus/fp-kb/notes/consumer-groups.md")
+        assertThat(note.score).isCloseTo(expected(note), within(1e-9))
+
+        // The manual fragment the query names: its own fusion is untouched by the vote,
+        // and the vote alone is what flipped the order.
+        val manual = hits.first { it.uri == "/corpus/kafka.md" }
+        assertThat(manual.score).isCloseTo(Rrf.score(listOfNotNull(manual.vectorRank, manual.textRank)), within(1e-9))
+        assertThat(Rrf.score(listOfNotNull(manual.vectorRank, manual.textRank)))
+            .withFailMessage("precondition: the manual's plain fusion must lead before the vote")
+            .isGreaterThan(Rrf.score(listOfNotNull(note.vectorRank, note.textRank)))
     }
 
     @Test
@@ -109,7 +142,7 @@ class RagStoreRrfEquivalenceIT {
         assertThat(hits).isNotEmpty
         for (hit in hits) {
             assertThat(hit.textRank).withFailMessage("hit ${hit.chunkId}").isNull()
-            assertThat(hit.score).isCloseTo(Rrf.contribution(requireNotNull(hit.vectorRank)), within(1e-9))
+            assertThat(hit.score).isCloseTo(expected(hit), within(1e-9))
         }
     }
 }

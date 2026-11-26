@@ -156,4 +156,18 @@ class RrfLawsTest {
         assertThat(fused[0].score).isCloseTo(1.0 / (Rrf.K + 1), within(1e-12))
         assertThat(fused[2].score).isCloseTo(1.0 / (Rrf.K + 2), within(1e-12))
     }
+
+    @Test
+    fun `the curated vote flips a near tie - a swept manual loses to a one-rank-worse curated note`() {
+        // The manual fragment sweeps both legs at rank 1; the note sits at rank 2 of both.
+        val manual = Rrf.score(listOf(1, 1))
+        val note = Rrf.score(listOf(2, 2))
+        assertThat(note).withFailMessage("without the vote the manual leads").isLessThan(manual)
+        assertThat(Rrf.score(listOf(2, 2), curated = true)).isGreaterThan(manual)
+        // The vote is the only difference, exactly one extra first-place vote.
+        assertThat(Rrf.score(listOf(2, 2), curated = true)).isCloseTo(note + Rrf.CURATED_VOTE, within(1e-12))
+        assertThat(Rrf.CURATED_VOTE).isCloseTo(1.0 / (Rrf.K + 1), within(0.0))
+        // And without the flag the score is byte-for-byte the legs' sum.
+        assertThat(Rrf.score(listOf(2, 2), curated = false)).isEqualTo(note)
+    }
 }
