@@ -47,7 +47,9 @@ class Indexer(
     private val tracer: CountingTracer,
     private val chunker: Chunker = Chunker(),
     private val docConcurrency: Int = 2,
-    private val corpus: Corpus = Corpus(),
+    // /tests/ is pruned everywhere (ADR-009's hygiene): a hub test file ranked
+    // first on a QuickCheck question — test trees are for tests, not the corpus.
+    private val corpus: Corpus = Corpus(prunedPathParts = listOf("/tests/")),
 ) {
 
     sealed interface Outcome {

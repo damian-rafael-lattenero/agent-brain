@@ -54,6 +54,25 @@ def main []: nothing -> nothing {
         print (fold-stderr $index | str substring 0..400)
     }
 
+    # The English gate (ADR-009): export the store and fail the night when
+    # Spanish prose reaches the index. Red does not abort the rest — the
+    # alarm is the record. The checker lives in the fleet hub.
+    let docExport: record = (
+        "SELECT row_to_json(t) FROM (SELECT id, source, uri, length(content) AS bytes, left(content, 40000) AS sample FROM documents ORDER BY id) t"
+        | ^docker exec -i agent-brain-pg psql -U brain -d agent_brain -At -f - | complete
+    )
+    if $docExport.exit_code != 0 {
+        print "the docs export failed — the English gate cannot run tonight"
+        print (fold-stderr $docExport | str substring 0..300)
+    } else {
+        $docExport.stdout | save --force /tmp/rag-nightly-docs.jsonl
+        let english: record = (nu /Users/lattenero/Scripts/scripts/rag-english-check.nu /tmp/rag-nightly-docs.jsonl --check --out /tmp/rag-nightly-non-english.tsv | complete)
+        print $"english check: exit ($english.exit_code)"
+        if $english.exit_code != 0 {
+            announce-loud $"🌙 <b>RAG English gate FAILED</b> — Spanish prose reached the index; the failing rows are in /tmp/rag-nightly-non-english.tsv"
+        }
+    }
+
     let eval: record = (do { ^$BIN eval --suite real-questions } | complete)
     print $"eval real-questions: exit ($eval.exit_code)"
     if $eval.exit_code != 0 {
