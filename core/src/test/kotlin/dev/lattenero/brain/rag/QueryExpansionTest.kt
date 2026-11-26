@@ -1,3 +1,4 @@
+// lang-ok: detector input — the Spanish question is the fixture expansion must handle.
 package dev.lattenero.brain.rag
 
 import org.assertj.core.api.Assertions.assertThat

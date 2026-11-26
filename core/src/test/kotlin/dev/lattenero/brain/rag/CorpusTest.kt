@@ -1,3 +1,4 @@
+// lang-ok: detector input — the Spanish doc is the fixture the index door must skip.
 package dev.lattenero.brain.rag
 
 import org.assertj.core.api.Assertions.assertThat

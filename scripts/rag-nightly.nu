@@ -58,7 +58,7 @@ def main []: nothing -> nothing {
     print $"eval real-questions: exit ($eval.exit_code)"
     if $eval.exit_code != 0 {
         print (fold-stderr $eval | str substring 0..400)
-        announce-loud $"🌙 <b>RAG nightly FALLÓ</b> — el eval no corrió: (fold-stderr $eval | str substring 0..200)"
+        announce-loud $"🌙 <b>RAG nightly FAILED</b> — the eval did not run: (fold-stderr $eval | str substring 0..200)"
         return
     }
 
@@ -68,7 +68,7 @@ def main []: nothing -> nothing {
         announce $"🌙 RAG nightly: ($score.passed)/($score.total) ✅ gate ($score.gate)"
     } else {
         let misses: string = ($score.misses | str join ", ")
-        announce-loud $"🌙 <b>RAG nightly BAJÓ del gate</b> — ($score.passed)/($score.total) con gate ($score.gate). Misses: ($misses)"
+        announce-loud $"🌙 <b>RAG nightly FELL BELOW the gate</b> — ($score.passed)/($score.total) con gate ($score.gate). Misses: ($misses)"
     }
 
     # The application-specific leg: grade the production rag_query log with the
@@ -78,7 +78,7 @@ def main []: nothing -> nothing {
     print $"usage-eval: exit ($usage.exit_code)"
     if $usage.exit_code != 0 {
         print (fold-stderr $usage | str substring 0..300)
-        announce-loud $"🌙 <b>Usage eval BAJÓ del gate</b> — (fold-stderr $usage | str substring 0..200)"
+        announce-loud $"🌙 <b>Usage eval FELL BELOW the gate</b> — (fold-stderr $usage | str substring 0..200)"
     }
 
     # The shadow leg (plan v2 T1): judge the newest completed bot turns on the
@@ -91,6 +91,6 @@ def main []: nothing -> nothing {
         let parsed: record = ($shadow.stdout | from json)
         let passed: int = ($parsed.passed? | default 0)
         let total: int = ($parsed.total? | default 0)
-        announce-loud $"🌙 <b>Shadow eval BAJÓ del gate</b> — ($passed)/($total) turnos al rubro 4+."
+        announce-loud $"🌙 <b>Shadow eval FELL BELOW the gate</b> — ($passed)/($total) turns at rubric 4+."
     }
 }

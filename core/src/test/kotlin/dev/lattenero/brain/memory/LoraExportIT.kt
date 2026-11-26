@@ -1,3 +1,4 @@
+// lang-ok: quoted record — the short-turn lines are the export's input, kept verbatim.
 package dev.lattenero.brain.memory
 
 import app.cash.sqldelight.driver.jdbc.asJdbcDriver

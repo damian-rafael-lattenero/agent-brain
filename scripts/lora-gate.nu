@@ -48,6 +48,6 @@ def main []: nothing -> nothing {
     let parsed: record = ($out.stdout | from json)
     print $"PASSED ($parsed.passed)/($parsed.total) gate ($parsed.gate) ok=($parsed.ok) p50=($parsed.metrics.p50Ms) ms"
     print ($parsed.cases | each {|c| $"($c.id): ok=($c.ok) fail=($c.failure | default '-')" } | str join (char nl))
-    let verdict: string = if ($parsed.passed == 6) { "6/6 — EMPATA al incumbent" } else { "menos que deepseek 6/6 — el sillón no se mueve" }
+    let verdict: string = if ($parsed.passed == 6) { "6/6 — MATCHES the incumbent" } else { "less than deepseek 6/6 — the seat does not move" }
     announce $"🎓 LoRA data-pass final: ($parsed.passed)/($parsed.total) — ($verdict)"
 }

@@ -1,3 +1,4 @@
+// lang-ok: quoted record — "héllo" is the non-ASCII path fixture.
 package dev.lattenero.brain.rag
 
 import org.assertj.core.api.Assertions.assertThat

@@ -78,8 +78,8 @@ class ShadowEvalIT {
     fun `the first run grades yesterday's turns, the cursor never repeats`() {
         runBlocking {
             val now = OffsetDateTime.now()
-            seedTurn("s1", "t1", "\"como está el cluster\"", "\"El cluster está verde: 3/3 pods, latencia p50 120ms.\"", now.minusHours(2))
-            seedTurn("s1", "t2", "\"pasame el diff\"", "\"Aca va el diff de los tres archivos con las lineas marcadas.\"", now.minusHours(1))
+            seedTurn("s1", "t1", "\"how is the cluster?\"", "\"The cluster is green: 3/3 pods, p50 latency 120ms.\"", now.minusHours(2))
+            seedTurn("s1", "t2", "\"send me the diff\"", "\"Here is the diff of the three files with the changed lines marked.\"", now.minusHours(1))
 
             val report = shadowEval.grade(limit = 10, minReplyLen = 40)!!
             assertThat(report.suite).isEqualTo(ShadowEval.SUITE)

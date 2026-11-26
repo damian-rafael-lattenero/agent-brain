@@ -43,7 +43,7 @@ const DRILL_TABLES: list<string> = ["memories", "documents", "eval_runs"]
 
 def die [msg: string]: nothing -> nothing {
     print -e $"✗ ($msg)"
-    send-telegram --html $"❌ <b>BACKUP PG FALLÓ</b> — ($msg)"
+    send-telegram --html $"❌ <b>BACKUP PG FAILED</b> — ($msg)"
     exit 1
 }
 
@@ -97,7 +97,7 @@ def prune [out_dir: path]: nothing -> list<string> {
     let old: list<string> = ($files | where {|f| $f.modified < $cutoff } | get name)
     for p in $old {
         rm $p
-        print $"· rotado (>($RETENTION_DAYS) días): ($p)"
+        print $"· rotated (>($RETENTION_DAYS) days): ($p)"
     }
     $old
 }
@@ -137,7 +137,7 @@ def drill [out_dir: path, before: record]: nothing -> nothing {
     let dumps: list<string> = (glob $"($out_dir)/agent_brain-*.dump" | sort)
     if ($dumps | is-empty) { die "drill: no agent_brain dump exists yet" }
     let newest: string = ($dumps | last)
-    print $"— drill sobre ($newest | path basename)"
+    print $"— drill on ($newest | path basename)"
     psql-admin $"DROP DATABASE IF EXISTS ($DRILL_SCRATCH)"
     psql-admin $"CREATE DATABASE ($DRILL_SCRATCH)"
     let box_dump: string = $"/tmp/($DRILL_SCRATCH).dump"

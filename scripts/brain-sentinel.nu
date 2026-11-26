@@ -101,10 +101,10 @@ def main [--dry-run(-d), --status(-s)]: nothing -> nothing {
     if not ($dry_run) {
         # transitions only — one message per state change, hint included
         $newDowns | each {|r|
-            tg-send $"🧠⚠️ brain-sentinel — capa CAÍDA: ($r.layer) (($r.check))\n($r.detail)\n🔧 ($r.hint)"
+            tg-send $"🧠⚠️ brain-sentinel — layer DOWN: ($r.layer) (($r.check))\n($r.detail)\n🔧 ($r.hint)"
         }
         $newUps | each {|l|
-            tg-send $"🧠✅ brain-sentinel — capa RECUPERADA: ($l)"
+            tg-send $"🧠✅ brain-sentinel — layer RECOVERED: ($l)"
         }
         # the dead man's switch: ping ONLY on a fully green pass. A failed ping
         # must NEVER kill the pass before the state save (audit 17/11: lost

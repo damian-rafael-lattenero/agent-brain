@@ -1,3 +1,4 @@
+// lang-ok: quoted record — the owner's call is a verbatim quote with its English rendering beside it.
 package dev.lattenero.brain.memory
 
 import dev.lattenero.brain.chat.ChatException
@@ -20,7 +21,8 @@ import java.time.LocalDate
 
 /**
  * The English-corpus migration (the owner's call 19/11 — "no me molestaría
- * una pasada larga nocturna aunque cueste tokens"): the legacy SPANISH
+ * una pasada larga nocturna aunque cueste tokens" [translated: "I wouldn't mind a
+ * long nightly pass even if it costs tokens"]): the legacy SPANISH
  * memories translate to ENGLISH in place, batch per judge call, and re-embed
  * with nomic so retrieval never sees two languages. The row keeps its
  * identity, salience, edges and turn linkage — the graph does not know the

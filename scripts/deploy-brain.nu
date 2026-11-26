@@ -49,22 +49,22 @@ def main []: nothing -> nothing {
     let repo: path = ($env.FILE_PWD | path dirname)
 
     step "building (Gradle daemon)"
-    announce "🧠 deploy agent-brain 1/3 — building (installDist + detekt; el build es el tramo largo)"
+    announce "🧠 deploy agent-brain 1/3 — building (installDist + detekt; the build is the long stretch)"
     cd $repo
     let build: record = (do { ^./gradlew -q :core:installDist detektAll } | complete)
     if $build.exit_code != 0 {
         print -e $build.stderr
-        announce-loud "❌ <b>DEPLOY AGENT-BRAIN FALLÓ</b> — el build (Gradle/detekt) se cayó; el brain sigue sirviendo lo anterior"
+        announce-loud "❌ <b>DEPLOY AGENT-BRAIN FAILED</b> — the build (Gradle/detekt) fell over; the brain keeps serving the previous bits"
         die $"the build failed: exit ($build.exit_code)"
     }
     print $build.stdout
 
     step $"LaunchAgent ($LABEL) — bootout + bootstrap: the kill & deploy"
-    announce "🧠 deploy agent-brain 2/3 — restart del servicio (breve outage de /brain y memoria)"
+    announce "🧠 deploy agent-brain 2/3 — service restart (brief /brain and memory outage)"
     bootstrap-agent $repo $LABEL
 
     step "verification: /ready 200 (deadline 90 s)"
-    announce "🧠 deploy agent-brain 3/3 — verificación (/ready, deadline 90 s)"
+    announce "🧠 deploy agent-brain 3/3 — verification (/ready, deadline 90 s)"
     let ok: bool = (wait-ready 90sec)
     if not $ok {
         print -e "✗ the brain did not come back — last words:"
@@ -74,10 +74,10 @@ def main []: nothing -> nothing {
         for line in (tail-lines $err_log 5) {
             print -e $line
         }
-        announce-loud "❌ <b>DEPLOY AGENT-BRAIN FALLÓ</b> — /ready no respondió en 90 s; mirá el deploy log y ~/Library/Logs/agent-brain.log"
+        announce-loud "❌ <b>DEPLOY AGENT-BRAIN FAILED</b> — /ready did not answer within 90 s; check the deploy log and ~/Library/Logs/agent-brain.log"
         exit 1
     }
-    announce-loud "🧠 <b>DEPLOY AGENT-BRAIN COMPLETO</b> — /ready 200; rag_query y memoria sirviendo con los bits nuevos"
+    announce-loud "🧠 <b>DEPLOY AGENT-BRAIN COMPLETE</b> — /ready 200; rag_query and memory serving the new bits"
     print 'done. Brain redeployed: /ready 200 on the fresh bits.'
     print 'Health: nu scripts/health-check.nu (8 layers) · drills: ops/drills/.'
 }

@@ -36,7 +36,7 @@ type DataSplit = record<pairs: int, train: int, holdout: int>
 
 def fail [msg: string]: nothing -> nothing {
     print -e $"lora-full: ($msg)"
-    announce-loud $"🌙 <b>LoRA full run FALLÓ</b> — ($msg | str substring 0..250)"
+    announce-loud $"🌙 <b>LoRA full run FAILED</b> — ($msg | str substring 0..250)"
     exit 1
 }
 
@@ -142,7 +142,7 @@ def main []: nothing -> nothing {
     let report: record = ($gate.stdout | from json)
 
     # 5. ONE honest line with the verdict: the incumbent is deepseek 6/6.
-    let verdict: string = if $report.ok { "PASÓ el gate" } else { "NO llegó al gate" }
+    let verdict: string = if $report.ok { "PASSED the gate" } else { "did NOT reach the gate" }
     announce $"🌙 LoRA full · ($ITERS) iters · extraction-core ($report.passed)/($report.total) — ($verdict) vs deepseek 6/6 · p50 ($report.metrics.p50Ms) ms"
     print $"gate: ($report.passed)/($report.total) ok=($report.ok)"
 }

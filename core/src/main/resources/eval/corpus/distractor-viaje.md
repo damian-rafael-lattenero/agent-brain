@@ -1,5 +1,5 @@
-# Viaje a Bariloche
+# A trip to Bariloche
 
-Salimos un viernes a la noche y llegamos con el amanecer sobre el Nahuel Huapi.
-El hostel quedaba a tres cuadras del Centro Cívico; caminamos hasta el Cerro
-Campanario y volvimos con las piernas destruidas pero felices.
+We left on a Friday night and arrived with the sunrise over Lake Nahuel Huapi.
+The hostel was three blocks from the Civic Center; we walked up to Cerro
+Campanario and came back with our legs destroyed but happy.

@@ -1,3 +1,4 @@
+// lang-ok: detector input — the Spanish text is the fixture the English boundary must flag.
 package dev.lattenero.brain.rag
 
 import org.assertj.core.api.Assertions.assertThat

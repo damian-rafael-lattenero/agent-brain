@@ -1,3 +1,4 @@
+// lang-ok: detector input — the Spanish rows are the translation pass's input.
 package dev.lattenero.brain.memory
 
 import app.cash.sqldelight.driver.jdbc.asJdbcDriver

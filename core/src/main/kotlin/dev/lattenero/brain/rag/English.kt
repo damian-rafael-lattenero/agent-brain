@@ -1,3 +1,4 @@
+// lang-ok: detector input — the Spanish stopword list the English boundary needs verbatim.
 package dev.lattenero.brain.rag
 
 /**

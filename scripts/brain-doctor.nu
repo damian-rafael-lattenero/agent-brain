@@ -43,7 +43,7 @@ def main [
         # one source everywhere (the 15/11 drill trap).
         let errText: string = (fold-stderr $run)
         let why: string = (if ($errText | is-empty) { "no stderr" } else { $errText | lines | last 1 })
-        announce-loud $"🩺 <b>Corpus doctor FALLÓ</b> — ($why | str substring 0..160)"
+        announce-loud $"🩺 <b>Corpus doctor FAILED</b> — ($why | str substring 0..160)"
         print $"corpus doctor failed: ($why)"
         exit 1
     }
@@ -64,10 +64,10 @@ def main [
         | str join " · "
     )
     let line: string = (
-        $"🩺 Corpus doctor: ($failed) fallos / ($graded) gradadas ((($rate * 100 | math round) | into string)%) — ($causes)"
+        $"🩺 Corpus doctor: ($failed) failures / ($graded) graded ((($rate * 100 | math round) | into string)%) — ($causes)"
     )
     if $rate >= $LOUD_RATE {
-        announce-loud $"🩺 <b>Corpus doctor ALTO</b> — ($line)"
+        announce-loud $"🩺 <b>Corpus doctor HIGH</b> — ($line)"
     } else {
         announce $line
     }

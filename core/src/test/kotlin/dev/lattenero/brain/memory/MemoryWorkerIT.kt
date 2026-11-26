@@ -1,3 +1,4 @@
+// lang-ok: quoted record — "ñandú" is the non-ASCII round-trip fixture.
 package dev.lattenero.brain.memory
 
 import dev.lattenero.brain.TestDatabase

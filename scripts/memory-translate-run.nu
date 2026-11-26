@@ -16,7 +16,7 @@ def main []: nothing -> nothing {
     print $"translate-legacy: exit ($run.exit_code)"
     if $run.exit_code != 0 {
         print ($run.stderr | str substring 0..400)
-        announce-loud $"🌐 <b>memory-translate FALLÓ</b> — ($run.stderr | str substring 0..200)"
+        announce-loud $"🌐 <b>memory-translate FAILED</b> — ($run.stderr | str substring 0..200)"
         exit 1
     }
     let report: record = ($run.stdout | from json)

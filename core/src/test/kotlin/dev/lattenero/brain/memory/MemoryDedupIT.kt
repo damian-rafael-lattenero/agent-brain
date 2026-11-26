@@ -1,3 +1,4 @@
+// lang-ok: quoted record — the memory pairs mirror the measured evidence in MemoryDedup.
 package dev.lattenero.brain.memory
 
 import com.pgvector.PGvector
