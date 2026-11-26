@@ -71,12 +71,26 @@ class CorpusTest {
     }
 
     @Test
-    fun `eval fixtures and test resources are never corpus content`() {
+    fun `eval fixtures, test resources, the agent's plans and the eval's data are never corpus content`() {
         write("bot/core/src/main/resources/eval/corpus/distractor-viaje.md")
         write("bot/core/src/test/resources/corpus/distractor-bariloche.md")
         write("bot/docs/adr/ADR-013.md")
+        write("bot/.zcode/plans/plan-session_0c15be53.md")
+        write("bot/evals/suites/questions.md")
         val scan = Corpus(prunedPathParts = Corpus.REPO_PRUNED_PATH_PARTS).scan(listOf("$tmp/bot/**/*.md"))
         assertThat(scan.documents.map { it.title }).containsExactly("docs/adr/ADR-013.md")
+    }
+
+    @Test
+    fun `a document that is not English stays out of the corpus with a reason`() {
+        write("docs/spanish.md", "El owner quiere que todo el código se escriba de una sola forma y sin errores, " +
+            "desde el inicio hasta el final, para que nadie tenga que adivinar nada.")
+        write("docs/quoted.kt", "// The bot answers the owner in Spanish: the words are data, the code is not.\nval ready = \"listo para continuar\"")
+        write("docs/english.md")
+        val scan = Corpus().scan(listOf("$tmp/docs/*"))
+        assertThat(scan.documents.map { it.title }).containsExactly("english.md", "quoted.kt")
+        assertThat(scan.skipped).singleElement().asString()
+            .contains("spanish.md: not English (9 Spanish and 0 English stopwords)")
     }
 
     @Test

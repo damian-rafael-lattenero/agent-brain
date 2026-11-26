@@ -13,6 +13,11 @@ import java.security.MessageDigest
  * (`#` comments allowed) or given on the command line. Only text-like
  * extensions are indexed, noise directories are pruned, and files above
  * [maxBytes] are skipped and reported.
+ *
+ * The store is English (the owner's order of 26/11): a document whose prose
+ * reads as another language ([English.foreignDocument]) is stopped at this
+ * door and reported with its count, like an oversized or non-UTF-8 file —
+ * nothing that is not English reaches the index, whichever caller scans.
  */
 class Corpus(
     private val maxBytes: Long = DEFAULT_MAX_BYTES,
@@ -76,6 +81,12 @@ class Corpus(
                             skipped += "$uri: not UTF-8"
                             return@forEach
                         }
+                        if (English.foreignDocument(content)) {
+                            val counted = English.count(content)
+                            skipped += "$uri: not English " +
+                                "(${counted.spanish} Spanish and ${counted.english} English stopwords)"
+                            return@forEach
+                        }
                         documents[uri] = Document(
                             source = source.glob,
                             uri = uri,
@@ -114,8 +125,14 @@ class Corpus(
          * outranked the real content on a Spanish question. Test trees are
          * for tests, not for the corpus. Opt-in: only index-repos passes
          * this — the KB globs and the recall-gate fixtures index unpruned.
+         *
+         * The agent's working files and the eval's own data joined on 26/11
+         * (the English-corpus inventory): session plans are not knowledge, and
+         * a suite file holds the very questions an eval asks.
          */
-        val REPO_PRUNED_PATH_PARTS = listOf("/src/test/resources/", "/eval/corpus/", "/distractor")
+        val REPO_PRUNED_PATH_PARTS = listOf(
+            "/src/test/resources/", "/eval/corpus/", "/distractor", "/.zcode/", "/evals/",
+        )
 
         fun sha256(text: String): String =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
