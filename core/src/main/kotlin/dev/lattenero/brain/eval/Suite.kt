@@ -213,6 +213,14 @@ data class EvalSuite(
      * decision like the gate — the suite's own text says which stage ran.
      */
     val iterate: Boolean = false,
+    /**
+     * A recall suite over the PRODUCTION store: no throwaway database and no
+     * fixture corpus — the questions meet what the brain really holds. The
+     * shipped suites index a fixture so CI needs no deployment; a live suite is
+     * the number of the deployed brain (a `uri` is matched as a path suffix,
+     * so one file reads the same on every machine). Recall only.
+     */
+    val live: Boolean = false,
 ) {
     val axis: EvalAxis get() = kind.axis
 
@@ -226,6 +234,7 @@ data class EvalSuite(
     private fun requireHeader() {
         if (name.isBlank()) throw EvalSuiteException("a suite needs a name")
         if (gate !in 0.0..1.0) throw EvalSuiteException("$name: gate must be within 0.0..1.0, got $gate")
+        if (live && kind != EvalKind.RECALL) throw EvalSuiteException("$name: only a recall suite can run live")
     }
 
     private fun requireCases() {
@@ -295,6 +304,7 @@ data class EvalSuite(
             "memory-core",
             "real-questions",
             "multi-hop",
+            "canon-recall",
         )
     }
 }

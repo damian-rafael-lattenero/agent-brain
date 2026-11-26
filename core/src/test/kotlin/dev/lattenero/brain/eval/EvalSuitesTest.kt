@@ -19,6 +19,7 @@ class EvalSuitesTest {
             "memory-core",
             "real-questions",
             "multi-hop",
+            "canon-recall",
         )
         assertThat(suites.map { it.kind }).containsExactly(
             EvalKind.RECALL,
@@ -28,12 +29,14 @@ class EvalSuitesTest {
             EvalKind.MEMORY,
             EvalKind.RECALL,
             EvalKind.RECALL,
+            EvalKind.RECALL,
         )
         assertThat(suites.map { it.axis }).containsExactly(
             EvalAxis.EMBED,
             EvalAxis.CHAT,
             EvalAxis.CHAT,
             EvalAxis.CHAT,
+            EvalAxis.EMBED,
             EvalAxis.EMBED,
             EvalAxis.EMBED,
             EvalAxis.EMBED,
@@ -46,6 +49,21 @@ class EvalSuitesTest {
         // The agentic suite is the one whose questions decompose and fuse legs.
         assertThat(suites.first { it.name == "multi-hop" }.iterate).isTrue()
         assertThat(suites.first { it.name == "real-questions" }.iterate).isFalse()
+        // The live suite is the one that meets the production store.
+        assertThat(suites.first { it.name == "canon-recall" }.live).isTrue()
+        assertThat(suites.filter { it.name != "canon-recall" }.map { it.live }).containsOnly(false)
+    }
+
+    @Test
+    fun `only a recall suite can run live`() {
+        val live = """
+            {"name":"live","kind":"extraction","gate":0.5,"live":true,"cases":[
+              {"type":"extraction","id":"one","prompt":"a","reply":"b","expect":{}}
+            ]}
+        """.trimIndent()
+        assertThatThrownBy { EvalSuites.parse(live, "live").validate() }
+            .isInstanceOf(EvalSuiteException::class.java)
+            .hasMessageContaining("only a recall suite can run live")
     }
 
     @Test
