@@ -228,12 +228,16 @@ data class EvalSuite(
     fun validate(): EvalSuite {
         requireHeader()
         requireCases()
+        requireLive()
         return this
     }
 
     private fun requireHeader() {
         if (name.isBlank()) throw EvalSuiteException("a suite needs a name")
         if (gate !in 0.0..1.0) throw EvalSuiteException("$name: gate must be within 0.0..1.0, got $gate")
+    }
+
+    private fun requireLive() {
         if (live && kind != EvalKind.RECALL) throw EvalSuiteException("$name: only a recall suite can run live")
     }
 

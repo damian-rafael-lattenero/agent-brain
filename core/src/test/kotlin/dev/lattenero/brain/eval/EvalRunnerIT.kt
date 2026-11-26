@@ -77,11 +77,17 @@ class EvalRunnerIT {
             .use { reader -> reader.readLines().filter { it.endsWith(".md") }.toSet() }
         // EVERY recall suite must target the shipped corpus (the
         // real-questions suite joined recall-core; both are usage-gates over
-        // the same docs), and the curated gate keeps its exact size.
-        suites.filter { it.kind == EvalKind.RECALL }.forEach { recall ->
+        // the same docs), and the curated gate keeps its exact size. A LIVE
+        // suite asks the production store instead: its uris are path suffixes
+        // of real notes, never names of the fixture.
+        suites.filter { it.kind == EvalKind.RECALL && !it.live }.forEach { recall ->
             recall.cases.filterIsInstance<RecallCase>().forEach { case ->
                 assertThat(case.uri.substringAfterLast('/')).isIn(corpus)
             }
+        }
+        assertThat(suites.filter { it.live }.map { it.name }).containsExactly("canon-recall")
+        suites.filter { it.live }.flatMap { it.cases }.filterIsInstance<RecallCase>().forEach { case ->
+            assertThat(case.uri).matches("/(haskell-kb/notes/concepts|theory-kb/notes/category-theory)/[a-z0-9-]+\\.md")
         }
         assertThat(suites.first { it.name == "recall-core" }.cases).hasSize(33)
         suites.single { it.kind == EvalKind.GROUNDED }.cases.filterIsInstance<GroundedCase>().forEach { case ->

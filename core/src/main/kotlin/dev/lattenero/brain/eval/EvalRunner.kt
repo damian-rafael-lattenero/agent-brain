@@ -162,8 +162,13 @@ class EvalRunner(
             when {
                 !suite.kind.usesFreshDatabase ->
                     Brain.resource(config).use { brain -> extractionReport(brain, startedAt, mark) }
+                // A live suite (the English-corpus work of 26/11): the production store as
+                // it stands — nothing is migrated, indexed or seeded, the questions are
+                // asked and graded, and the run lands in the ledger like any other.
                 suite.live ->
-                    Brain.resource(config).use { brain -> liveReport(brain, startedAt, mark) }
+                    Brain.resource(config).use { brain ->
+                        report(recallCases(brain), startedAt, mark, identityFor(brain))
+                    }
                 else -> freshEvalDatabase().use { name ->
                     val evalConfig = config.copy(pgUrl = config.pgUrl.substringBeforeLast('/') + "/" + name)
                     Brain.resource(evalConfig).use { brain -> databaseReport(brain, startedAt, mark) }
@@ -208,16 +213,6 @@ class EvalRunner(
         check(indexed.failed.isEmpty() && indexed.indexed > 0) {
             "eval: the fixture corpus did not index (${indexed.failed})"
         }
-    }
-
-    /**
-     * A live suite (the English-corpus work of 26/11): the production store as it
-     * stands. Nothing is migrated, indexed or seeded — the questions are asked
-     * and graded, and the run lands in the ledger like any other.
-     */
-    private suspend fun liveReport(brain: Brain, startedAt: Instant, mark: TimeMark): EvalReport {
-        val cases = recallCases(brain)
-        return report(cases, startedAt, mark, identityFor(brain))
     }
 
     /**
