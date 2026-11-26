@@ -69,7 +69,7 @@ def main []: nothing -> nothing {
         print (fold-stderr $docExport | str substring 0..300)
     } else {
         $docExport.stdout | save --force /tmp/rag-nightly-docs.jsonl
-        let english: record = (nu /Users/lattenero/Scripts/scripts/rag-english-check.nu /tmp/rag-nightly-docs.jsonl --check --out /tmp/rag-nightly-non-english.tsv | complete)
+        let english: record = (^$nu.current-exe /Users/lattenero/Scripts/scripts/rag-english-check.nu /tmp/rag-nightly-docs.jsonl --check --out /tmp/rag-nightly-non-english.tsv | complete)
         print $"english check: exit ($english.exit_code)"
         if $english.exit_code != 0 {
             announce-loud $"🌙 <b>RAG English gate FAILED</b> — Spanish prose reached the index; the failing rows are in /tmp/rag-nightly-non-english.tsv"
