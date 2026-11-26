@@ -22,8 +22,20 @@ object Rrf {
     /** One leg's contribution at 1-based [rank]. */
     fun contribution(rank: Int): Double = 1.0 / (K + rank)
 
+    /**
+     * One extra first-place vote for a curated chunk ([Curated]): the note
+     * outranks the manual fragment it curates when the legs are close.
+     * The SQL twins repeat the same literal `1.0 / 61`.
+     */
+    val CURATED_VOTE: Double
+        get() = contribution(1)
+
     /** The fused score of an id recalled by legs at exactly these 1-based [ranks]. */
     fun score(ranks: List<Int>): Double = ranks.sumOf { contribution(it) }
+
+    /** [score] plus the curated vote when the id's chunk belongs to a curated notes tree ([Curated]). */
+    fun score(ranks: List<Int>, curated: Boolean): Double =
+        score(ranks) + if (curated) CURATED_VOTE else 0.0
 
     /**
      * The fusion stage as a value: [legs] of ids in rank order (best first,
