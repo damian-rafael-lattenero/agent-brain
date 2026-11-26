@@ -95,6 +95,31 @@ class CorpusTest {
     }
 
     @Test
+    fun `a bilingual prose file leaves the corpus - a code file stays`() {
+        // Balanced: enough Spanish AND more English stopwords, so the
+        // Spanish-dominant rule alone would keep BOTH files. Prose (md) is
+        // refused at the document floor; the same words in code (kt) stay
+        // (ADR-009 rule 5: code is code).
+        val bilingual = "Este documento mezcla los dos idiomas del store que con una como " +
+            "más pero muy sin sobre también, while the and for with that this from are " +
+            "not you have has was were will which their would about there when what."
+        write("docs/mixed.md", bilingual)
+        write("docs/Mixed.kt", bilingual)
+        write("docs/english.md")
+        val scan = Corpus().scan(listOf("$tmp/docs/*"))
+        assertThat(scan.documents.map { it.title }).containsExactly("Mixed.kt", "english.md")
+        assertThat(scan.skipped).singleElement().asString()
+            .contains("mixed.md: not English (")
+    }
+
+    @Test
+    fun `a repo tests tree is pruned like the other working files`() {
+        write("bot/tests/helpers.py")
+        val scan = Corpus(prunedPathParts = Corpus.REPO_PRUNED_PATH_PARTS).scan(listOf("$tmp/bot/**/*.py"))
+        assertThat(scan.documents).isEmpty()
+    }
+
+    @Test
     fun `the same file reached by two globs is indexed once`() {
         write("docs/a.md")
         val scan = Corpus().scan(listOf("$tmp/docs/*.md", "$tmp/**/*.md"))

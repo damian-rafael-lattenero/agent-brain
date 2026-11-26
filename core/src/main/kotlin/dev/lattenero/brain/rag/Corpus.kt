@@ -81,8 +81,12 @@ class Corpus(
                             skipped += "$uri: not UTF-8"
                             return@forEach
                         }
-                        if (English.foreignDocument(content)) {
-                            val counted = English.count(content)
+                        val counted = English.count(content)
+                        val isProse = path.fileName.toString().lowercase()
+                            .substringAfterLast('.', "") in PROSE_EXTENSIONS
+                        val foreign = English.foreignDocument(content) ||
+                            (isProse && counted.spanish >= English.DOCUMENT_FLOOR)
+                        if (foreign) {
                             skipped += "$uri: not English " +
                                 "(${counted.spanish} Spanish and ${counted.english} English stopwords)"
                             return@forEach
@@ -131,8 +135,18 @@ class Corpus(
          * a suite file holds the very questions an eval asks.
          */
         val REPO_PRUNED_PATH_PARTS = listOf(
-            "/src/test/resources/", "/eval/corpus/", "/distractor", "/.zcode/", "/evals/",
+            "/src/test/resources/", "/eval/corpus/", "/distractor", "/.zcode/", "/evals/", "/tests/",
         )
+
+        /**
+         * The prose extensions the door judges by its document floor (ADR-009):
+         * a prose file carrying the floor's Spanish stopwords leaves the corpus
+         * however much English it also holds, while a code file is judged only
+         * by the Spanish-dominant rule (the fleet's bilingual UI code stays).
+         * The hub's `rag-english-check --check` enforces the same set — a rule
+         * added here is added there.
+         */
+        val PROSE_EXTENSIONS = setOf("md", "txt", "adoc", "rst")
 
         fun sha256(text: String): String =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
