@@ -32,7 +32,10 @@ import kotlin.time.TimeSource
  *    felt (the log's own `latency_ms`), not the grading call's.
  *  - Evidence is kept: each graded row stores the verdict verbatim.
  *  - A chunk pruned since the query grades on what remains; the logged
- *    top_uris are the query's history.
+ *    top_uris are the query's history. A row whose chunks were ALL pruned is
+ *    ungradeable, not a miss: it leaves the queue with [PRUNED] as its verdict
+ *    and is not scored (measured 26/11: six of twenty rows failed the nightly
+ *    after the day's corpus cleanup — none of them a retrieval the judge saw).
  */
 class UsageEval(
     private val db: Database,
@@ -61,7 +64,6 @@ class UsageEval(
         val rows = db.withDriver { brainDb ->
             brainDb.ragQueryLogQueries.ungradedSample(sampleSize.toLong()).executeAsList()
         }
-        if (rows.isEmpty()) return null
         val startedAt = OffsetDateTime.now()
         val mark = TimeSource.Monotonic.markNow()
         val cases = rows.map { row ->
@@ -69,9 +71,13 @@ class UsageEval(
         }
         val durationMs = mark.elapsedNow().inWholeMilliseconds
         // Evidence first, then the ledger: a replayed grade is a no-op
-        // (`AND NOT graded`), an at-least-once caller stays honest.
+        // (`AND NOT graded`), an at-least-once caller stays honest. A row whose
+        // evidence was pruned leaves the queue too, with PRUNED as its verdict.
         cases.forEach { case -> markGraded(case) }
-        val passed = cases.count { it.ok }
+        val graded = cases.filter { it.verdictText != PRUNED }
+        // Nothing gradeable is nothing to grade: an ungradeable row is not a miss.
+        if (graded.isEmpty()) return null
+        val passed = graded.count { it.ok }
         val report = EvalReport(
             runId = runId,
             suite = SUITE,
@@ -83,14 +89,14 @@ class UsageEval(
             chatModel = judge.model,
             gate = gate,
             passed = passed,
-            total = cases.size,
-            ok = cases.isNotEmpty() && passed.toDouble() / cases.size >= gate,
+            total = graded.size,
+            ok = passed.toDouble() / graded.size >= gate,
             metrics = SuiteMetricsCalculator.of(
-                cases, EvalKind.USAGE, prices,
+                graded, EvalKind.USAGE, prices,
                 ModelIdentity(model = judge.model, provider = judge.name, embedModel = embedModel),
                 durationMs,
             ),
-            cases = cases,
+            cases = graded,
             startedAt = startedAt.toString(),
             durationMs = durationMs,
         )
@@ -118,7 +124,8 @@ class UsageEval(
                 durationMs = latencyMs.toLong(),
                 tokensEstimated = true,
                 question = query,
-                failure = "none of the logged chunks survived re-materialization (pruned?)",
+                verdictText = PRUNED,
+                failure = PRUNED,
             )
         }
         val user = renderGradingContext(query, chunks)
@@ -220,6 +227,9 @@ class UsageEval(
          * silent relaxation.
          */
         const val USAGE_GATE = 0.7
+
+        /** The verdict kept on a row whose served chunks were all pruned: ungradeable, never a miss. */
+        const val PRUNED = "pruned: none of the logged chunks survived re-materialization"
 
         private const val VERDICT_EVIDENCE_CAP = 400
 

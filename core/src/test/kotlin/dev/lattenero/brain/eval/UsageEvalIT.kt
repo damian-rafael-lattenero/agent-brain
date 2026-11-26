@@ -115,14 +115,29 @@ class UsageEvalIT {
     }
 
     @Test
-    fun `chunks pruned since the query fail the case honestly`() {
+    fun `a row whose chunks were all pruned is skipped, not failed, and leaves the queue`() {
         runBlocking {
             logQuery("query whose chunks vanished", listOf(9999), latency = 12)
-            val report = usageEval.grade(sampleSize = 1)!!
-            val case = report.cases.single()
-            assertThat(case.ok).isFalse()
-            assertThat(case.failure).contains("re-materialization")
-            assertThat(report.ok).isFalse()
+            logQuery("query whose chunks survived", listOf(1, 2), latency = 30)
+            val report = usageEval.grade(sampleSize = 2)!!
+            // Only what the judge saw is scored: one gradeable row, one pass.
+            assertThat(report.total).isEqualTo(1)
+            assertThat(report.passed).isEqualTo(1)
+            assertThat(report.ok).isTrue()
+            assertThat(report.cases.single().question).isEqualTo("query whose chunks survived")
+            // The pruned row left the queue too, with the pruned verdict as its evidence.
+            assertThat(usageEval.ungradedCount()).isEqualTo(0)
+            assertThat(usageEval.grade(sampleSize = 2)).isNull()
+        }
+    }
+
+    @Test
+    fun `a sample made only of pruned rows is nothing to grade, and it still leaves the queue`() {
+        runBlocking {
+            logQuery("another query whose chunks vanished", listOf(9998), latency = 10)
+            assertThat(usageEval.ungradedCount()).isEqualTo(1)
+            assertThat(usageEval.grade(sampleSize = 2)).isNull()
+            assertThat(usageEval.ungradedCount()).isEqualTo(0)
         }
     }
 
