@@ -1,7 +1,8 @@
 # FP-first refactor plan
 
 Written 2026-10-29. Applies the ecosystem's binding policy — first-class
-functional programming, "todo lo bueno de Haskell", KAP as the standard
+functional programming, "todo lo bueno de Haskell" [translated: "all the good stuff
+from Haskell"], KAP as the standard
 library — to agent-brain as a refactor of existing code. The policy text
 lives in `zcode-bot-kotlin/docs/parity-and-engineering.md` §7; this file
 is the concrete plan for THIS repo.

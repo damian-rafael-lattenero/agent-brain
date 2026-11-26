@@ -1,3 +1,4 @@
+<!-- lang-ok: the contract lists the Spanish terms it maps to English -->
 # Glossary and sweep contract — English everywhere
 
 > Owner decision, 2026-11-26: every work product we own is English — code, comments, docs,
