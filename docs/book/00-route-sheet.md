@@ -96,7 +96,7 @@ Needs: C1.
 - [ ] D4 The ladder: fact, skill, hook
 - [ ] D5 Gate and verdict: allow, guide, ask, block
 - [ ] D6 The oracle: compiling is the truth
-- [ ] D7 The course judge: The Request, the ledger, the triggers
+- [ ] D7 The course judge: the Brief, the ledger, the triggers
 - [ ] D8 Correction, proposal, promotion
 - [ ] D9 Subagents: the same laws in another session
 - [ ] D10 The seal: the shape of the answer

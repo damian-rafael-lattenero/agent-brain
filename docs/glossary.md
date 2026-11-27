@@ -35,7 +35,6 @@ Everything else is translated. These six are not prose, and each has a reason:
 | El ajá | The aha |
 | parada (de una ficha) | stop |
 | juez de rumbo / capa Rumbo | the course judge / Course |
-| El Pedido | The Request |
 | alineado · desvío menor · desvío | aligned · minor drift · drift |
 | la escalera | the ladder |
 | faro | lighthouse |
