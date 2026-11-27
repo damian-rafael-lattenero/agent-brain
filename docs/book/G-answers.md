@@ -13,7 +13,7 @@ Each block answers the three questions of that card, in order.
 
 1. Object, array, string, number, boolean, null. Nothing else: no date, no decimal, no comment.
 2. It says which forms may appear where and which fields are required, so a value can be refused instead of used. A type is the same promise written where the language can check it before the program runs.
-3. `get -o` returns nothing in both cases, so an explicit check is needed: ask whether the key exists (`has`/`columns`) before reading it, or make presence and emptiness two different fields.
+3. `get -o` returns nothing in both cases, so the key must be checked before it is read: `columns` lists the keys of a record, including the ones whose value is null, while a missing key never appears there.
 
 ## A0.3
 
