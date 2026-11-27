@@ -129,7 +129,10 @@ class CorrectionWorker(
         if (error is CircuitBreakerOpenException) {
             log.warn("correction extraction deferred for {} (breaker open, stays pending)", row.id)
         } else {
-            log.warn("correction extraction deferred for {} (stays pending): {}: {}", row.id, error::class.simpleName, error.message)
+            log.warn(
+                "correction extraction deferred for {} (stays pending): {}: {}",
+                row.id, error::class.simpleName, error.message,
+            )
         }
         return CorrectionOutcome.Deferred(row.id, "${error::class.simpleName}: ${error.message}")
     }

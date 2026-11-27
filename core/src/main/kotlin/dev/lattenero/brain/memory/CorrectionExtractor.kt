@@ -60,7 +60,10 @@ class CorrectionExtractor(
         }
         return Kap { chat.completeJson(SYSTEM_PROMPT, render(text), SCHEMA) }
             .withProviderResilience(timeout, attempts, backoffBase, breaker) { attempt, error, delay ->
-                log.warn("correction extraction retry {} in {} after {}: {}", attempt, delay, error::class.simpleName, error.message)
+                log.warn(
+                    "correction extraction retry {} in {} after {}: {}",
+                    attempt, delay, error::class.simpleName, error.message,
+                )
             }
             .traced(PHASE_EXTRACT, tracer)
             .map { parse(it) }
@@ -94,7 +97,8 @@ class CorrectionExtractor(
 
         private val json = Json { ignoreUnknownKeys = true }
 
-        /** The first non-blank STRING inside a JSON answer: the expected "rule" key first, then any string in the object or array. */
+        /** The first non-blank STRING inside a JSON answer: the expected "rule"
+         *  key first, then any string in the object or array. */
         private fun ruleInside(element: JsonElement): String? = when (element) {
             is JsonPrimitive -> if (element.isString) element.content.trim().takeIf { it.isNotEmpty() } else null
             is JsonObject -> element["rule"]?.let(::ruleInside)
@@ -121,22 +125,30 @@ class CorrectionExtractor(
         fun parse(result: ChatResult): Either<ExtractionInvalid, String> {
             val raw = result.text
             val trimmed = raw.trim()
-            if (trimmed.isEmpty()) {
-                return Either.Left(ExtractionInvalid("blank answer: the judge said nothing", raw))
+            val face: Either<ExtractionInvalid, String> = when {
+                trimmed.isEmpty() -> Either.Left(ExtractionInvalid("blank answer: the judge said nothing", raw))
+                trimmed.startsWith("{") || trimmed.startsWith("[") -> jsonFace(raw)
+                else -> Either.Right(trimmed)
             }
-            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-                val element: JsonElement? = try {
-                    json.parseToJsonElement(raw)
-                } catch (e: SerializationException) {
-                    null
-                }
-                val inside: String? = element?.let(::ruleInside)
-                if (inside == null) {
-                    return Either.Left(ExtractionInvalid("JSON garbage: no rule sentence inside", raw))
-                }
-                return Either.Right(firstSentence(inside).take(MAX_CANDIDATE_CHARS))
+            return face.map { firstSentence(it).take(MAX_CANDIDATE_CHARS) }
+        }
+
+        /** The JSON face: the rule string the answer carries, or the garbage
+         *  bin — with the parse failure named, never swallowed. */
+        private fun jsonFace(raw: String): Either<ExtractionInvalid, String> = try {
+            val inside = ruleInside(json.parseToJsonElement(raw))
+            if (inside == null) {
+                Either.Left(ExtractionInvalid("JSON garbage: no rule sentence inside", raw))
+            } else {
+                Either.Right(inside)
             }
-            return Either.Right(firstSentence(trimmed).take(MAX_CANDIDATE_CHARS))
+        } catch (e: SerializationException) {
+            Either.Left(
+                ExtractionInvalid(
+                    "JSON garbage: not parseable JSON (${e.message?.lineSequence()?.firstOrNull()})",
+                    raw,
+                ),
+            )
         }
     }
 }
