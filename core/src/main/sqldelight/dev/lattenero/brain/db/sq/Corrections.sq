@@ -1,0 +1,67 @@
+-- TYPING-ONLY declaration (see Memories.sq): runtime DDL is Migrator's.
+-- The owner's corrections (plan U8) ride the bus as kind='correction' events;
+-- this table is the durable mirror the extractor works on and the owner
+-- decides over. The row id IS the bus event id, so an at-least-once replay
+-- lands once (insert-or-ignore).
+CREATE TABLE corrections (
+  id           TEXT PRIMARY KEY,
+  sid          TEXT NOT NULL,
+  turn         TEXT NOT NULL,
+  kind         TEXT NOT NULL,
+  text         TEXT NOT NULL,
+  candidate    TEXT,
+  status       TEXT NOT NULL DEFAULT 'pending',
+  created_at   TIMESTAMPTZ NOT NULL,
+  extracted_at TIMESTAMPTZ,
+  decided_at   TIMESTAMPTZ
+);
+
+-- The ingestion mirror: idempotent by bus event id (replays leave the table identical).
+insertCorrection:
+INSERT INTO corrections (id, sid, turn, kind, text, status, created_at)
+VALUES (:id, :sid, :turn, :kind, :text, 'pending', :createdAt::timestamptz)
+ON CONFLICT (id) DO NOTHING;
+
+-- The extraction stamp. The status flips pending -> proposed ONLY when the
+-- candidate is non-blank: a blank candidate records the attempt (candidate
+-- + extracted_at) and STAYS pending, so the worker retries it — an honest
+-- queue entry, never a pretended proposal.
+markExtracted:
+UPDATE corrections
+SET candidate = :candidate,
+    extracted_at = :extractedAt::timestamptz,
+    status = CASE WHEN trim(:candidate) = '' THEN status ELSE 'proposed' END
+WHERE id = :id AND status = 'pending';
+
+-- The owner's decision, guarded: accepted | rejected ONLY, and only from
+-- pending | proposed (a decided row is closed; the guard makes a replay a
+-- no-op). Zero updated rows is the "cannot decide this id" answer.
+decide:
+UPDATE corrections
+SET status = :status, decided_at = :decidedAt::timestamptz
+WHERE id = :id
+  AND status IN ('pending', 'proposed')
+  AND :status IN ('accepted', 'rejected');
+
+-- The worker's queue: pending rows with no candidate yet, oldest first.
+pendingForExtraction:
+SELECT id, sid, turn, kind, text, candidate, status, created_at, extracted_at, decided_at
+FROM corrections
+WHERE status = 'pending' AND (candidate IS NULL OR trim(candidate) = '')
+ORDER BY created_at, id
+LIMIT :lim;
+
+-- The owner's review surface, newest first.
+listRecent:
+SELECT id, sid, turn, kind, text, candidate, status, created_at, extracted_at, decided_at
+FROM corrections
+ORDER BY created_at DESC, id DESC
+LIMIT :lim;
+
+byId:
+SELECT id, sid, turn, kind, text, candidate, status, created_at, extracted_at, decided_at
+FROM corrections
+WHERE id = :id;
+
+countByStatus:
+SELECT status, count(*) AS n FROM corrections GROUP BY status ORDER BY status;
