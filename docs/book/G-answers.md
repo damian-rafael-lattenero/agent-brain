@@ -98,3 +98,10 @@ Each block answers the three questions of that card, in order.
 1. A gate refuses BEFORE the action (deterministic, one written pattern); an oracle answers AFTER it and can never refuse — PostToolUse carries no blocking power, so the compiler's verdict rides as a note the writer reads seconds after the write.
 2. The TIME CAP (gradle 45 s, ghc 20 s — a cap is announced, never hidden) and the COOLDOWN (one judgment per file per window, and the stamp is written only after a real judgment — a crashed leg does not consume it). Every run lands one row in oracles.tsv.
 3. rag-guard now injects every `*-kb/notes/` tree (the old list named only nushell-kb, so the Kotlin, Haskell and theory notes never rode along); design-guard covers `.hs` and queries the law notes live at a Haskell new-file moment. Each waited for the oracle because they are the other two halves of the same write-time truth: mechanics refuse, retrieval guides, the compiler measures.
+
+## E3
+
+1. Because the row's value is its birth moment: it was written by the process that saw the event, when the event happened. The moment an editor can touch it, the number stops being a fact about the past and becomes whatever the editor wants — the only honest repair is a new row that says what changed and when.
+2. Because the history underneath stays append-only: the bus JSONL keeps the owner's words verbatim forever, and the table's flip is a guarded transition (a decided row closes forever), never an edit of what was said. Tampering would be rewriting the bus line; the flip only adds a decision on top.
+3. Append-only growth: every one of them only gains rows, each row written by the process that witnessed the event at the moment it happened, and every number anyone quotes is re-derivable by folding over the rows.
+

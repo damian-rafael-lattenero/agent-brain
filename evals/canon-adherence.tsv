@@ -1,0 +1,6 @@
+# canon-adherence ledger — one appended row per weekly sample, never rewritten.
+# Method: the 10 newest Kotlin commits per repo (agent-brain, zcode-bot-kotlin),
+# added lines judged against the Canon; the survey instrument is canon-survey.nu
+# (~/Scripts/scripts/canon-survey.nu). Columns: date · edits · main_clean ·
+# test_flawed · main_violated · top_concepts · var · bang
+2026-11-27	20	16	3	1	stringly-typed-taxonomies:4 non-total-tests:4 sentinel-absence:2 var-in-main:0 runcatching-suspend:0	659	1110
