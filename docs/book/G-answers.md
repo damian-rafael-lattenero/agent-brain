@@ -189,6 +189,36 @@ Each block answers the three questions of that card, in order.
 2. Associativity: re-grouping the chain answers identically, so steps can be extracted and re-laid without changing behavior.
 3. When the steps merely forward each other's values — the chain is nesting ceremony; the fleet's law extracts named functions returning Either (direct style).
 
+## B15
+
+1. The collapse answers one value and loses the shape; the traversal keeps the shape INSIDE the verdict of a fallible step — the twist is the verdict traveling with the walk.
+2. Because the traverse's answer is the shape inside an applicative verdict, and a dependent chain would build each step from the last — losing the all-or-nothing accumulation that makes forms honest.
+3. `traverseV` keeps EVERY error (the accumulating mode); `traverseSettled` runs the siblings even when one fails (the isolation mode).
+
+## B16
+
+1. The answers nobody reads: strictness computes every binding the moment its line runs; laziness computes on first touch only.
+2. `lazy {}` / `by lazy` (the deferred value), `sequence {}` and `asSequence()` (the on-demand generators).
+3. The Unit?-typed JUnit method that silently skipped — in the value dimension: a lazy value never read is a guard that never runs, while the suite stays green.
+
+## B17
+
+1. The alias gives a nickname only — the swap still compiles, because it is the SAME type; the wrapper gives a distinct identity the checker enforces.
+2. For the instance space: a newtype can carry instances the wrapped type does not have, at zero runtime cost (the wrapper erases).
+3. The tagged record with wrap/unwrap functions as the only doors — and the census tests police the kind, since describe cannot prove it.
+
+## B18
+
+1. A constructor kind (`* -> *`): the signature speaks about every shape with an instance, so `fmap` is written once instead of per shape.
+2. The JVM's ceiling: no type-constructor abstraction exists, so the generality would cost reflection or raw types — the concrete operators (map/with/andThen per shape) are the honest answer.
+3. That instances written YEARS later work with generic functions written today — `doubled` needed no tree-specific code, because the tree only supplies the instance.
+
+## B19
+
+1. Exactly two honest bodies (return `a` or return `b`): the type parameter carries no operations, so the body cannot peek, compare, default, or build a `T`.
+2. Erasure plus runtime inspection: `is` checks and reflection can meet `T` at runtime, so the blindness is a discipline review keeps, not a machine proof.
+3. Signature honesty: concrete parameter types wherever the shape is known, the typing hook enforcing the annotations, and the census tests as the only theorems.
+
 
 
 

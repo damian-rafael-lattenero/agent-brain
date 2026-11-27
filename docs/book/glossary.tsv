@@ -160,3 +160,7 @@ partial application	A0.2
 composition	B05
 pattern matching	B08
 type class	B10
+laziness	B16
+newtype	B17
+higher-kinded	B18
+parametricity	B19

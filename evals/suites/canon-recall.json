@@ -124,6 +124,16 @@
     {"type": "recall", "id": "rung14-applicative-kt", "question": "when do I choose the applicative combine over the andThen chain in Kotlin and what decides", "uri": "/kotlin-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung14-applicative-nu", "question": "all-or-nothing traversal over parsed options in nushell", "uri": "/nushell-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung15-monad-kt", "question": "the dependent chain in Kotlin with andThen and the three monad laws", "uri": "/kotlin-kb/notes/canon-map.md"},
-    {"type": "recall", "id": "rung15-monad-nu", "question": "option-bind dependent chains in nushell and the short-circuit law", "uri": "/nushell-kb/notes/canon-map.md"}
+    {"type": "recall", "id": "rung15-monad-nu", "question": "option-bind dependent chains in nushell and the short-circuit law", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung16-traversable-kt", "question": "the all-or-nothing traversal in Kotlin over a fallible step per element", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung16-traversable-nu", "question": "the walk with a verdict in nushell: every row parsed or nothing lands", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung17-laziness-kt", "question": "where are Kotlin's laziness islands and what do they defer", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung17-laziness-nu", "question": "the closure as the laziness island in nushell and the forgotten do pitfall", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung18-newtype-kt", "question": "value class as the zero-cost distinct type in Kotlin and why an alias is not enough", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung18-newtype-nu", "question": "the tagged record as the newtype substitute in nushell and its compile-time gap", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung19-hkt-kt", "question": "why Kotlin has no higher-kinded types and what the instance-passing workaround looks like", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung19-hkt-nu", "question": "abstracting over shapes in nushell: the per-shape operator table as the instance", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung20-parametricity-kt", "question": "what theorems a Kotlin generic signature gives for free and what breaks the promise", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung20-parametricity-nu", "question": "signature honesty in nushell: concrete types over any and what the typing hook keeps", "uri": "/nushell-kb/notes/canon-map.md"}
   ]
 }
