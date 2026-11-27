@@ -152,3 +152,10 @@ mut	B02
 Maybe	B07
 Either	A0.2
 cancellation	B20
+pure function	B01
+referential transparency	B01
+higher-order	B03
+currying	B04
+partial application	A0.2
+composition	B05
+pattern matching	B08

@@ -104,6 +104,16 @@
     {"type": "recall", "id": "rung4-absence-kt", "question": "why is an empty string a bad stand-in for a missing id in Kotlin and what goes there instead", "uri": "/kotlin-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung4-absence-nu", "question": "empty string versus null in nushell: which one means missing", "uri": "/nushell-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung5-ce-kt", "question": "why does runCatching over suspend code launder cancellation in Kotlin and what is the ladder instead", "uri": "/kotlin-kb/notes/canon-map.md"},
-    {"type": "recall", "id": "rung5-ce-nu", "question": "how does a nushell script answer an external command's exit code as a value", "uri": "/nushell-kb/notes/canon-map.md"}
+    {"type": "recall", "id": "rung5-ce-nu", "question": "how does a nushell script answer an external command's exit code as a value", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung6-pure-kt", "question": "what makes a Kotlin function pure and where do the effects go", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung6-pure-nu", "question": "what makes a nushell def pure and where do the effects live", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung7-first-class-kt", "question": "how are functions passed as values in Kotlin and what is the suspend type trap", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung7-first-class-nu", "question": "closures as values in nushell dispatch tables and the eager payload trap", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung8-currying-kt", "question": "how does partial application work in Kotlin without built-in currying", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung8-currying-nu", "question": "partial application in nushell: a def answering a closure", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung9-composition-kt", "question": "how does Kotlin compose functions left to right without a composition operator", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung9-composition-nu", "question": "why is the nushell pipeline native function composition", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung10-matching-kt", "question": "when is a Kotlin when exhaustive and why no else branch", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung10-matching-nu", "question": "nushell match arms without a catch-all and the census test as the coverage proof", "uri": "/nushell-kb/notes/canon-map.md"}
   ]
 }

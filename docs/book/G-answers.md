@@ -123,11 +123,42 @@ Each block answers the three questions of that card, in order.
 2. Nothing: the input record stays exactly as it was. `update` answers a NEW record; the old binding keeps the old shape and remains valid, which is why the drill's test can pin both at once.
 3. In test sources — fixtures and `lateinit` wiring live there, measured as most of the fleet's rebindable-slot debt. It is legal because test state is read within one test's lifetime and the gate's jurisdiction deliberately stops at `src/test/`.
 
+## B05
+
+1. Because the grouping never changes the answer — `(f . g) . h` and `f . (g . h)` answer identically — so re-grouping a pipeline's stages is provably safe and refactors cannot silently change behavior.
+2. A `let`-chain five deep: an imperative program wearing a costume, where each step's purpose hides in the nesting. The replacement: extract the named pure steps and compose THEM, left-to-right.
+3. The direction of the arrow: `|` composes forwards in the order the data flows, every stage a visible line, while a nested call composes inside-out and must be read from the middle.
+
+## B08
+
+1. As a STATEMENT the `when` only warns on missing branches; as an EXPRESSION over a sealed tree the type checker must produce a value for every constructor, so a forgotten one is a compile error — the proof lives in the expression position.
+2. NOTHING — the dispatch silently answers nothing, which is the bug wearing silence. The census test over every constructor is the only coverage proof nushell has.
+3. The parts of the value: `Just (x:xs)` binds the head and the tail as it matches, so the clause's body works on the pieces without a second extraction step.
+
 ## B20
 
 1. It catches `Throwable` — and CancellationException IS a `Throwable` on the JVM — so the caller's give-up signal is laundered into a value: the rescue leg runs in a cancelled scope, structured concurrency hangs or loses work. Over pure CPU code (a json parse) there is nothing to cancel, so the net is honest there.
 2. The typed value (expected, actionable failures — the caller handles them), throw (bugs and invariant violations, honest crashes), cancellation (cooperative control flow — rethrown always), and border convert (a throwing library converted ONCE at the edge: the known case to the domain, the unknown rethrown).
 3. A `complete` record — `{stdout, stderr, exit_code}` — and the script decides on the exit code as a value; nothing is ignored, and stderr is carried as the reason.
+
+## B03
+
+1. Because the steps travel as DATA: the loop (a fold) applies whatever the list carries, so a new step is a new row in the list and no caller's code changes.
+2. A dispatch table's payload fields evaluate at CONSTRUCTION, so a payload that is a bare expression runs even if its row never wins; the law makes payloads CLOSURES — thunks built once, called only by the winner (fp-kb's defer law).
+3. Because `suspend (A) -> B` is a different type from `(A) -> B`: the shape of the value says whether it may wait, and forcing one into the other's place is the smell the gate names.
+
+## B04
+
+1. `a -> (b -> c)`: a function from one argument to a function of the remaining one — the brackets are already there, currying just makes them invisible.
+2. Because its parameter list is a TUPLE: evaluation waits for all of them, so partial application must be written on purpose as a chain of single-parameter functions.
+3. The captured VALUE freezes at creation — a partial application over a changing slot keeps the old value forever, so the law is: capture values, never slots (the same law the mut-accumulator trap teaches).
+
+## B01
+
+1. The hidden read: a companion-object field, a global, a clock — state the signature never mentions, so the answer has a second author the reader cannot see.
+2. Because the expected answer is a VALUE you can pin once: the same input must answer the same forever, so one assertEquals per input is a proof, not a sample.
+3. Effects live at the edges — the suspend/Kotlin functions and the nushell scripts that call the pure cores; the structure says so by layout (mods carry cores, scripts carry the world).
+
 
 
 ## B07
