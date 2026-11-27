@@ -105,3 +105,10 @@ Each block answers the three questions of that card, in order.
 2. Because the history underneath stays append-only: the bus JSONL keeps the owner's words verbatim forever, and the table's flip is a guarded transition (a decided row closes forever), never an edit of what was said. Tampering would be rewriting the bus line; the flip only adds a decision on top.
 3. Append-only growth: every one of them only gains rows, each row written by the process that witnessed the event at the moment it happened, and every number anyone quotes is re-derivable by folding over the rows.
 
+## B06
+
+1. The enum with a total parse makes the taxonomy a CLOSED type: the type checker knows every branch, so dispatch coverage is provable and a typo lands on the degraded constructor instead of compiling into silence. The string set proves nothing — any string compiles, and the set and its dispatcher agree only by luck.
+2. Because it is partial: `enumValueOf` throws `IllegalArgumentException` on an unknown wire, and a wire boundary sees unknown wires by definition — the total `byWire ?: degraded` parse is the only shape where every input lands somewhere.
+3. Because the `else` swallows the type checker's exhaustiveness proof: the `when` compiles forever, and the branch added next year falls into `else` silently. Without the `else`, adding a branch is a compile error at every unfinished dispatch — the type checker becomes the checklist.
+
+

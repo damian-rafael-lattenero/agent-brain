@@ -3,4 +3,6 @@
 # added lines judged against the Canon; the survey instrument is canon-survey.nu
 # (~/Scripts/scripts/canon-survey.nu). Columns: date · edits · main_clean ·
 # test_flawed · main_violated · top_concepts · var · bang
+# OBJECTIVE (owner, 27/11): main-code adherence >=90% within four weekly
+# samples; the tests' force-unwraps halved by U15. Baseline row below = 80%.
 2026-11-27	20	16	3	1	stringly-typed-taxonomies:4 non-total-tests:4 sentinel-absence:2 var-in-main:0 runcatching-suspend:0	659	1110

@@ -139,3 +139,8 @@ optics	H19
 lens	H19
 prism	H19
 traversal	H19
+sum type	B06
+product type	B06
+sealed	B06
+constructor	B06
+exhaustive	B06

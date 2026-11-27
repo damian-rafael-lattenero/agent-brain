@@ -94,6 +94,8 @@
     {"type": "recall", "id": "theory-optics-en", "question": "optics: why lenses, prisms and traversals are one idea", "uri": "/theory-kb/notes/category-theory/optics.md"},
     {"type": "recall", "id": "theory-optics-p", "question": "lenses, prisms and traversals as one idea: the family of optics", "uri": "/theory-kb/notes/category-theory/optics.md"},
     {"type": "recall", "id": "theory-category-theory-and-ai-en", "question": "where category theory shows up in AI engineering today", "uri": "/theory-kb/notes/category-theory/category-theory-and-ai.md"},
-    {"type": "recall", "id": "theory-category-theory-and-ai-p", "question": "category theory in AI engineering: where the ideas land today", "uri": "/theory-kb/notes/category-theory/category-theory-and-ai.md"}
+    {"type": "recall", "id": "theory-category-theory-and-ai-p", "question": "category theory in AI engineering: where the ideas land today", "uri": "/theory-kb/notes/category-theory/category-theory-and-ai.md"},
+    {"type": "recall", "id": "rung1-taxonomy-kt", "question": "how do I model a closed taxonomy of wire values in Kotlin with a total parse", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung1-taxonomy-nu", "question": "tagged records as sum types in nushell, the uniform shape where the tag decides", "uri": "/nushell-kb/notes/canon-map.md"}
   ]
 }
