@@ -1,0 +1,135 @@
+# term	card — the card that introduces a term. book-check refuses a card that
+# uses a term whose card comes later in the route sheet. One term per line,
+# lower case, as written in the cards (code spans are not read as terms).
+API	A0.1
+port	A0.1
+socket	A0.1
+protocol	A0.1
+request	A0.1
+response	A0.1
+client	A0.1
+server	A0.1
+JSON	A0.2
+schema	A0.2
+type	A0.2
+field	A0.2
+null	A0.2
+parse	A0.2
+serialize	A0.2
+index	A0.3
+queue	A0.3
+latency	A0.3
+throughput	A0.3
+cache	A0.3
+prompt	A0.4
+model	A0.4
+token	A0.4
+context window	A0.4
+temperature	A0.4
+MCP	A1
+RAG	A1
+memory	A1
+eval	A1
+harness	A1
+turn	C1
+session	C1
+bus	C2
+event	C2
+topic	C2
+producer	C2
+consumer	C2
+extraction	C3
+lifecycle	C4
+quarantine	C4
+supersede	C4
+embedding	C5
+vector	C5
+cosine	C5
+dimension	C5
+HNSW	C5
+ANN	C5
+retrieval	C6
+chunk	C6
+ranking	C6
+RRF	C6
+rerank	C6
+citation	C6
+hybrid search	C6
+BM25	C6
+nightly	C7
+audit	C7
+tool	C8
+resource	C8
+auto-memory	D1
+KB	D1
+hook	D2
+PreToolUse	D2
+PostToolUse	D2
+Stop	D2
+skill	D3
+promotion	D4
+gate	D5
+verdict	D5
+allow	D5
+guide	D5
+ask	D5
+block	D5
+oracle	D6
+compiler	D6
+Request	D7
+trigger	D7
+drift	D7
+correction	D8
+proposal	D8
+subagent	D9
+child session	D9
+seal	D10
+evidence	D10
+recall	E1
+MRR	E1
+nDCG	E1
+first pass	E2
+canon	E2
+course	E2
+ledger	E3
+receipt	F1
+trap	F2
+monoid	N04
+monad	B13
+functor	B11
+applicative	B12
+foldable	B15
+traversable	B15
+laziness	B16
+newtype	B17
+higher-kinded	B18
+parametricity	B19
+free monad	B23
+backpressure	B24
+denotational design	B25
+homomorphism	B25
+category	H01
+natural transformation	H03
+limit	H04
+colimit	H04
+adjunction	H05
+monoidal functor	H06
+monoid object	H07
+Kleisli	H08
+F-algebra	H09
+catamorphism	H09
+free functor	H10
+forgetful functor	H10
+exponential	H11
+cartesian closed	H11
+Yoneda	H12
+Kan extension	H13
+contravariant	H14
+profunctor	H15
+comonad	H16
+string diagram	H17
+sheaf	H18
+optics	H19
+lens	H19
+prism	H19
+traversal	H19
