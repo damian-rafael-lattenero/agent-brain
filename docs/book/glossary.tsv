@@ -1,6 +1,12 @@
 # term	card — the card that introduces a term. book-check refuses a card that
-# uses a term whose card comes later in the route sheet. One term per line,
+# uses a term whose card comes later in the route sheet (plurals count:
+# hooks before the hook card is the same term early). One term per line,
 # lower case, as written in the cards (code spans are not read as terms).
+# verb-homographs: turn, allow, ask, stop, trap, drift
+# — the -s forms of these are ordinary English verbs (the turn stops, which
+# allows, the question asks, it never traps, the conversation drifts), so
+# their plurals never match the term; measured 27/11, 12 of 18 mechanical
+# plural findings were these verbs, not concepts.
 API	A0.1
 port	A0.1
 socket	A0.1
