@@ -134,9 +134,9 @@ const val USAGE = """usage: agent-brain <command> [args]
                      "usage"); nothing to grade answers honestly and exits 0
   doctor [--days N] [--limit K]
                      the corpus doctor: judge-classify the graded failures of the production
-                     rag_query log (corpus_gap / phrasing_mismatch / stale_chunk / unanswerable)
-                     into repair proposals; READ-ONLY (proposes, never writes); nothing graded
-                     in the window answers honestly and exits 0
+                     rag_query log (corpus_gap / phrasing_mismatch / stale_chunk / unanswerable /
+                     law_gap) into repair proposals; READ-ONLY (proposes, never writes); nothing
+                     graded in the window answers honestly and exits 0
   shadow-eval [--limit N]
                      judge the newest completed bot turns past the cursor on the rubric: the
                      daily quality number for the REPLIES (ledger suite "shadow"); nothing new
