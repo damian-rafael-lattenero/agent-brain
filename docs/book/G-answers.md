@@ -50,3 +50,15 @@ Each block answers the three questions of that card, in order.
 1. Because the brain has no opinion to give: retrieval returns ranked passages and the caller — bot, agent, eval — composes the answer. Ranking under a budget is the whole job, and the citation is what makes the result checkable.
 2. The vector leg catches meaning and paraphrase but misses exact names; the full-text leg catches exact words but misses paraphrase. RRF refuses to compare their scores: it uses only ranks, one over sixty plus the rank per list.
 3. Words no note contains — including ordinary words like "what" and "the", because the `simple` configuration keeps stopwords and the query ANDs every token. You see it as an empty `text_rank` on every hit while the vector leg still answers.
+
+## D5
+
+1. Allow (nothing attached), guide (a note rides along), ask (one question to you), block (a refusal with its reason). Each constructor carries exactly what the next step needs, and the caller dispatches on the tag.
+2. It cites one written, self-tested pattern and never a judgement call — and it never throws: it answers with a value, so the caller stays a dispatch table.
+3. In `~/.zcode/hooks/state/denials.tsv`, one row per blocked action, audited by `Scripts/tests/scripts/denial-ledger.nu`.
+
+## D7
+
+1. `goal · constraints · nonGoals · acceptance`. A request that is only conversational — a greeting, thanks, a question about the conversation itself — earns no card: the draft answers null and says why.
+2. The repeated-call streak twice past the static guard's count, and a stop after two or more model steps. The stopped attempt is judged at the next turn's start so the teardown path spawns no model call — the note then rides the fresh attempt.
+3. `aligned` (nothing happens), `minor_drift` (a note rides to the agent), `drift` (one question to you). A judge that speaks without quoting owes the turn an aligned verdict: drift without quotes is not a verdict, it is an impression.
