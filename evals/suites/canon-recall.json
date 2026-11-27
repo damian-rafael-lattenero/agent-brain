@@ -114,6 +114,16 @@
     {"type": "recall", "id": "rung9-composition-kt", "question": "how does Kotlin compose functions left to right without a composition operator", "uri": "/kotlin-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung9-composition-nu", "question": "why is the nushell pipeline native function composition", "uri": "/nushell-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung10-matching-kt", "question": "when is a Kotlin when exhaustive and why no else branch", "uri": "/kotlin-kb/notes/canon-map.md"},
-    {"type": "recall", "id": "rung10-matching-nu", "question": "nushell match arms without a catch-all and the census test as the coverage proof", "uri": "/nushell-kb/notes/canon-map.md"}
+    {"type": "recall", "id": "rung10-matching-nu", "question": "nushell match arms without a catch-all and the census test as the coverage proof", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung11-folds-kt", "question": "how does a Kotlin fold carry its accumulator and when does the direction matter", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung11-folds-nu", "question": "nushell reduce with a fold identity and the empty list trap", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung12-typeclasses-kt", "question": "how does Kotlin express a type class with instances that carry laws", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung12-typeclasses-nu", "question": "the instance as a record of closures in nushell and why the law test travels with it", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung13-functor-kt", "question": "the functor laws in Kotlin and why map must not change the shape", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung13-functor-nu", "question": "where do the functor laws live in the nushell-fp option operators", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung14-applicative-kt", "question": "independent validations in Kotlin that accumulate every error instead of short-circuiting", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung14-applicative-nu", "question": "all-or-nothing traversal over parsed options in nushell", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung15-monad-kt", "question": "the dependent chain in Kotlin with andThen and the three monad laws", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung15-monad-nu", "question": "option-bind dependent chains in nushell and the short-circuit law", "uri": "/nushell-kb/notes/canon-map.md"}
   ]
 }

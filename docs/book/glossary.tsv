@@ -159,3 +159,4 @@ currying	B04
 partial application	A0.2
 composition	B05
 pattern matching	B08
+type class	B10

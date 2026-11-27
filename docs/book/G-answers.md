@@ -159,6 +159,37 @@ Each block answers the three questions of that card, in order.
 2. Because the expected answer is a VALUE you can pin once: the same input must answer the same forever, so one assertEquals per input is a proof, not a sample.
 3. Effects live at the edges — the suspend/Kotlin functions and the nushell scripts that call the pure cores; the structure says so by layout (mods carry cores, scripts carry the world).
 
+## B09
+
+1. The edge case becomes the fold's starting value; the step becomes the combining function — both lifted out of the recursive original and given names.
+2. The right fold consumes one constructor at a time, so it can stop before the list ends; the strict left fold walks the whole structure first.
+3. The `--fold` identity supplies the starting accumulator, so an empty input answers the identity instead of raising — totality over every list.
+
+## B10
+
+1. The equations: a type class states laws between its methods (decode of encode is the original), and generic code may rely on those laws, not just on the method names.
+2. The instance lives outside the type it serves and nothing global enforces coherence — two codec records for one shape can disagree, and only its own law test holds an instance to its class's equations.
+3. One instance per type, everywhere — the compiler resolves and checks it globally, so no two call sites can see different behavior from the same type.
+
+## B11
+
+1. Identity (`map` of identity is identity) and composition (mapping the composition equals the composition of the mappings) — together they prove the shape survives.
+2. The shape: a map that filters or drops answers a different length or order, and the identity law fails first on anything that drops.
+3. kap's LAWS.md (the executable Functor laws) and `nushell-fp/mods/types.nu` (option-map with its law tests in-file).
+
+## B12
+
+1. Accumulation needs BOTH results kept, but the monad's chain builds the second computation from the first's success — the first failure makes the rest unreachable, so the accumulation shape is applicative-only by design.
+2. `with`, `zipV`, `traverseV` — and their laws are executable in kap's LAWS.md (Applicative Identity among them).
+3. All-or-nothing: any unknown row lands the whole traversal on the err constructor, which names the offending row.
+
+## B13
+
+1. The next computation is BUILT from the previous value — a lookup whose continuation needs the user it found — and the chain operator carries that dependency in its type.
+2. Associativity: re-grouping the chain answers identically, so steps can be extracted and re-laid without changing behavior.
+3. When the steps merely forward each other's values — the chain is nesting ceremony; the fleet's law extracts named functions returning Either (direct style).
+
+
 
 
 ## B07
