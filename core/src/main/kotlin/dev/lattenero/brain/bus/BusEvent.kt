@@ -20,6 +20,13 @@ enum class BusKind(val wire: String) {
 
     /** The owner's 👍/👎 on a sealed turn (audit: the first preference data). */
     @SerialName("turn.feedback") TURN_FEEDBACK("turn.feedback"),
+
+    /**
+     * The owner's correction of the agent's course (plan U8): the words carry
+     * a rule the agent should have followed. The payload carries the correction
+     * kind (steer | stop | cancel | explicit) and the owner's text.
+     */
+    @SerialName("correction") CORRECTION("correction"),
 }
 
 /** Who produced the event. */

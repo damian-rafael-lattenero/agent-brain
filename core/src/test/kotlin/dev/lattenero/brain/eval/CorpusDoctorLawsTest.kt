@@ -98,9 +98,28 @@ class CorpusDoctorLawsTest {
         assertThat(report.failureRate).isEqualTo(0.075)
     }
 
-    /** LAW 5 — an empty window renders an honest clean bill, never an empty table. */
+    /** LAW 5 — LAW_GAP parses from its wire, proposes a RULE sentence, and the degraded bucket stays last. */
     @Test
-    fun `law 5 - an empty window renders the clean bill`() {
+    fun `law 5 - law_gap parses from its wire with the rule proposal`() {
+        val verdict = CorpusDoctor.DoctorVerdict.parse(
+            """{"cause":"law_gap","target_uri":"","proposal":"Always write code comments in English."}""",
+        )
+        assertThat(verdict.cause).isEqualTo(DoctorCause.LAW_GAP)
+        assertThat(verdict.proposal).isEqualTo("Always write code comments in English.")
+        // The vocabulary decides: case and whitespace do not matter (LAW 2's rule, pinned for LAW_GAP).
+        assertThat(CorpusDoctor.DoctorVerdict.parse("""{"cause":" LAW_GAP\n"}""").cause)
+            .isEqualTo(DoctorCause.LAW_GAP)
+        // A typo is NOT law_gap: the unknown wire degrades to the honest bucket...
+        assertThat(CorpusDoctor.DoctorVerdict.parse("""{"cause":"lawgap"}""").cause)
+            .isEqualTo(DoctorCause.UNCLASSIFIED)
+        // ...which stays LAST in the taxonomy, after every real cause (plan U8).
+        assertThat(DoctorCause.entries.last()).isEqualTo(DoctorCause.UNCLASSIFIED)
+        assertThat(DoctorCause.entries[DoctorCause.entries.size - 2]).isEqualTo(DoctorCause.LAW_GAP)
+    }
+
+    /** LAW 6 — an empty window renders an honest clean bill, never an empty table. */
+    @Test
+    fun `law 6 - an empty window renders the clean bill`() {
         val report = fixtureReport(windowDays = 7, gradedTotal = 12, failedTotal = 0, cases = emptyList())
         assertThat(report.markdown()).contains("No failures in the window")
         assertThat(report.causes.values.sum()).isEqualTo(0)

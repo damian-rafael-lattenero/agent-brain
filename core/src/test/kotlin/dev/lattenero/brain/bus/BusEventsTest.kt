@@ -46,4 +46,43 @@ class BusEventsTest {
         assertThat(parsed).isInstanceOf(BusEvents.Parsed.Ok::class.java)
         assertThat((parsed as BusEvents.Parsed.Ok).event.sid).isEqualTo("s")
     }
+
+    @Test
+    fun `a correction event decodes with its payload kind and text`() {
+        val parsed = BusEvents.parse(
+            """{"id":"c1","ts":"2026-11-27T12:00:00.000Z","kind":"correction","sid":"bot-task-9",
+               "turn":"42","source":"bot","payload":{"kind":"steer","text":"no, in English"}}""",
+        )
+        assertThat(parsed).isInstanceOf(BusEvents.Parsed.Ok::class.java)
+        val event = (parsed as BusEvents.Parsed.Ok).event
+        assertThat(event.kind).isEqualTo(BusKind.CORRECTION)
+        assertThat(event.sid).isEqualTo("bot-task-9")
+        assertThat(event.turn).isEqualTo("42")
+        val correction = CorrectionEvent.of(event)
+        assertThat(correction.kind).isEqualTo(CorrectionKind.STEER)
+        assertThat(correction.text).isEqualTo("no, in English")
+    }
+
+    @Test
+    fun `the correction payload is typo-tolerant - unknown kinds degrade to explicit`() {
+        listOf(null, "", "  ", "steered", "CANCEL-ALL").forEach { payloadKind ->
+            val payload = if (payloadKind == null) "{}" else """{"kind":"$payloadKind","text":"always commit first"}"""
+            val parsed = BusEvents.parse(
+                """{"id":"c2","ts":"2026-11-27T12:00:00.000Z","kind":"correction","payload":$payload}""",
+            )
+            val event = (parsed as BusEvents.Parsed.Ok).event
+            assertThat(CorrectionEvent.of(event).kind)
+                .withFailMessage("payload kind '$payloadKind' must degrade to explicit")
+                .isEqualTo(CorrectionKind.EXPLICIT)
+        }
+    }
+
+    @Test
+    fun `the correction text defaults to empty when the payload omits it`() {
+        val parsed = BusEvents.parse(
+            """{"id":"c3","ts":"2026-11-27T12:00:00.000Z","kind":"correction","payload":{"kind":"stop"}}""",
+        )
+        val event = (parsed as BusEvents.Parsed.Ok).event
+        assertThat(CorrectionEvent.of(event).text).isEmpty()
+    }
 }

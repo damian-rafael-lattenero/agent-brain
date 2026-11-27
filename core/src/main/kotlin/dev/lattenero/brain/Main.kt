@@ -14,6 +14,7 @@ import io.ktor.client.statement.bodyAsText
 import dev.lattenero.brain.bus.BusStatus
 import dev.lattenero.brain.bus.BusTransport
 import dev.lattenero.brain.memory.MemoryKind
+import dev.lattenero.brain.memory.CorrectionStatus
 import dev.lattenero.brain.db.Database
 import dev.lattenero.brain.eval.CorpusDoctor
 import dev.lattenero.brain.eval.EvalLedger
@@ -80,6 +81,7 @@ import kotlinx.serialization.json.putJsonArray
 import java.io.IOException
 import java.nio.file.Path
 import java.sql.SQLException
+import java.time.OffsetDateTime
 import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -89,6 +91,12 @@ const val EXIT_OK = 0
 const val EXIT_FAIL = 1
 const val EXIT_USAGE = 2
 const val VECTOR_PREVIEW = 5
+
+/** The `corrections list` default row count. */
+const val DEFAULT_LIST_LIMIT = 20
+
+/** The owner's words bound in the `corrections list` face when no candidate exists yet. */
+const val TEXT_PREVIEW_CAP = 80
 
 const val USAGE = """usage: agent-brain <command> [args]
 
@@ -134,9 +142,9 @@ const val USAGE = """usage: agent-brain <command> [args]
                      "usage"); nothing to grade answers honestly and exits 0
   doctor [--days N] [--limit K]
                      the corpus doctor: judge-classify the graded failures of the production
-                     rag_query log (corpus_gap / phrasing_mismatch / stale_chunk / unanswerable)
-                     into repair proposals; READ-ONLY (proposes, never writes); nothing graded
-                     in the window answers honestly and exits 0
+                     rag_query log (corpus_gap / phrasing_mismatch / stale_chunk / unanswerable /
+                     law_gap) into repair proposals; READ-ONLY (proposes, never writes); nothing
+                     graded in the window answers honestly and exits 0
   shadow-eval [--limit N]
                      judge the newest completed bot turns past the cursor on the rubric: the
                      daily quality number for the REPLIES (ledger suite "shadow"); nothing new
@@ -145,6 +153,11 @@ const val USAGE = """usage: agent-brain <command> [args]
                      the English-corpus migration: legacy Spanish memories translate to English
                      in place (backup table first, re-embedded with nomic, stamped translated_at);
                      one judge call per batch
+  corrections list [--limit N] | accept ID | reject ID
+                     the owner's corrections (U8): review recent rows (id, status, kind, the rule
+                     candidate or the first 80 chars of the owner's words) and decide — accept/
+                     reject flips the status from pending|proposed; acceptance NEVER writes a KB,
+                     hook or corpus file, it only stamps the row
 """
 
 fun main(args: Array<String>) {
@@ -173,6 +186,7 @@ fun run(args: Array<String>): Int {
             "doctor" -> doctor(rest)
             "shadow-eval" -> shadowEval(rest)
             "translate-legacy" -> translateLegacy(rest)
+            "corrections" -> corrections(rest)
             "health" -> health(url = rest.optionValue("--url"))
             "embed" -> embed(rest)
             "config" -> printJson(Config.load().snapshot()).let { EXIT_OK }
@@ -222,6 +236,13 @@ private fun serve(): Int {
                     startProcess(brain.memoryWorker.process(config.memoryPollMs.milliseconds))
                     log.info(
                         "memory worker every {} ms with {}/{}",
+                        config.memoryPollMs, brain.chat.name, brain.chat.model,
+                    )
+                    // The corrections loop (plan U8) rides the same cadence
+                    // knob and the same chat provider as the memory worker.
+                    startProcess(brain.correctionWorker.process(config.memoryPollMs.milliseconds))
+                    log.info(
+                        "correction worker every {} ms with {}/{}",
                         config.memoryPollMs, brain.chat.name, brain.chat.model,
                     )
                 }
@@ -730,6 +751,65 @@ private suspend fun memoryDedup(brain: Brain, dryRun: Boolean): Int {
     if (!dryRun) brain.memoryStore.applyDedup(plan)
     printJson(responseJson.encodeToJsonElement(DedupReport.serializer(), MemoryDedup.report(rows, plan, dryRun)))
     return EXIT_OK
+}
+
+/**
+ * `corrections list [--limit N] | accept ID | reject ID` (plan U8): the
+ * owner's review surface. list prints the recent rows (id, status, kind, and
+ * the rule candidate or the first 80 chars of the owner's words); accept and
+ * reject flip the row's status with decided_at — only from pending |
+ * proposed, so a decided row is closed forever. NOTHING writes to KBs, hooks
+ * or the corpus: acceptance is a status flip, the proposal stays in the row.
+ * An unknown id answers one honest line and exits 1.
+ */
+private fun corrections(args: List<String>): Int {
+    val sub = args.firstOrNull() ?: return usage()
+    return when (sub) {
+        "list" -> correctionsList(limit = args.optionValue("--limit")?.toIntOrNull() ?: DEFAULT_LIST_LIMIT)
+        "accept" -> correctionsDecide(CorrectionStatus.ACCEPTED, sub, args.drop(1))
+        "reject" -> correctionsDecide(CorrectionStatus.REJECTED, sub, args.drop(1))
+        else -> usage()
+    }
+}
+
+private fun correctionsList(limit: Int): Int {
+    if (limit < 1) return fail("corrections: --limit must be >= 1")
+    return withBrain(Config.load()) { brain ->
+        brain.migrator.apply()
+        val rows = brain.correctionStore.listRecent(limit)
+        printJson(buildJsonArray {
+            rows.forEach { row ->
+                add(buildJsonObject {
+                    put("id", row.id)
+                    put("status", row.status)
+                    put("kind", row.kind)
+                    put("candidate", row.candidate)
+                    put("text_preview", row.text.take(TEXT_PREVIEW_CAP))
+                })
+            }
+        })
+        EXIT_OK
+    }
+}
+
+private fun correctionsDecide(status: CorrectionStatus, sub: String, args: List<String>): Int {
+    val id = args.firstOrNull() ?: return fail("corrections: usage: corrections $sub ID")
+    return withBrain(Config.load()) { brain ->
+        brain.migrator.apply()
+        val flipped = brain.correctionStore.decide(id, status, OffsetDateTime.now())
+        if (!flipped) {
+            return@withBrain fail(
+                "corrections: cannot $sub '$id' — unknown id, or the row is already accepted/rejected",
+            )
+        }
+        val row = brain.correctionStore.byId(id)
+        printJson(buildJsonObject {
+            put("id", id)
+            put("status", status.wire)
+            put("candidate", row?.candidate)
+        })
+        EXIT_OK
+    }
 }
 
 /**

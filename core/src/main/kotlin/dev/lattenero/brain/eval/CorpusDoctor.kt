@@ -40,7 +40,11 @@ import kotlin.time.TimeSource
 /**
  * WHY the retrieval failed, on the doctor's fixed vocabulary. `parse` is
  * TOTAL: a null/unknown wire degrades to UNCLASSIFIED (the honest bucket —
- * an undiagnosed failure is a finding too, never a crash).
+ * an undiagnosed failure is a finding too, never a crash), which stays LAST
+ * in the taxonomy: every real cause precedes the degraded one. A LAW_GAP
+ * failure proposes a RULE sentence (plan U8), and the proposal lives only in
+ * the report — the doctor stays READ-ONLY, nothing it says is ever written
+ * to a KB, hook or corpus file.
  */
 @Serializable
 enum class DoctorCause(val wire: String) {
@@ -48,6 +52,7 @@ enum class DoctorCause(val wire: String) {
     PHRASING_MISMATCH("phrasing_mismatch"),
     STALE_CHUNK("stale_chunk"),
     UNANSWERABLE("unanswerable"),
+    LAW_GAP("law_gap"),
     UNCLASSIFIED("unclassified");
 
     companion object {
@@ -249,12 +254,15 @@ class CorpusDoctor(private val db: Database, private val judge: ChatProvider) {
                 "a language mismatch alone is NOT a corpus gap. Given the question and the numbered " +
                 "chunks that were served and judged irrelevant, classify WHY the retrieval failed and " +
                 "return JSON only: {\"cause\": \"corpus_gap\" | \"phrasing_mismatch\" | \"stale_chunk\" | " +
-                "\"unanswerable\" | \"unclassified\", \"target_uri\": \"\", \"proposal\": \"one concrete " +
-                "repair sentence\"}. corpus_gap = the knowledge needed does not exist in the corpus; " +
-                "phrasing_mismatch = a served chunk is on-topic but the answer is buried under other " +
-                "wording (target_uri = that chunk's uri); stale_chunk = the chunk is outdated for this " +
-                "question (target_uri = the chunk to refresh); unanswerable = the question is outside " +
-                "what this personal corpus should answer. If unsure, use \"unclassified\" with an empty proposal."
+                "\"unanswerable\" | \"law_gap\" | \"unclassified\", \"target_uri\": \"\", \"proposal\": " +
+                "\"one concrete repair sentence\"}. corpus_gap = the knowledge needed does not exist in " +
+                "the corpus; phrasing_mismatch = a served chunk is on-topic but the answer is buried " +
+                "under other wording (target_uri = that chunk's uri); stale_chunk = the chunk is " +
+                "outdated for this question (target_uri = the chunk to refresh); unanswerable = the " +
+                "question is outside what this personal corpus should answer; law_gap = the failure " +
+                "is a missing RULE or law — the agent needed a constraint the corpus's laws/notes do " +
+                "not carry (proposal = the rule sentence). If unsure, use \"unclassified\" with an " +
+                "empty proposal."
 
         private val SCHEMA: JsonObject = buildJsonObject {
             put("type", "object")
