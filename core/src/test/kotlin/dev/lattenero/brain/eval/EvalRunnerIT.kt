@@ -86,8 +86,13 @@ class EvalRunnerIT {
             }
         }
         assertThat(suites.filter { it.live }.map { it.name }).containsExactly("canon-recall")
+        // The live suite's jurisdiction grew with the rungs (plan §5: every
+        // rung adds its per-language eval case): the Canon, the Theory and
+        // the two language canon-maps — real notes, never the fixture.
         suites.filter { it.live }.flatMap { it.cases }.filterIsInstance<RecallCase>().forEach { case ->
-            assertThat(case.uri).matches("/(haskell-kb/notes/concepts|theory-kb/notes/category-theory)/[a-z0-9-]+\\.md")
+            assertThat(case.uri).matches(
+                "/(haskell-kb/notes/concepts|theory-kb/notes/category-theory|kotlin-kb/notes|nushell-kb/notes)/[a-z0-9-]+\\.md",
+            )
         }
         assertThat(suites.first { it.name == "recall-core" }.cases).hasSize(33)
         suites.single { it.kind == EvalKind.GROUNDED }.cases.filterIsInstance<GroundedCase>().forEach { case ->
