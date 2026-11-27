@@ -62,6 +62,20 @@ class PgBusIngest private constructor(private val db: Database, val stats: Inges
                         event.source.wire,
                         event.payload.toString(),
                     ).value.toInt()
+                    // The corrections mirror (plan U8): the same transaction
+                    // lands the durable row for kind=correction events,
+                    // idempotent by the event id (insert-or-ignore).
+                    if (event.kind == BusKind.CORRECTION) {
+                        val correction = CorrectionEvent.of(event)
+                        brainDb.correctionsQueries.insertCorrection(
+                            id = event.id,
+                            sid = event.sid,
+                            turn = event.turn,
+                            kind = correction.kind.wire,
+                            text = correction.text,
+                            createdAt = OffsetDateTime.parse(event.ts),
+                        )
+                    }
                 }
             }
             landed

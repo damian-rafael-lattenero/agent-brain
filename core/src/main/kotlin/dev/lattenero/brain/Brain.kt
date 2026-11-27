@@ -7,6 +7,9 @@ import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import kap.Meter
 import kap.micrometer.MicrometerMeter
 import dev.lattenero.brain.chat.ChatProviders
+import dev.lattenero.brain.memory.CorrectionExtractor
+import dev.lattenero.brain.memory.CorrectionStore
+import dev.lattenero.brain.memory.CorrectionWorker
 import dev.lattenero.brain.memory.EdgeBackfill
 import dev.lattenero.brain.memory.EdgeBuilder
 import dev.lattenero.brain.memory.MemoryExtractor
@@ -202,6 +205,27 @@ class Brain private constructor(
         graph = memoryGraph,
         edges = edgeBuilder,
     )
+
+    /**
+     * U8, the owner's corrections: the durable rows, the extractor (the SAME
+     * primary chat and breaker knobs as the memory extractor — no new config
+     * surface) and the worker that proposes one rule sentence per pending
+     * row. Nothing here writes a KB, a hook or the corpus: the acceptance is
+     * the CLI's status flip, the proposal lives in the row.
+     */
+    val correctionStore: CorrectionStore = CorrectionStore(db)
+    val correctionExtractor: CorrectionExtractor = CorrectionExtractor(
+        chat = chat,
+        timeout = config.chatTimeoutS.seconds,
+        tracer = tracer,
+        breaker = CircuitBreaker(
+            maxFailures = config.embedBreakerFailures,
+            retryAfter = config.embedBreakerResetS.seconds,
+            // The same F79e lesson as the extract breaker above (the knobs are shared).
+            successThreshold = ProviderResilience.DEFAULT_BREAKER_SUCCESS_THRESHOLD,
+        ),
+    )
+    val correctionWorker: CorrectionWorker = CorrectionWorker(correctionStore, correctionExtractor)
 
     companion object {
         const val COMPONENT_DATABASE = "database"

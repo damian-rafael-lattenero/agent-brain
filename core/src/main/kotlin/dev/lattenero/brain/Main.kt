@@ -224,6 +224,13 @@ private fun serve(): Int {
                         "memory worker every {} ms with {}/{}",
                         config.memoryPollMs, brain.chat.name, brain.chat.model,
                     )
+                    // The corrections loop (plan U8) rides the same cadence
+                    // knob and the same chat provider as the memory worker.
+                    startProcess(brain.correctionWorker.process(config.memoryPollMs.milliseconds))
+                    log.info(
+                        "correction worker every {} ms with {}/{}",
+                        config.memoryPollMs, brain.chat.name, brain.chat.model,
+                    )
                 }
                 BrainServer.start(
                     config, brain.readiness, brain.bus, brain.rag, brain.indexer, brain.memory,
