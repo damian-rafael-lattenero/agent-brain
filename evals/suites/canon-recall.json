@@ -100,6 +100,8 @@
     {"type": "recall", "id": "rung2-totality-kt", "question": "why are force unwraps banned in Kotlin and what replaces a not-null assertion in a test", "uri": "/kotlin-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung2-totality-nu", "question": "total readers in nushell: reading a JSON field that may be missing without an error", "uri": "/nushell-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung3-immutability-kt", "question": "why is var banned in Kotlin main sources and what replaces an accumulator", "uri": "/kotlin-kb/notes/canon-map.md"},
-    {"type": "recall", "id": "rung3-immutability-nu", "question": "mut in nushell: why closures refuse it and reduce instead", "uri": "/nushell-kb/notes/canon-map.md"}
+    {"type": "recall", "id": "rung3-immutability-nu", "question": "mut in nushell: why closures refuse it and reduce instead", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung4-absence-kt", "question": "why is an empty string a bad stand-in for a missing id in Kotlin and what goes there instead", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung4-absence-nu", "question": "empty string versus null in nushell: which one means missing", "uri": "/nushell-kb/notes/canon-map.md"}
   ]
 }

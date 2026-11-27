@@ -123,6 +123,13 @@ Each block answers the three questions of that card, in order.
 2. Nothing: the input record stays exactly as it was. `update` answers a NEW record; the old binding keeps the old shape and remains valid, which is why the drill's test can pin both at once.
 3. In test sources — fixtures and `lateinit` wiring live there, measured as most of the fleet's rebindable-slot debt. It is legal because test state is read within one test's lifetime and the gate's jurisdiction deliberately stops at `src/test/`.
 
+## B07
+
+1. The meaning it stands in for (there IS no turn / no title) and the meaning it wears (this string is a real, empty value) — and every consumer must hold them apart from memory, forever, with nothing in the type to help.
+2. At the wire edge only: `put("turn", turnId ?: "")` is the one honest translation. It never belongs in a value — an id or a key that is `""` is an invented identity that consumers cannot distinguish from a real one.
+3. Because it answers true for both `''` and `null`, so a guard on it cannot tell a deliberately empty value from a missing one. `describe` asks instead: `'nothing'` is the absence's name, anything else is a value.
+
+
 
 
 

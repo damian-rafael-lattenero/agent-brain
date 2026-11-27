@@ -149,3 +149,5 @@ force-unwrap	B21
 immutable	B02
 var	B02
 mut	B02
+Maybe	B07
+Either	A0.2
