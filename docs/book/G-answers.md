@@ -92,3 +92,9 @@ Each block answers the three questions of that card, in order.
 1. `steer` (your redirection words, mid-flight), `stop` and `cancel` (you cutting it, no words), `explicit` (the named fix, reserved until a real surface exists). Attribution: the live turn when steering, else the last sealed turn for that session, else unknown-but-recorded.
 2. That the extractor tried and had nothing to say: the row keeps its attempt stamp and stays pending so the worker retries it — an honest queue entry. Killing the row would pretend the words carried no rule, which was never measured.
 3. You do, by hand: `agent-brain corrections accept <id>` flips `proposed` to `accepted` (guarded; only from pending or proposed). Promotion still does NOT write a hook or a KB note — the accepted sentence lives in the table, and turning it into a running gate is a separate, explicitly approved step.
+
+## D6
+
+1. A gate refuses BEFORE the action (deterministic, one written pattern); an oracle answers AFTER it and can never refuse — PostToolUse carries no blocking power, so the compiler's verdict rides as a note the writer reads seconds after the write.
+2. The TIME CAP (gradle 45 s, ghc 20 s — a cap is announced, never hidden) and the COOLDOWN (one judgment per file per window, and the stamp is written only after a real judgment — a crashed leg does not consume it). Every run lands one row in oracles.tsv.
+3. rag-guard now injects every `*-kb/notes/` tree (the old list named only nushell-kb, so the Kotlin, Haskell and theory notes never rode along); design-guard covers `.hs` and queries the law notes live at a Haskell new-file moment. Each waited for the oracle because they are the other two halves of the same write-time truth: mechanics refuse, retrieval guides, the compiler measures.
