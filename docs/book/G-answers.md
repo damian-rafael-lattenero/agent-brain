@@ -62,3 +62,9 @@ Each block answers the three questions of that card, in order.
 1. `goal · constraints · nonGoals · acceptance`. A request that is only conversational — a greeting, thanks, a question about the conversation itself — earns no card: the draft answers null and says why.
 2. The repeated-call streak twice past the static guard's count, and a stop after two or more model steps. The stopped attempt is judged at the next turn's start so the teardown path spawns no model call — the note then rides the fresh attempt.
 3. `aligned` (nothing happens), `minor_drift` (a note rides to the agent), `drift` (one question to you). A judge that speaks without quoting owes the turn an aligned verdict: drift without quotes is not a verdict, it is an impression.
+
+## D10
+
+1. Whether every acceptance statement is checkable as done from the reply, and whether the reply carries the three parts of the shape. The first miss bounces the turn ONCE with the gaps and the shape written down; the second miss is a notice on your card, and only your tap sends the work back.
+2. Uncertainty fails because an acceptance line the reply cannot prove is not met — "probably done" is not a measurement. A broken seal passes the turn because the seal measures, it never traps: a judge that cannot read must not bounce work, and its failure is logged to be counted instead.
+3. `result` — what is done; `evidence` — the proof that it is done (a command, a test, a number, a cited file); `next` — the one next step, or that nothing remains. The seal refuses an answer with no proof or no direction, and it does not grade prose style.
