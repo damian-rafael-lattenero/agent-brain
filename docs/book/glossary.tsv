@@ -146,3 +146,6 @@ constructor	B06
 exhaustive	B06
 total function	B21
 force-unwrap	B21
+immutable	B02
+var	B02
+mut	B02

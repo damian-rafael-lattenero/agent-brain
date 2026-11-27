@@ -98,6 +98,8 @@
     {"type": "recall", "id": "rung1-taxonomy-kt", "question": "how do I model a closed taxonomy of wire values in Kotlin with a total parse", "uri": "/kotlin-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung1-taxonomy-nu", "question": "tagged records as sum types in nushell, the uniform shape where the tag decides", "uri": "/nushell-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung2-totality-kt", "question": "why are force unwraps banned in Kotlin and what replaces a not-null assertion in a test", "uri": "/kotlin-kb/notes/canon-map.md"},
-    {"type": "recall", "id": "rung2-totality-nu", "question": "total readers in nushell: reading a JSON field that may be missing without an error", "uri": "/nushell-kb/notes/canon-map.md"}
+    {"type": "recall", "id": "rung2-totality-nu", "question": "total readers in nushell: reading a JSON field that may be missing without an error", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung3-immutability-kt", "question": "why is var banned in Kotlin main sources and what replaces an accumulator", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung3-immutability-nu", "question": "mut in nushell: why closures refuse it and reduce instead", "uri": "/nushell-kb/notes/canon-map.md"}
   ]
 }

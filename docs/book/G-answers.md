@@ -117,5 +117,12 @@ Each block answers the three questions of that card, in order.
 2. The method's voidness on the JVM: an expression-bodied test infers its tail's type, and a nullable tail makes the signature `Unit?` — which JUnit does not recognize as a test method, so it SILENTLY SKIPS it while the suite reports green. `: Unit` pins the contract.
 3. The optional read (`get -o` plus `default`), the shape check before a read (`describe` prefix-matched — `from json` on garbage returns the string itself), and the completed edge (`complete` for every external, an exit code never ignored).
 
+## B02
+
+1. Because every write reaches every read without either mentioning the other: whoever holds the slot can change what everyone else sees, mid-flight, invisibly. An immutable value severs the channel — what a function received is what it keeps.
+2. Nothing: the input record stays exactly as it was. `update` answers a NEW record; the old binding keeps the old shape and remains valid, which is why the drill's test can pin both at once.
+3. In test sources — fixtures and `lateinit` wiring live there, measured as most of the fleet's rebindable-slot debt. It is legal because test state is read within one test's lifetime and the gate's jurisdiction deliberately stops at `src/test/`.
+
+
 
 
