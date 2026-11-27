@@ -144,3 +144,5 @@ product type	B06
 sealed	B06
 constructor	B06
 exhaustive	B06
+total function	B21
+force-unwrap	B21

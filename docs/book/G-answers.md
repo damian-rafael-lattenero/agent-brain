@@ -111,4 +111,11 @@ Each block answers the three questions of that card, in order.
 2. Because it is partial: `enumValueOf` throws `IllegalArgumentException` on an unknown wire, and a wire boundary sees unknown wires by definition — the total `byWire ?: degraded` parse is the only shape where every input lands somewhere.
 3. Because the `else` swallows the type checker's exhaustiveness proof: the `when` compiles forever, and the branch added next year falls into `else` silently. Without the `else`, adding a branch is a compile error at every unfinished dispatch — the type checker becomes the checklist.
 
+## B21
+
+1. The degraded value keeps the program's story going and can be logged, counted and corrected — a bare NPE ends the story at a line that names nothing: no row, no field, no context. A slightly-wrong value is evidence; a nameless crash is silence.
+2. The method's voidness on the JVM: an expression-bodied test infers its tail's type, and a nullable tail makes the signature `Unit?` — which JUnit does not recognize as a test method, so it SILENTLY SKIPS it while the suite reports green. `: Unit` pins the contract.
+3. The optional read (`get -o` plus `default`), the shape check before a read (`describe` prefix-matched — `from json` on garbage returns the string itself), and the completed edge (`complete` for every external, an exit code never ignored).
+
+
 
