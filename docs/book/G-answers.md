@@ -123,6 +123,13 @@ Each block answers the three questions of that card, in order.
 2. Nothing: the input record stays exactly as it was. `update` answers a NEW record; the old binding keeps the old shape and remains valid, which is why the drill's test can pin both at once.
 3. In test sources — fixtures and `lateinit` wiring live there, measured as most of the fleet's rebindable-slot debt. It is legal because test state is read within one test's lifetime and the gate's jurisdiction deliberately stops at `src/test/`.
 
+## B20
+
+1. It catches `Throwable` — and CancellationException IS a `Throwable` on the JVM — so the caller's give-up signal is laundered into a value: the rescue leg runs in a cancelled scope, structured concurrency hangs or loses work. Over pure CPU code (a json parse) there is nothing to cancel, so the net is honest there.
+2. The typed value (expected, actionable failures — the caller handles them), throw (bugs and invariant violations, honest crashes), cancellation (cooperative control flow — rethrown always), and border convert (a throwing library converted ONCE at the edge: the known case to the domain, the unknown rethrown).
+3. A `complete` record — `{stdout, stderr, exit_code}` — and the script decides on the exit code as a value; nothing is ignored, and stderr is carried as the reason.
+
+
 ## B07
 
 1. The meaning it stands in for (there IS no turn / no title) and the meaning it wears (this string is a real, empty value) — and every consumer must hold them apart from memory, forever, with nothing in the type to help.
