@@ -115,4 +115,14 @@ def main []: nothing -> nothing {
         let total: int = ($parsed.total? | default 0)
         announce-loud $"🌙 <b>Shadow eval FELL BELOW the gate</b> — ($passed)/($total) turns at rubric 4+."
     }
+
+    # U22: the fleet's numbers (first-pass, rumbo) measured and recorded daily
+    # — the ledger keeps the rows, /learn shows them. A failure does not fail
+    # the night; the alarm speaks.
+    let numbers: record = (do { ^$nu.current-exe /Users/lattenero/Scripts/scripts/eval-numbers.nu } | complete)
+    print $"eval-numbers: exit ($numbers.exit_code)"
+    if $numbers.exit_code != 0 {
+        print (fold-stderr $numbers | str substring 0..300)
+        announce-loud "🌙 <b>eval-numbers FAILED</b> — the fleet numbers did not land in the ledger"
+    }
 }
