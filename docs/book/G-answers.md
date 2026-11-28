@@ -352,3 +352,123 @@ Each block answers the three questions of that card, in order.
 1. A deploy must not depend on the phone being awake — missing config, empty token, dead network are all no-ops; the deploy's own gate decides success.
 2. The same announce block lived in the bot, whatsdigest and the fork's fork-ops; the audit wave deduped it into `mods/telegram.nu`.
 3. The bot daemon (BotCommands, live card, seal verdicts); this module carries only the deploy announce rung.
+
+## H01
+
+1. Associativity — `h ∘ (g ∘ f) = (h ∘ g) ∘ f` — and identity, `f ∘ id = f` and `id ∘ f = f`. Nothing else is required; nothing about the objects enters the definition.
+2. The `Category` class cannot represent anything wider than types; partial functions (bottom) are not arrows; and the laws are unchecked, since equality is not defined for functions.
+3. "A pipeline is composed of three parts: the input, the filter, and the output", and the arrow is declared in a custom command's signature: `def "str stats" []: string -> record`.
+
+## H02
+
+1. `F (g ∘ f) = F g ∘ F f` and `F id_a = id_{F a}` — on `F` itself, the same two laws `fmap` carries.
+2. The reader instance: `fmap f g = f . g` — post-composition, nothing iterated, so `fmap` cannot mean "loop".
+3. It allows smashing and gluing; it forbids breaking apart — no element created, dropped, or reordered by the map.
+
+## H03
+
+1. For every arrow `f : a → b`, `G f ∘ α_a = α_b ∘ F f` — the translation commutes with everything, one square per arrow.
+2. Parametricity: one formula for ALL types cannot inspect them, so it cannot do anything but commute; it breaks for class-constrained functions, which are given per instance.
+3. `Raise<E>` functions transforming into `Either`, `Ior`, `Result`, `Option` or nullable — with no uniformity law stated.
+
+## H04
+
+1. Every other cone factors through it by a UNIQUE morphism; uniqueness bans junk — the triple with an ignored component has two factorizers, so it is not a product.
+2. `(a, b)` and `Either e a`; the encoding leaves out limits of general diagrams — no pullbacks or pushouts in the mirrored manuals.
+3. Compound types (`record<...>`, `table<...>`) are the product shape; union types (`oneof<...>`) are the coproduct shape.
+
+## H05
+
+1. `η : I_D → R ∘ L` and `ε : L ∘ R → I_C`; the triangles say `ε_{L d} ∘ L η_d = id` and `R ε_c ∘ η_{R c} = id` — the outer legs are identities, nothing more.
+2. It holds the factorization for ALL objects at once (a global hom-set isomorphism), while being weaker than equivalence: the reversed composites `R ∘ L → I_D` and `I_C → L ∘ R` need not exist.
+3. `[2, 3]` is a new element, not the product: the free construction remembers instead of computing, and only the counit folds it back — one direction each.
+
+## H06
+
+1. `unit :: f ()` and `(**) :: f a -> f b -> f (a, b)`; "`pure` and `(<*>)` are equivalent in power to `unit` and `(**)`".
+2. Lax forbids the reverse map `f (a, b) -> (f a, f b)`; the naturality law is a free theorem — a consequence of parametricity, not a check anyone runs.
+3. In `zipOrAccumulate` / `mapOrAccumulate`: both operands are values from the start, so both errors surface — a bind builds the second from the first and hides it.
+
+## H07
+
+1. `μ : m ⊗ m → m` (multiplication) and `η : i → m` (unit); associativity through the associator, unit laws through the unitors.
+2. "The laws simply state that `return` is the identity of `(>=>)`, and that `(>=>)` is associative" — the monad laws read as a monoid's.
+3. In the category of endofunctors, with composition as tensor — not in the category of types, where `Monad` is written with bind and no transformation named.
+
+## H08
+
+1. Arrows `a → m b`; identity `return`; composition `(>=>)` threading the wrapped value — a category in the full sense of H01.
+2. Plain composition needs the output type to match the input type: `Option[Int]` is not `Int`, so `Function1.compose` does not type — `>=>` threads and unwraps.
+3. http4s: "Since middleware returns a `Kleisli`, you can compose it with another middleware" — a middleware IS one such arrow, service to service.
+
+## H09
+
+1. A carrier `a` and an evaluator `f : F a → a`; initiality promises exactly one homomorphism from the initial algebra to every other.
+2. `foldr`'s combine is `alg`, its starting value is the algebra's carrier on the empty shape — the two arguments are the two components.
+3. `j` is an isomorphism: the initial algebra's evaluation has an inverse, which is what makes the fixed point exact.
+
+## H10
+
+1. Every monoid homomorphism `F x → m` corresponds to exactly one function `x → U m` on generators — and conversely.
+2. It builds the "maximum" monoid on the generators, imposing nothing beyond unit and associativity; "free" does NOT mean cheap or loose — it means structure-free.
+3. In tagless final the syntax is the interface (`class Expr rep`) and the interpreter is the instance; with `Free` the syntax is data (`Pure`/`Free`) and the interpreter pattern-matches.
+
+## H11
+
+1. A terminal object, a product of any pair, and an exponential for any pair.
+2. For every `g : z × a → b` there is a unique `h : z → (a ⇒ b)` — the product-with-`a` adjunction, evaluation its counit; currying is that correspondence.
+3. Eager memoization of all function values — a function is code, not a stored table; the object exists, the tabulation does not.
+
+## H12
+
+1. `Nat(C(a, −), F) ≅ F a`; the transformation is fixed by `α_a(id_a)` — one value at the identity.
+2. Parametricity: one formula for all types can only use what it already holds, so its behavior is forced; `Reader () a -> Maybe a` has exactly two inhabitants.
+3. `forall r. (a -> r) -> r ≅ a` — continuation passing style, "common in UIs, in asynchronous systems, and in concurrent programming".
+
+## H13
+
+1. The left carries `η : D → Lan_K D ∘ K`, the right `ε : Ran_K D ∘ K → D`; both universal among constructions of their shape.
+2. Ends become (co)ends written as quantifiers, hom-sets become function types — `Ran` and `Lan` are newtypes over `forall` and `exists` shapes.
+3. Limits, colimits, adjunctions, monads and the Yoneda lemma — the saying is that all of them derive.
+
+## H14
+
+1. `f : b → a` maps to `G f : G a → G b`; the laws keep identity and reverse composition: `G (g ∘ f) = G f ∘ G g`.
+2. It satisfies the same two laws read in `C^op` — the opposite category's arrows are the originals reversed.
+3. You cannot build `b -> r` from an `a -> b` and an `a -> r`; fix the argument (`instance Functor (Either a)`), or use `Op`.
+
+## H15
+
+1. Contravariant in the first argument, covariant in the second; `dimap` pre-composes the first against the flow and post-composes the second with it.
+2. `(q ∘ p) a b = ∫^c p c a × q b c` — one summand per intermediary; the hom-functor is the unit, and the laws hold up to natural isomorphism.
+3. Because for `(->)` the lift is `cd . bc . ab`: to turn `p b c` into `p a c` you must go from `a` to `b` first.
+
+## H16
+
+1. `extract` is the dual of `return`; `duplicate` of `join`; `extend` of `(=<<)` — the same three arrows, all reversed.
+2. The stream is the context: a co-Kleisli arrow sees the focus and its surroundings, "a co-Kleisli arrow for a stream is just a digital filter", and `extend` maps it over every focus to produce the filtered stream.
+3. It cannot insert values — "a comonad ... does not give the means to insert values"; the context arrives pre-filled and may only be read and extended.
+
+## H17
+
+1. The associator `(a ⊗ b) ⊗ c → a ⊗ (b ⊗ c)` and the left and right unitors `i ⊗ a → a`, `a ⊗ i → a` — natural isomorphisms bound by coherence conditions; symmetry adds `a ⊗ b → b ⊗ a`.
+2. `(x, (y, z))` and `((x, y), z)` are different values, so reassociation is a real arrow carrying data — "we can't just write point-free" the laws as equalities.
+3. Electrical and digital circuits, signal flow graphs, Petri nets, Bayesian networks, neural networks — the same boxes-and-wires calculus.
+
+## H18
+
+1. A presheaf only assigns local data; a sheaf adds the condition that local data agreeing on overlaps glue into one global section.
+2. How far the local views are from being mutually consistent; it "places a lower bound on the amount of distortion incurred by the fusion process".
+3. In the task sheaf of Felber et al.: "terminating solutions are precisely its global sections".
+
+## H19
+
+1. `get : a → s` and `set : a → s → a`; as one arrow, a coalgebra `a → Store s a` with `Store s a = Store (s -> a) s`.
+2. The lens reads and writes a field; the prism handles a variant (partial focus); the traversal reaches every element of a container.
+3. `Store` is a comonad — `extract (Store f s) = f s`, `duplicate` re-focuses — and the lens is a coalgebra for it, which is what makes GETPUT the first coherence law.
+
+## H20
+
+1. H06 (backprop as a monoidal functor, Fong-Spivak-Tuyéras), H13 (agent memory carried by `Lan_u`, Buehler), H17 (meaning as a diagrammatic calculus, Coecke et al.).
+2. "Library-grounded abstraction" over 100 formalized tasks; the best model "solves only 12.0% of tasks at pass@4", collapsing from 55.0% on easy to 0.0% on the hardest.
+3. The field "moves fastest of all" and most rows were read as abstract pages only — a stale row is a wrong citation, and the note keeps the read dates for exactly that check.
