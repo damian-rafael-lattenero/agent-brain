@@ -310,7 +310,8 @@ fun Application.brainModule(
             // ONE writer, the brain.
             post("/eval/record") {
                 val run = call.receiveBodyOrBadRequest<StoredRun>(
-                    "body must be a StoredRun: {\"suite\", \"model\", \"provider\", \"passed\", \"total\", \"gate\", \"ok\", \"kind\", \"axis\"}",
+                    "body must be a StoredRun: suite, model, provider, passed, " +
+                        "total, gate, ok, kind, axis",
                 ) ?: return@post
                 call.runOrBadRequest(IllegalArgumentException::class.java, "bad metric run") {
                     call.respond(HttpStatusCode.Created, evalLedger.recordMetric(run))
