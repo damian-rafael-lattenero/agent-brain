@@ -50,6 +50,9 @@ data class CorrectionRow(
 class CorrectionStore(private val db: Database) {
 
     /** Insert-or-ignore; returns the rows landed (0 for a replayed event id). */
+    // The parameters mirror the corrections table's columns one to one — that
+    // is the whole point of an insert face, so the shape stays.
+    @Suppress("LongParameterList")
     suspend fun insert(
         id: String,
         sid: String,
