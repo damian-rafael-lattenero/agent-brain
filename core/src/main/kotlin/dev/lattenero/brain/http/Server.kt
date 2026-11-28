@@ -9,6 +9,7 @@ import dev.lattenero.brain.db.Migrator
 import dev.lattenero.brain.embeddings.EmbeddingProvider
 import dev.lattenero.brain.embeddings.ProviderHealth
 import dev.lattenero.brain.eval.EvalLedger
+import dev.lattenero.brain.eval.StoredRun
 import dev.lattenero.brain.memory.MemoryKind
 import dev.lattenero.brain.memory.MemoryRequestException
 import dev.lattenero.brain.memory.MemorySaveRequest
@@ -303,6 +304,17 @@ fun Application.brainModule(
                 val matrix = call.request.queryParameters["matrix"]?.toBooleanStrictOrNull() ?: false
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: EvalLedger.DEFAULT_LIMIT
                 call.respond(evalLedger.latest(suite = suite, matrix = matrix, limit = limit))
+            }
+            // U22: the fleet's metric evals (first-pass, rumbo) are measured by
+            // scripts against the session store and land here — the ledger keeps
+            // ONE writer, the brain.
+            post("/eval/record") {
+                val run = call.receiveBodyOrBadRequest<StoredRun>(
+                    "body must be a StoredRun: {\"suite\", \"model\", \"provider\", \"passed\", \"total\", \"gate\", \"ok\", \"kind\", \"axis\"}",
+                ) ?: return@post
+                call.runOrBadRequest(IllegalArgumentException::class.java, "bad metric run") {
+                    call.respond(HttpStatusCode.Created, evalLedger.recordMetric(run))
+                }
             }
         }
     }

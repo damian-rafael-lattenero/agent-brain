@@ -74,6 +74,43 @@ class EvalLedger(private val db: Database, private val embedDim: Int) {
         }
     }
 
+    /**
+     * A metric run the suites do not produce (U22): the fleet's scripts measure
+     * first-pass and rumbo against the session store and hand the row over.
+     * The same table, the same invariants — a generated runId when the caller
+     * omits one, `now` when it omits startedAt — and the same read shape back.
+     */
+    suspend fun recordMetric(run: StoredRun): StoredRun {
+        Migrator(db, embedDim).apply()
+        val runId = run.runId?.let(UUID::fromString) ?: UUID.randomUUID()
+        val startedAt = run.startedAt?.let(OffsetDateTime::parse) ?: OffsetDateTime.now()
+        db.withDriver { brainDb ->
+            brainDb.evalRunsQueries.insertEvalRun(
+                suite = run.suite,
+                model = run.model,
+                provider = run.provider,
+                passed = run.passed,
+                total = run.total,
+                costUsd = BigDecimal.valueOf(run.costUsd),
+                detail = run.detail?.let { json.encodeToString(JsonElement.serializer(), it) } ?: "{}",
+                runId = runId,
+                matrixId = run.matrixId?.let(UUID::fromString),
+                kind = run.kind,
+                axis = run.axis,
+                gate = run.gate,
+                ok = run.ok,
+                tokensPrompt = run.promptTokens,
+                tokensCompletion = run.completionTokens,
+                costKnown = run.costKnown,
+                p50Ms = run.p50Ms ?: 0,
+                p95Ms = run.p95Ms ?: 0,
+                durationMs = 0,
+                startedAt = startedAt,
+            )
+        }
+        return run.copy(runId = runId.toString(), startedAt = startedAt.toInstant().toString())
+    }
+
     /** The most recent runs, newest first; [matrix] answers the rows of the newest matrix instead. */
     suspend fun latest(suite: String? = null, matrix: Boolean = false, limit: Int = DEFAULT_LIMIT): List<StoredRun> {
         val capped = limit.coerceIn(1, MAX_LIMIT).toLong()
