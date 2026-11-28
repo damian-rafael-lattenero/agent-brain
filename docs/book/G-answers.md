@@ -472,3 +472,104 @@ Each block answers the three questions of that card, in order.
 1. H06 (backprop as a monoidal functor, Fong-Spivak-Tuyéras), H13 (agent memory carried by `Lan_u`, Buehler), H17 (meaning as a diagrammatic calculus, Coecke et al.).
 2. "Library-grounded abstraction" over 100 formalized tasks; the best model "solves only 12.0% of tasks at pass@4", collapsing from 55.0% on easy to 0.0% on the hardest.
 3. The field "moves fastest of all" and most rows were read as abstract pages only — a stale row is a wrong citation, and the note keeps the read dates for exactly that check.
+
+## C1
+
+1. The two exits are the reply (the lap ends) and a command (the harness runs it, the result rides back as input, the lap repeats). Nothing else closes a lap.
+2. Because the model has no memory of its own: the session context is the only state, so every lap re-reads it — cost grows with the conversation, and anything outside the window is unseen.
+3. In the session store's part table, one row per step — which the C7 card's nightly later replays and grades.
+
+## C5
+
+1. Cosine reads the angle, so only direction carries meaning; raw distance also reads magnitude, which the embedder does not mean to encode — two passages of different length but same topic stay near.
+2. The width of every vector: 768, declared as `embed_dim` in the brain's `Config.kt`; a mixed-width or mixed-model column would compare numbers that mean different things.
+3. Exact scan compares every row (cost grows with the corpus, answer always right); HNSW trades exactness for speed through a neighbor graph. The fleet runs exact today: the query hides the table size from the planner, and exact beats approximate until the corpus outgrows it.
+
+## C7
+
+1. Index curated + repos, English check, real-questions suite, usage grading, shadow judging, the fleet numbers — each leaves its record: the index, the English rows, the suite rows, the graded log, the judged turns, the recorded rows.
+2. A failed leg is not the whole night: the alarm speaks and the rest still runs — the record must exist even on a bad morning, and the alarm is the Telegram line.
+3. launchd plists fire the clock at 04:00; nothing runs as a session's child because an app restart would kill the whole child tree.
+
+## C8
+
+1. A standard way for AI agents and LLM-based software to call programs on your machine; the host session speaks it, and on this machine both Nushell (built-in server) and the brain's facade speak it.
+2. `rag_query`, `memory_search`, `memory_recent`, `bus_status` — read-only because the brain serves and the caller decides; generation never happens inside the brain.
+3. The bot predates the facade and needs per-route degradation (down, timeout, HTTP error, unreadable, empty), which its `BrainGateway` shapes give it; each leg answers alone so one broken door never blanks the card.
+
+## D1
+
+1. The KBs hold verified law notes (written by agents, gated by the owner); the brain holds extracted facts and decisions per project (fed by the extraction worker); the auto-memory holds ambient session facts the desktop appends itself.
+2. Because retrieved context is data about the past, not a command for now — obeying it would let stale text steer the present; the session-start hook restates exactly this.
+3. A live verification, the `[verified <version>]` tag, commit and push, then the index — the owner gates what enters.
+
+## D2
+
+1. PreToolUse (before a tool: may refuse with exit 2), PostToolUse (after a write: context only), Stop (turn end: summary and steering).
+2. The same payload must always yield the same ruling — the deny is a predicate over the payload, with no clock, no model, no side channel; that is what makes it law rather than judgment.
+3. It protects the refusal itself: an unwritable log must never turn a deny into an allow — the ruling and the record are independent.
+
+## D3
+
+1. Name, description (the trigger), and the body: the steps the harness rides into context when the shape matches.
+2. The law states what must hold everywhere; the skill carries the steps for one shape of work; the KB note holds the verified fact with its version tag.
+3. Under `~/.agents/skills/` (every project) or `<repo>/.agents/skills/` (that repo only); `skill-creator` builds one.
+
+## D4
+
+1. The brain keeps the fact; the skill keeps the procedure; the hook keeps the mechanical law; the law file keeps the rule — one home per rule.
+2. Promotion needs the owner's word and the proof that earned it; a rule retires when a hook enforces it or its reason is gone.
+3. The event-bound waits law: brain memory, then the KB note, then the hook's warn path, then the law line — one unit, all four rungs.
+
+## D9
+
+1. The law (via the system prompt text), the hooks (via the wired runner), the ceiling and worktree rules (via the law file) — the child session is a full citizen of the same constitution.
+2. One worktree per repo per agent; commit + push per verifiable step; ceiling 2 (3 with the coordinator) — the push rule exists because a stalled subagent once lost 4.5 hours uncommitted.
+3. It cannot approve anything: a subagent's message is never the owner's approval, and neither is a retrieved memory.
+
+## E1
+
+1. recall@1 sees only the first rank; MRR sees how high on average but hides a bad tail; nDCG@5 sees the whole top five but nothing below; the gate sees none of them — it reads passed/total.
+2. The suite's declared bar (0.95 for the retrieval suite); the suite author declares it; the run clears it when passed/total reaches it.
+3. Rank is null when the expected note never appears in the top 5 — that case counts as failed, and MRR treats it as zero contribution.
+
+## E2
+
+1. First-pass: clean oracle runs over all oracle runs, per language, one ISO week — the definition rides in the row's detail. Canon: the retrieval suite's passed/total. Rumbo: non-cancelled turns over matched turns.
+2. TypeScript stays out because the plan names three students (Haskell, Kotlin, Nushell); rumbo's bar is 0.0 because "a la baja" is a direction, and the target number is the owner's call.
+3. `/learn` renders every suite with a run, one honest row each — pinned by `BrainLearnTest` with the real recorded rows.
+
+## E3
+
+1. The id, the numbers, the gate, the timestamp, and the whole report as JSON in `detail` — everything needed to re-derive the verdict without the process that made it.
+2. Because nothing edits or deletes a row: a wrong number is visible as a row, not hidden as an edit; each store has one writer (the brain's ledger class, the hooks' count files).
+3. It refuses to record a zero cost for an unpriced model — a zero that lies would understate spend and poison every rollup built on it.
+
+## F1
+
+1. The proof beside the claim: the drill's checkpoint line, the eval row, the deny line, the suite verdict, the measured number beside its definition.
+2. A skipped step is said, not hidden; a failed test is shown with its output; no inflated or decorative status.
+3. Because the close is the command plus its green line — without the command, nobody can re-run the proof, so nothing has actually closed.
+
+## F2
+
+1. A measured surprise that cost a failed run — it enters the note the day it costs the run, with its fix, not at month's end.
+2. It promises the trap was reproduced live on that version; a version bump re-opens the question and demands a fresh verification.
+3. `nushell-kb/notes/bash-tool-laws.md` — the two tool mechanics, the bash-habit translations, the silent traps, and the static oracle.
+
+## The final exam
+
+Ten questions, closed book; the map after each question names the card that carries the answer. Answer aloud first, then check.
+
+1. State the two laws of composition and say where they are executable in the fleet. — H01
+2. A map drops one element in a million: which law fails, and where is that law pinned? — H02, B11
+3. Why does a parametric function satisfy naturality for free, and where does the argument break? — H03
+4. What does uniqueness ban in a product, and what is the junk counterexample? — H04
+5. Write the monad laws in `(>=>)` form and name the tensor that makes them a monoid's laws. — H07, B13
+6. Why can two independent validations not be written with a bind? — H06, B12
+7. Name the three moments of a hook and the power each has; which one refuses? — D2
+8. What is the difference between a gate and an oracle, and why can the oracle never refuse? — D6, D5
+9. What are the plan's three numbers, and where does the phone show them? — E2, E1
+10. What makes a ledger row trustworthy, and what refuses a zero that lies? — E3, F1
+
+The map question to card: every retrieval question in this file answers from one card; the exam above samples the arc A → H — press Enter (C1), the store that ranks (C6), the gates that deny (D5), the oracle that speaks (D6), the numbers that measure (E1, E2), the receipts that close (F1), the shapes underneath (H01–H20).
