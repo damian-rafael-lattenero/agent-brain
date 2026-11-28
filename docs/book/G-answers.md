@@ -262,3 +262,93 @@ Each block answers the three questions of that card, in order.
 1. Form first; choose the denotation; specify by equations; the homomorphism principle (a failing law is a design signal — redesign the denotation, never patch the code); derive the implementation last.
 2. Its denotation is "accumulate ALL errors" — a monad's bind short-circuits on the first failure and would destroy the accumulation, so the abstraction is applicative-only, on purpose.
 3. The instance that typechecks and fails `fmap id = id` — it implements first and never chose a meaning; step 2 of the method exists precisely to stop that.
+
+## N01
+
+1. So every value carries the same shape — `{tag, value}` / `{tag, value, error}` — and every signature stays exact: a consumer never probes whether a field exists, the tag decides.
+2. `traverse-validated` accumulates (applicative, deliberately not a monad — the kap ruling, decided in B25's design); `traverse-option` and `fold-result` short-circuit, because a sequence of dependent reads has nothing to accumulate.
+3. It runs an unsafe closure — file ops, externals, anything that can throw — and answers an `ok` or an `err` VALUE; a raised error becomes `tag: err` with the message, never a crash mid-pipeline.
+
+## N02
+
+1. Because arity 2..23 hand-written is copy-paste; the generator emits the ladder (Kotlin's 23-argument ceiling mirrored) and the round-trip laws are pinned once.
+2. A partial application: `apply-args` applies one `do` per rung and a short list leaves the remaining rungs as the returned closure.
+3. It lets every failed field re-raise AFTER the stream, naming each one — an applicative accumulation over a record instead of a first-failure abort.
+
+## N03
+
+1. Measured live: closures stored in variables, passed as arguments, returned from other closures on 0.117 — the four verbs are just functions over that fact.
+2. Haskell's `.` composes right-to-left, so `compose f g` means "do f, then g"; `thread` (in currying.nu) is the left-to-right twin for pipeline-shaped code.
+3. Its stdlib already has identity, constants, `andThen`/`compose` and method references — the gaps-only law leaves nothing for a library to fill.
+
+## N04
+
+1. A typeclass becomes a record of operations the caller hands in: `{empty, combine}` — the classic dictionary-passing translation, since nushell has no typeclasses either.
+2. `reduce` without `--fold`: it has no identity, so it RAISES on an empty list — the half-monoid.
+3. kap's `fold` already carries an identity, so the do-not-reinvent rule applies there; the shell's fold lacks one, so the dictionary library fills a real gap.
+
+## N05
+
+1. Builtin first (`each`, `where`, `reduce`, `zip`, `chunks`, `uniq`, `flatten`, `transpose`, `interleave`), then this library, then new code — the fp-first-nushell order.
+2. `{emit, next}` — the value to yield and the next seed; `null` ends the list (the anamorphism).
+3. `ap-list`, `lift-a2`, `filter-m`, `replicate-m` — every closure over every value, the list applicative.
+
+## N06
+
+1. `merge deep` is already deep-merge, and `get -o`/`upsert` cover literal cell paths — so the module keeps only dynamic paths and honest defaults.
+2. The path is a list of keys held as a value (computed, passed, stored), and the caller hands the reader the fallback for a missing branch.
+3. The bot parses JSON ONCE at the boundary into typed wire records, so a missing field is a typed absence, not a probe.
+
+## N07
+
+1. Eager: the binding (`let x = expensive`), table payloads, and list literals; free islands: `and`/`or` short-circuit, streaming pipelines, guards before builds.
+2. Because re-forcing runs again by design — the shell has no memoization primitive, so the caching policy belongs to the caller (B16's Kotlin `by lazy` is the memoized twin).
+3. Wrapping an always-used value in a thunk: it builds eagerly anyway and now costs a `force` — premature laziness.
+
+## N08
+
+1. An unbounded loop is the reactive law's forbidden shape, and `nushell-law.nu` denies a blind sleep at ten seconds — the deadline is the structure that replaces it.
+2. `false` at exactly the budget — and the CALLER decides what a timeout means (retry, degrade, fail loud).
+3. Boot-time work: launchd's exit-75 retry (the stack-up pattern) already owns the retry cadence, and nothing in-session needs to block.
+
+## N09
+
+1. The background `job` is the deferred value; the mailbox delivers out-of-order, and sorting on the carried index restores structure order.
+2. A killed job's dying catch can still deliver its outcome — the tag keeps that stale message away from every later call (the mailbox isolation law).
+3. Jobs are threads: they die with the nu process, so durable work goes to a LaunchAgent or a Ghostty tab.
+
+## N10
+
+1. String or list-of-lines — depending on how the external chunked its output (measured 15/11).
+2. The empty string, so a missing error never crashes the error path.
+3. The real error: the slice crashed on the list shape, and the message it was trying to show vanished with the exception.
+
+## N11
+
+1. Because two doors drift: one call appends to the log exactly the line stdout showed, so the receipt IS what the user saw.
+2. `~/Library/Logs/<name>.log`, one per script — post-mortems and `fleet healthcheck` read them.
+3. The Telegram announce rung: deploy phases and seal verdicts speak to the log AND the phone, same discipline.
+
+## N12
+
+1. "1000K" reads as a mistake at the exact moment a human expects the new unit — the M rung fires AT 1,000,000, trailing zeros trimmed.
+2. The rendered table: a token wider than the cell breaks the border (the measured 405-char law), so `hard-wrap` chunks it with spaces first.
+3. In the bot's quota surfaces — `remainingPct` rounds the same way, the number law pinned by tests on both sides.
+
+## N13
+
+1. Nushell's `random` is not seedable (verified 0.117), so generators are pure functions of an explicit seed — the failure replays exactly.
+2. The failing index, ITS seed, and the sample — enough to re-run only that case.
+3. The first candidate that still fails — a `[]` counterexample is the clearest message, a 12-int one is noise.
+
+## N14
+
+1. `nu-highlight` speaks only Nushell and `bat` ships no nu grammar — so the router sends each language to the one tool that knows it.
+2. A structured string leaf (JSON, csv, embedded code): serializers escape strings by design, so nothing else will ever look inside — the tree walk does.
+3. In the fork's code viewer: shiki v4 ships the nu/kt/hs grammars and `EXTENSION_TO_LANGUAGE` routes by extension.
+
+## N15
+
+1. A deploy must not depend on the phone being awake — missing config, empty token, dead network are all no-ops; the deploy's own gate decides success.
+2. The same announce block lived in the bot, whatsdigest and the fork's fork-ops; the audit wave deduped it into `mods/telegram.nu`.
+3. The bot daemon (BotCommands, live card, seal verdicts); this module carries only the deploy announce rung.

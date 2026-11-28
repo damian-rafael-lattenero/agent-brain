@@ -117,21 +117,21 @@ Needs: everything above.
 ### N — Nushell, one card per module (15 cards)
 The hub's own library, one card per module, in dependency order. Needs: A0, B04, B06, B14.
 
-- [ ] N01 `types.nu` — Option and Result as values
-- [ ] N02 `currying.nu` — partial application as a verb
-- [ ] N03 `combinators.nu` — the small verbs that compose
-- [ ] N04 `algebra.nu` — monoids the shell can fold
-- [ ] N05 `list.nu` — lists as the default shape
-- [ ] N06 `json.nu` — `get-in`/`set-in`/`deep-merge-all`
-- [ ] N07 `lazy.nu` — deferring work as a value
-- [ ] N08 `wait.nu` — `wait-until`, no busy loops
-- [ ] N09 `async.nu` — jobs, mailboxes, structured concurrency
-- [ ] N10 `proc.nu` — external processes as records
-- [ ] N11 `log.nu` — the voice of a script
-- [ ] N12 `fmt.nu` — human numbers and widths
-- [ ] N13 `prop.nu` — properties over examples
-- [ ] N14 `highlight.nu` — the syntax highlighter
-- [ ] N15 `telegram.nu` — the phone as an output
+- [x] N01 `types.nu` — Option and Result as values
+- [x] N02 `currying.nu` — partial application as a verb
+- [x] N03 `combinators.nu` — the small verbs that compose
+- [x] N04 `algebra.nu` — monoids the shell can fold
+- [x] N05 `list.nu` — lists as the default shape
+- [x] N06 `json.nu` — `get-in`/`set-in`/`deep-merge-all`
+- [x] N07 `lazy.nu` — deferring work as a value
+- [x] N08 `wait.nu` — `wait-until`, no busy loops
+- [x] N09 `async.nu` — jobs, mailboxes, structured concurrency
+- [x] N10 `proc.nu` — external processes as records
+- [x] N11 `log.nu` — the voice of a script
+- [x] N12 `fmt.nu` — human numbers and widths
+- [x] N13 `prop.nu` — properties over examples
+- [x] N14 `highlight.nu` — the syntax highlighter
+- [x] N15 `telegram.nu` — the phone as an output
 
 ### H — The theory under everything (20 cards)
 One card per theory note, in tier order. Needs: B01–B25 (read after part B).
