@@ -100,7 +100,8 @@ course	E2
 ledger	E3
 receipt	F1
 trap	F2
-monoid	N04
+monoid	B14
+semigroup	B14
 monad	B13
 functor	B11
 applicative	B12
@@ -111,7 +112,10 @@ newtype	B17
 higher-kinded	B18
 parametricity	B19
 free monad	B23
+tagless final	B23
+QuickCheck	B22
 backpressure	B24
+streaming	B24
 denotational design	B25
 homomorphism	B25
 category	H01

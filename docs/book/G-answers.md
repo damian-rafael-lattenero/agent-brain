@@ -232,3 +232,33 @@ Each block answers the three questions of that card, in order.
 
 
 
+
+## B14
+
+1. The associative combine and its identity — named once, so one fold (`foldMap`/`mconcat`) serves every case instead of a hand-rolled accumulator per combine.
+2. Because a number carries ONE combine (`+`) and the laws demand an honest identity — `Sum` and `Product` wrap the number to give each combine its own zero (0 and 1), and the wrapper keeps the instances apart.
+3. An identity: `reduce` without `--fold` has no empty and RAISES on an empty list; the monoid's fold answers the empty with `empty`, not an error.
+
+## B22
+
+1. Because the compiler checks shapes, not behavior — the Typeclassopedia's instance typechecks and still violates identity; the property run over GENERATED cases is what closes the gap.
+2. Functions are not comparable, so `fmap id = id` runs as `fmap id x == x` for generated `x`; a green run is evidence, never a proof — one counterexample falsifies.
+3. The generators are pure functions of an explicit seed (nushell's `random` is not seedable), so every run replays exactly and a failure reproduces.
+
+## B23
+
+1. "Free" because the tree is built from ANY functor's instructions without running them; `iter` collapses the tree by giving each instruction its meaning — the interpreter is a fold.
+2. The sealed instruction tree plus a fold IS the free shape, and the operations interface IS tagless final — no HKT needed for either.
+3. A closure field that RUNS while the script is being built makes the program eager; the payload stays inert (strings, ids, numbers) and only the interpreter does work.
+
+## B24
+
+1. Lazy IO ties effect order to evaluation order — hard to reason about in the large; pipes/conduit replace it with an await/yield PROTOCOL and a composition operator, so memory is constant.
+2. DropOldest(n) kills the OLDEST buffered elements and keeps the newest n; DropLatest(n) kills the INCOMING element and keeps the buffered ones — the victim differs exactly as the name says.
+3. Bounded fan-out (`traverse-jobs --timeout`), mandatory deadlines (`wait-until`), and `job recv --timeout` raising as the honest failure signal — budgets compensate for the missing strategy channels.
+
+## B25
+
+1. Form first; choose the denotation; specify by equations; the homomorphism principle (a failing law is a design signal — redesign the denotation, never patch the code); derive the implementation last.
+2. Its denotation is "accumulate ALL errors" — a monad's bind short-circuits on the first failure and would destroy the accumulation, so the abstraction is applicative-only, on purpose.
+3. The instance that typechecks and fails `fmap id = id` — it implements first and never chose a meaning; step 2 of the method exists precisely to stop that.
