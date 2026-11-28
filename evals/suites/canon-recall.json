@@ -134,6 +134,16 @@
     {"type": "recall", "id": "rung19-hkt-kt", "question": "why Kotlin has no higher-kinded types and what the instance-passing workaround looks like", "uri": "/kotlin-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung19-hkt-nu", "question": "abstracting over shapes in nushell: the per-shape operator table as the instance", "uri": "/nushell-kb/notes/canon-map.md"},
     {"type": "recall", "id": "rung20-parametricity-kt", "question": "what theorems a Kotlin generic signature gives for free and what breaks the promise", "uri": "/kotlin-kb/notes/canon-map.md"},
-    {"type": "recall", "id": "rung20-parametricity-nu", "question": "signature honesty in nushell: concrete types over any and what the typing hook keeps", "uri": "/nushell-kb/notes/canon-map.md"}
+    {"type": "recall", "id": "rung20-parametricity-nu", "question": "signature honesty in nushell: concrete types over any and what the typing hook keeps", "uri": "/nushell-kb/notes/canon-map.md"},
+{"type": "recall", "id": "rung21-semigroup-monoid-kt", "question": "the Monoid interface encoding in Kotlin: empty, combine and foldMap with the identity laws", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung21-semigroup-monoid-nu", "question": "the monoid dictionary in nushell: the {empty, combine} record and fold-map answering empty on the empty list", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung22-laws-as-properties-kt", "question": "laws as generated-case properties in Kotlin: the seeded cases and the evil instance the compiler cannot catch", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung22-laws-as-properties-nu", "question": "the property harness in nushell: for-all with seeded generators, tagged verdicts and shrink-lite", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung23-free-monad-tagless-final-kt", "question": "the program as a value in Kotlin: the sealed instruction tree, interpreters as folds and the operations interface", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung23-free-monad-tagless-final-nu", "question": "the program as a value in nushell: inert instruction records, two interpreters over one script", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung24-streaming-backpressure-kt", "question": "backpressure with named strategies in Kotlin: DropOldest versus DropLatest victims and the exact Suspend", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung24-streaming-backpressure-nu", "question": "bounded fan-out and mandatory deadlines in nushell: traverse-jobs timeout and the wait-until budget", "uri": "/nushell-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung25-denotational-design-kt", "question": "denotational design in Kotlin: the denotation sentence first and the accumulating zipV over the short-circuiting monad", "uri": "/kotlin-kb/notes/canon-map.md"},
+    {"type": "recall", "id": "rung25-denotational-design-nu", "question": "denotational design in nushell: foldMap equals mconcat after map, the homomorphism with both routes one answer", "uri": "/nushell-kb/notes/canon-map.md"}
   ]
 }
